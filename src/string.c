@@ -17,18 +17,13 @@ String StringNew(void) {
 
 ssize_t StringReserve(String *string, size_t count) {
   Layout *layout;
-  void *tmp;
+  char *tmp;
 
   if (string == nullptr || count == 0) {
     return STRING_STATUS_ERR;
   }
 
   layout = &string->layout;
-
-  if (layout->size == 0) {
-    layout->size = sizeof(char);
-  }
-
   LayoutAdd(layout, count);
 
   switch (layout->status) {
@@ -50,65 +45,53 @@ ssize_t StringReserve(String *string, size_t count) {
 }
 
 int StringPush(String *string, char ch) {
-  char *temporary;
+  Layout *layout;
 
   if (string == nullptr) {
     return STRING_STATUS_ERR;
   }
 
-  if (string->layout.capacity == 0) {
-    LayoutAdd(&string->layout, StringStepDefault);
-    temporary = LayoutAlloc(&string->layout);
+  layout = &string->layout;
+
+  if (layout->needed == 0 || layout->needed == layout->size * string->length) {
+    ssize_t status = StringReserve(string, StringStepDefault < sizeof(char)
+                                               ? sizeof(char)
+                                               : StringStepDefault);
+
+    if (status == STRING_STATUS_ERR) {
+      return status;
+    }
   }
 
-  else if (string->layout.capacity == string->layout.size * string->length) {
-    LayoutAdd(&string->layout, StringStepDefault);
-    temporary = LayoutRealloc(&string->layout, string->rawString);
-  }
-
-  switch (string->layout.status) {
-  case LAYOUT_NULL_PTR:
-  case LAYOUT_UNIQUE_PTR:
-    return STRING_STATUS_ERR;
-
-  default:
-    temporary[string->length++] = ch;
-    string->rawString = temporary;
-  }
-
+  string->rawString[string->length++] = ch;
   return STRING_STATUS_OK;
 }
 
 ssize_t StringPushstr(String *string, char *cstr) {
+  Layout *layout;
   size_t length;
-  char *temporary;
 
-  if (string == nullptr || cstr == nullptr)
+  if (string == nullptr || cstr == nullptr) {
     return STRING_STATUS_ERR;
+  }
 
+  layout = &string->layout;
   length = strlen(cstr);
 
-  if (string->layout.capacity > length) {
+  if (layout->needed > layout->size * length) {
     memcpy(string->rawString + string->length, cstr, length);
     string->length += length;
-
     return length;
   }
 
-  LayoutAdd(&string->layout, length);
+  ssize_t status = StringReserve(string, length);
 
-  if (string->layout.status == LAYOUT_NULL_PTR)
-    temporary = LayoutAlloc(&string->layout);
-  else
-    temporary = LayoutRealloc(&string->layout, string->rawString);
+  if (status == STRING_STATUS_ERR) {
+    return status;
+  }
 
-  if (string->layout.status != LAYOUT_NON_NULL)
-    return STRING_STATUS_ERR;
-
-  strncat(temporary, cstr, length);
-  string->rawString = temporary;
+  strncat(string->rawString, cstr, length);
   string->length += length;
-
   return length;
 }
 
@@ -122,25 +105,26 @@ char *StringAt(String *string, size_t index) {
   return &string->rawString[index];
 }
 
-void StringCrop(String *string) {
+int StringCrop(String *string) {
   Layout *current;
   char *temporary;
 
   if (string == nullptr || string->layout.status == LAYOUT_NULL_PTR)
-    return;
+    return STRING_STATUS_ERR;
 
   current = &string->layout;
 
-  if (string->length == current->capacity)
-    return;
+  if (string->length == current->needed)
+    return STRING_STATUS_OK;
 
-  LayoutMin(current, current->capacity - string->length);
+  LayoutMin(current, current->needed - string->length);
   temporary = LayoutRealloc(current, string->rawString);
 
   if (current->status != LAYOUT_NON_NULL)
-    return;
+    return STRING_STATUS_ERR;
 
   string->rawString = temporary;
+  return STRING_STATUS_OK;
 }
 
 void StringFree(String *string) {

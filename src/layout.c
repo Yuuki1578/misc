@@ -1,6 +1,7 @@
 #include <libmisc/layout.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 Layout LayoutNew(uint16_t size, size_t defaultLength) {
   if (size == 0) {
@@ -9,8 +10,7 @@ Layout LayoutNew(uint16_t size, size_t defaultLength) {
 
   return (Layout){
       .size = size,
-      .capacity = 0,
-      .requested = defaultLength,
+      .needed = size * defaultLength,
       .status = LAYOUT_NULL_PTR,
   };
 }
@@ -20,7 +20,15 @@ void LayoutAdd(Layout *layout, size_t count) {
     return;
   }
 
-  layout->requested += count;
+  if (layout->needed == SIZE_MAX) {
+    return;
+  }
+
+  if (layout->size == 0) {
+    layout->size = sizeof(char);
+  }
+
+  layout->needed += layout->size * count;
 }
 
 void LayoutMin(Layout *layout, size_t count) {
@@ -28,16 +36,18 @@ void LayoutMin(Layout *layout, size_t count) {
     return;
   }
 
-  if (layout->requested < count) {
+  size_t currentTotal = layout->size * count;
+
+  if (layout->needed < currentTotal || layout->needed == 0) {
     return;
   }
 
-  layout->requested -= count;
+  layout->needed -= currentTotal;
 }
 
 void *LayoutAlloc(Layout *layout) {
   void *fromAlloc;
-  size_t currentCapacity;
+  size_t needed;
 
   if (layout == nullptr) {
     return malloc(0);
@@ -47,7 +57,7 @@ void *LayoutAlloc(Layout *layout) {
     layout->size = sizeof(char);
   }
 
-  if (layout->capacity == 0) {
+  if (layout->needed == 0) {
     fromAlloc = malloc(0);
 
     if (fromAlloc == nullptr) {
@@ -59,8 +69,8 @@ void *LayoutAlloc(Layout *layout) {
     return fromAlloc;
   }
 
-  currentCapacity = layout->requested * layout->size;
-  fromAlloc = malloc(currentCapacity);
+  needed = layout->needed;
+  fromAlloc = malloc(needed);
 
   if (fromAlloc == nullptr) {
     layout->status = LAYOUT_NULL_PTR;
@@ -68,29 +78,27 @@ void *LayoutAlloc(Layout *layout) {
     layout->status = LAYOUT_NON_NULL;
   }
 
-  layout->capacity = currentCapacity;
   return fromAlloc;
 }
 
 void *LayoutRealloc(Layout *layout, void *target) {
-  size_t currentCapacity;
-  void *fromAlloc;
+  size_t needed;
+  void *fromRealloc;
 
   if (layout == nullptr || target == nullptr) {
     return LayoutAlloc(nullptr);
   }
 
-  currentCapacity = layout->requested * layout->size;
-  fromAlloc = realloc(target, currentCapacity);
+  needed = layout->needed;
+  fromRealloc = realloc(target, needed);
 
-  if (fromAlloc == nullptr) {
+  if (fromRealloc == nullptr) {
     layout->status = LAYOUT_NULL_PTR;
   } else {
     layout->status = LAYOUT_NON_NULL;
-    layout->capacity = currentCapacity;
   }
 
-  return target;
+  return fromRealloc;
 }
 
 void LayoutDealloc(Layout *layout, void *target) {
@@ -102,13 +110,12 @@ void LayoutDealloc(Layout *layout, void *target) {
     return;
   }
 
-  if (layout->status != LAYOUT_NULL_PTR) {
+  if (layout->status != LAYOUT_NULL_PTR && target != NULL) {
     free(target);
   }
 
   // invalidate the pointer
   target = nullptr;
-  layout->capacity = 0;
-  layout->requested = 0;
+  layout->needed = 0;
   layout->status = LAYOUT_NULL_PTR;
 }
