@@ -1,5 +1,5 @@
-#ifndef CED_MEMORY_H
-#define CED_MEMORY_H
+#ifndef CED_LAYOUT_H
+#define CED_LAYOUT_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -33,38 +33,36 @@ typedef struct CedMemoryLayout {
 } Layout;
 
 /*
- * create a new layout, if the t_size == 0, it's set to sizeof(char) by default
+ * create a new layout, if the size == 0, it's set to sizeof(char) by default
  * */
-Layout layout_new(uint16_t t_size, size_t default_len);
+Layout LayoutNew(uint16_t size, size_t defaultLength);
 
 /*
- * adding necessary element to the Layout, incrementing the length and capacity
+ * adding necessary element to the Layout, incrementing the length.
  * */
-void layout_add(Layout *layout, size_t count);
+void LayoutAdd(Layout *layout, size_t count);
 
 /*
- * removing count bytes element from the back
- * this function does not reallocating
+ * removing count bytes element from the back.
+ * This function does not reallocating
  * */
-void layout_min(Layout *layout, size_t count);
+void LayoutMin(Layout *layout, size_t count);
 
 /*
- * allocate memory from the heap, based on Layout->cap using malloc()
- * flag is used to tell the function that, if the successful memory
- * recieved from the allocator, should be set to zero or not
+ * allocate memory from the heap, based on Layout->capacity using malloc()
  * */
-void *layout_alloc(Layout *layout);
+void *LayoutAlloc(Layout *layout);
 
 /*
  * reallocating the memory, based on Layout->capacity
  * */
-void *layout_realloc(Layout *layout, void *dst);
+void *LayoutRealloc(Layout *layout, void *target);
 
 /*
  * deallocating the memory, returning the memory back to the operating system
  * and set the Layout capacity and length to zero, but keep the type size
  * untouched
  * */
-void layout_dealloc(Layout *layout, void *dst);
+void LayoutDealloc(Layout *layout, void *target);
 
 #endif

@@ -1,7 +1,7 @@
 #ifndef CED_STRING_H
 #define CED_STRING_H
 
-#include <libmisc/memory.h>
+#include <libmisc/layout.h>
 #include <limits.h>
 #include <stddef.h>
 #include <sys/types.h>
@@ -17,12 +17,12 @@
  * the functionality of this type is same as vector of uint8_t
  * */
 typedef struct CedString {
-  char *raw_str;
-  size_t len;
+  char *rawString;
+  size_t length;
   Layout layout;
 } String;
 
-extern size_t STRING_STEP_HOOK;
+extern size_t StringStepDefault;
 
 /* METADATA */
 #define STR(string) ((string).raw_str == nullptr ? "" : (string).raw_str)
@@ -32,39 +32,39 @@ extern size_t STRING_STEP_HOOK;
 /*
  * initialize null string
  * */
-String string_new(void);
+String StringNew(void);
 
 /*
  * allocate additional <count> bytes memory space to raw buffer
  * can be use to minimalize the malloc() or realloc() call
  * */
-ssize_t string_reserve(String *string, size_t count);
+ssize_t StringReserve(String *string, size_t count);
 
 /*
  * pushing a single character at the end of the raw buffer
  * */
-int string_push(String *string, char ch);
+int StringPush(String *string, char ch);
 
 /*
  * pushing a C-string at the end of the raw buffer
  * */
-ssize_t string_pushstr(String *string, char *cstr);
+ssize_t StringPushstr(String *string, char *cstr);
 
 /*
  * return the address of a single character at index <index>
  * return null if index >= string_t->len
  * */
-char *string_at(String *string, size_t index);
+char *StringAt(String *string, size_t index);
 
 /*
  * truncate remaining unused bytes in the buffer
  * the capacity is now string_t->len * layout_t->t_size
  * */
-void string_crop(String *string);
+void StringCrop(String *string);
 
 /*
  * deallocate the inner buffer, freeing it's memory
  * */
-void string_free(String *string);
+void StringFree(String *string);
 
 #endif

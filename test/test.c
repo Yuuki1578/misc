@@ -1,15 +1,12 @@
-#include <libmisc/memory.h>
+#include <libmisc/layout.h>
 #include <stdio.h>
-#include <string.h>
 
 int main(void) {
-  auto layout = layout_new(sizeof(char), 32);
-  auto ptr = (char *)layout_alloc(&layout);
-  strcpy(ptr, "Hello, world!");
+  Layout layout = LayoutNew(sizeof(int), 5);
+  void *memory = LayoutAlloc(&layout);
 
-  for (int i = 0; i < layout.requested; i++) {
-    printf("%d\n", ptr[i]);
-  }
+  printf("capacity: %zu\n", layout.capacity);
+  printf("requested: %zu\n", layout.requested);
 
-  layout_dealloc(&layout, ptr);
+  LayoutDealloc(&layout, memory);
 }
