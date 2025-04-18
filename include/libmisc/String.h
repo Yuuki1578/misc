@@ -1,7 +1,7 @@
 #ifndef CED_STRING_H
 #define CED_STRING_H
 
-#include <libmisc/layout.h>
+#include <libmisc/Layout.h>
 #include <limits.h>
 #include <stddef.h>
 #include <sys/types.h>

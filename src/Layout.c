@@ -1,4 +1,4 @@
-#include <libmisc/layout.h>
+#include <libmisc/Layout.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -15,7 +15,7 @@ Layout LayoutNew(uint16_t size, size_t defaultLength) {
   };
 }
 
-void LayoutAdd(Layout *layout, size_t count) {
+void LayoutAdd(Layout* layout, size_t count) {
   if (layout == nullptr || count == 0) {
     return;
   }
@@ -31,7 +31,7 @@ void LayoutAdd(Layout *layout, size_t count) {
   layout->needed += layout->size * count;
 }
 
-void LayoutMin(Layout *layout, size_t count) {
+void LayoutMin(Layout* layout, size_t count) {
   if (layout == nullptr || count == 0) {
     return;
   }
@@ -45,8 +45,8 @@ void LayoutMin(Layout *layout, size_t count) {
   layout->needed -= currentTotal;
 }
 
-void *LayoutAlloc(Layout *layout) {
-  void *fromAlloc;
+void* LayoutAlloc(Layout* layout) {
+  void* fromAlloc;
   size_t needed;
 
   if (layout == nullptr) {
@@ -81,9 +81,9 @@ void *LayoutAlloc(Layout *layout) {
   return fromAlloc;
 }
 
-void *LayoutRealloc(Layout *layout, void *target) {
+void* LayoutRealloc(Layout* layout, void* target) {
   size_t needed;
-  void *fromRealloc;
+  void* fromRealloc;
 
   if (layout == nullptr || target == nullptr) {
     return LayoutAlloc(nullptr);
@@ -101,7 +101,7 @@ void *LayoutRealloc(Layout *layout, void *target) {
   return fromRealloc;
 }
 
-void LayoutDealloc(Layout *layout, void *target) {
+void LayoutDealloc(Layout* layout, void* target) {
   if (layout == nullptr) {
     if (target != nullptr) {
       free(target);

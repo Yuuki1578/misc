@@ -1,5 +1,5 @@
-#include <libmisc/layout.h>
-#include <libmisc/string.h>
+#include <libmisc/Layout.h>
+#include <libmisc/String.h>
 #include <limits.h>
 #include <stddef.h>
 #include <string.h>
@@ -15,9 +15,9 @@ String StringNew(void) {
   };
 }
 
-ssize_t StringReserve(String *string, size_t count) {
-  Layout *layout;
-  char *tmp;
+ssize_t StringReserve(String* string, size_t count) {
+  Layout* layout;
+  char* tmp;
 
   if (string == nullptr || count == 0) {
     return STRING_STATUS_ERR;
@@ -27,13 +27,13 @@ ssize_t StringReserve(String *string, size_t count) {
   LayoutAdd(layout, count);
 
   switch (layout->status) {
-  case LAYOUT_NON_NULL:
-    tmp = LayoutRealloc(layout, string->rawString);
-    break;
+    case LAYOUT_NON_NULL:
+      tmp = LayoutRealloc(layout, string->rawString);
+      break;
 
-  default:
-    tmp = LayoutAlloc(layout);
-    break;
+    default:
+      tmp = LayoutAlloc(layout);
+      break;
   }
 
   if (layout->status != LAYOUT_NON_NULL) {
@@ -44,8 +44,8 @@ ssize_t StringReserve(String *string, size_t count) {
   return count;
 }
 
-int StringPush(String *string, char ch) {
-  Layout *layout;
+int StringPush(String* string, char ch) {
+  Layout* layout;
 
   if (string == nullptr) {
     return STRING_STATUS_ERR;
@@ -67,8 +67,8 @@ int StringPush(String *string, char ch) {
   return STRING_STATUS_OK;
 }
 
-ssize_t StringPushstr(String *string, char *cstr) {
-  Layout *layout;
+ssize_t StringPushstr(String* string, char* cstr) {
+  Layout* layout;
   size_t length;
 
   if (string == nullptr || cstr == nullptr) {
@@ -95,7 +95,7 @@ ssize_t StringPushstr(String *string, char *cstr) {
   return length;
 }
 
-char *StringAt(String *string, size_t index) {
+char* StringAt(String* string, size_t index) {
   if (string == nullptr || string->layout.status == LAYOUT_NULL_PTR)
     return nullptr;
 
@@ -105,9 +105,9 @@ char *StringAt(String *string, size_t index) {
   return &string->rawString[index];
 }
 
-int StringCrop(String *string) {
-  Layout *current;
-  char *temporary;
+int StringCrop(String* string) {
+  Layout* current;
+  char* temporary;
 
   if (string == nullptr || string->layout.status == LAYOUT_NULL_PTR)
     return STRING_STATUS_ERR;
@@ -127,7 +127,7 @@ int StringCrop(String *string) {
   return STRING_STATUS_OK;
 }
 
-void StringFree(String *string) {
+void StringFree(String* string) {
   if (string == nullptr)
     return;
 

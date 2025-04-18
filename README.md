@@ -1,1 +1,4 @@
-Just a bunch of types and funcitons that i'm too lazy to wrote again
+# Make C Great Again
+
+Just kidding, this is just a bunch of *just-work* utility.
+I'm using **Chromium** style format on this project.
