@@ -3,14 +3,18 @@
 
 int main(void) {
   ArenaGlobalInitialize();
-  int* p = ArenaGenericAlloc(&ArenaAllocator, sizeof(int));
-  *p = 1 << 8;
+  char* str = ArenaAlloc(14);
 
-  int* q = ArenaGenericAlloc(&ArenaAllocator, sizeof(int));
-  *q = 1 << 16;
+  strcpy(str, "Hello, world!");
+  printf("address: %p\n", str);
 
-  printf("p: %d\n", *p);
-  printf("q: %d\n", *q);
-  printf("capacity: %zu\n", ArenaAllocator.capacity);
-  printf("position: %zu\n", ArenaAllocator.position);
+  str = ArenaRealloc(str, 64);
+  strcat(str, " Hell yeah! Arena!");
+  printf("address: %p\n", str);
+
+  printf("str: %s\n", str);
+  printf("capacity: %zu\n", ArenaGetGlobalCapacity());
+  printf("position: %zu\n", ArenaGetGlobalPosition());
+
+  ArenaDealloc();
 }

@@ -30,6 +30,15 @@ void* ArenaGetGlobalBreakAddress(void) {
   return ArenaAllocator.rawMemory + ArenaAllocator.capacity - 1;
 }
 
+bool ArenaReachedLimit(Arena* arenaContext) {
+  if (arenaContext == nullptr ||
+      arenaContext->capacity - 1 == arenaContext->position) {
+    return true;
+  }
+
+  return false;
+}
+
 int ArenaGlobalInitialize(void) {
   ArenaAllocator.rawMemory = malloc(ArenaAllocStep);
 
@@ -68,13 +77,13 @@ int ArenaGrow(Arena* arenaContext, size_t size) {
     return ArenaNew(arenaContext, size);
   }
 
-  void* temporary = realloc(arenaContext->rawMemory, size);
+  void* ready = realloc(arenaContext->rawMemory, size);
 
-  if (temporary == nullptr) {
+  if (ready == nullptr) {
     return ARENA_BUSY;
   }
 
-  arenaContext->rawMemory = temporary;
+  arenaContext->rawMemory = ready;
   arenaContext->capacity += size;
   return ARENA_READY;
 }
@@ -84,8 +93,9 @@ int ArenaIncrement(Arena* arenaContext, size_t offset) {
     return ARENA_BUSY;
   }
 
-  if (arenaContext->capacity - 1 == arenaContext->position) {
-    int status = ArenaGrow(arenaContext, ArenaAllocStep);
+  if (ArenaReachedLimit(arenaContext) || arenaContext->capacity < offset) {
+    size_t realSize = ArenaAllocStep < offset ? offset : ArenaAllocStep;
+    int status = ArenaGrow(arenaContext, realSize < offset);
 
     if (status != ARENA_READY) {
       return status;
@@ -101,10 +111,10 @@ void* ArenaGenericAlloc(Arena* arenaContext, size_t size) {
     return nullptr;
   }
 
-  if (arenaContext->capacity - 1 == arenaContext->position) {
-    int status = ArenaGrow(arenaContext, ArenaAllocStep);
+  if (ArenaReachedLimit(arenaContext) || arenaContext->capacity < size) {
+    size_t realSize = ArenaAllocStep < size ? size : ArenaAllocStep;
 
-    if (status != ARENA_READY) {
+    if (ArenaGrow(arenaContext, realSize) != ARENA_READY) {
       return nullptr;
     }
   }
@@ -116,5 +126,53 @@ void* ArenaGenericAlloc(Arena* arenaContext, size_t size) {
     return nullptr;
   }
 
+  memset(ready, 0, size);
   return ready;
+}
+
+void* ArenaAlloc(size_t size) {
+  return ArenaGenericAlloc(&ArenaAllocator, size);
+}
+
+void* ArenaGenericRealloc(Arena* arenaContext, void* dst, size_t size) {
+  if (arenaContext == nullptr || size == 0) {
+    return nullptr;
+  }
+
+  if (ArenaReachedLimit(arenaContext) || arenaContext->capacity < size) {
+    size_t realSize = ArenaAllocStep < size ? size : ArenaAllocStep;
+
+    if (ArenaGrow(arenaContext, realSize) != ARENA_READY) {
+      return nullptr;
+    }
+  }
+
+  void* ready = arenaContext->rawMemory + arenaContext->position;
+  int status = ArenaIncrement(arenaContext, size);
+
+  if (ready == nullptr) {
+    return nullptr;
+  }
+
+  memset(ready, 0, size);
+  memcpy(ready, dst, size);
+  return ready;
+}
+
+void* ArenaRealloc(void* dst, size_t size) {
+  return ArenaGenericRealloc(&ArenaAllocator, dst, size);
+}
+
+void ArenaGenericDealloc(Arena* arenaContext) {
+  if (arenaContext == nullptr || arenaContext->capacity == 0) {
+    return;
+  }
+
+  free(arenaContext->rawMemory - arenaContext->position);
+  arenaContext->capacity = 0;
+  arenaContext->position = 0;
+}
+
+void ArenaDealloc(void) {
+  ArenaGenericDealloc(&ArenaAllocator);
 }

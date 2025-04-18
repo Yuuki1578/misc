@@ -24,6 +24,7 @@ extern void* ArenaGetGlobalFirstAddress(void);
 extern void* ArenaGetGlobalLastAddress(void);
 extern void* ArenaGetGlobalBreakAddress(void);
 
+extern bool ArenaReachedLimit(Arena* arenaContext);
 extern int ArenaGlobalInitialize(void);
 extern int ArenaNew(Arena *arenaContext, size_t defaultCapacity);
 extern int ArenaGrow(Arena *arenaContext, size_t size);
