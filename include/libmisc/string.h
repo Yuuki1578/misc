@@ -1,15 +1,15 @@
 #ifndef CED_STRING_H
 #define CED_STRING_H
 
-#include <ced/memory.h>
+#include <libmisc/memory.h>
 #include <limits.h>
 #include <stddef.h>
 #include <sys/types.h>
 
-#define CED_STRING_STEP 128ULL
+#define STRING_ALLOC_STEP 128ULL
 
-#define CED_STRING_OK 0
-#define CED_STRING_ERR -1
+#define STRING_STATUS_OK 0
+#define STRING_STATUS_ERR -1
 
 /*
  * non-terminated + heap-allocated string type: string_t

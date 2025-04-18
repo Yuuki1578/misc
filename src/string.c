@@ -1,11 +1,11 @@
-#include <ced/memory.h>
-#include <ced/string.h>
+#include <libmisc/memory.h>
+#include <libmisc/string.h>
 #include <limits.h>
 #include <stddef.h>
 #include <string.h>
 #include <sys/types.h>
 
-size_t STRING_STEP_HOOK = CED_STRING_STEP;
+size_t STRING_STEP_HOOK = STRING_ALLOC_STEP;
 
 String string_new(void) {
   return (String){
@@ -20,13 +20,13 @@ ssize_t string_reserve(String *string, size_t count) {
   void *tmp;
 
   if (string == nullptr || count == 0) {
-    return CED_STRING_ERR;
+    return STRING_STATUS_ERR;
   }
 
   layout = &string->layout;
 
-  if (layout->t_size == 0) {
-    layout->t_size = sizeof(char);
+  if (layout->size == 0) {
+    layout->size = sizeof(char);
   }
 
   layout_add(layout, count);
@@ -42,7 +42,7 @@ ssize_t string_reserve(String *string, size_t count) {
   }
 
   if (layout->status != LAYOUT_NON_NULL) {
-    return CED_STRING_ERR;
+    return STRING_STATUS_ERR;
   }
 
   string->raw_str = tmp;
@@ -50,17 +50,18 @@ ssize_t string_reserve(String *string, size_t count) {
 }
 
 int string_push(String *string, char ch) {
-  char *tmp = "";
+  char *tmp;
 
-  if (string == nullptr)
-    return CED_STRING_ERR;
+  if (string == nullptr) {
+    return STRING_STATUS_ERR;
+  }
 
-  if (string->layout.cap == 0) {
+  if (string->layout.capacity == 0) {
     layout_add(&string->layout, STRING_STEP_HOOK);
     tmp = layout_alloc(&string->layout);
   }
 
-  else if (string->layout.cap == string->layout.t_size * string->len) {
+  else if (string->layout.capacity == string->layout.size * string->len) {
     layout_add(&string->layout, STRING_STEP_HOOK);
     tmp = layout_realloc(&string->layout, string->raw_str);
   }
@@ -68,14 +69,14 @@ int string_push(String *string, char ch) {
   switch (string->layout.status) {
   case LAYOUT_NULL_PTR:
   case LAYOUT_UNIQUE_PTR:
-    return CED_STRING_ERR;
+    return STRING_STATUS_ERR;
 
   default:
     tmp[string->len++] = ch;
     string->raw_str = tmp;
   }
 
-  return CED_STRING_OK;
+  return STRING_STATUS_OK;
 }
 
 ssize_t string_pushstr(String *string, char *cstr) {
@@ -83,11 +84,11 @@ ssize_t string_pushstr(String *string, char *cstr) {
   char *tmp;
 
   if (string == nullptr || cstr == nullptr)
-    return CED_STRING_ERR;
+    return STRING_STATUS_ERR;
 
   len = strlen(cstr);
 
-  if (string->layout.cap > len) {
+  if (string->layout.capacity > len) {
     memcpy(string->raw_str + string->len, cstr, len);
     string->len += len;
 
@@ -102,7 +103,7 @@ ssize_t string_pushstr(String *string, char *cstr) {
     tmp = layout_realloc(&string->layout, string->raw_str);
 
   if (string->layout.status != LAYOUT_NON_NULL)
-    return CED_STRING_ERR;
+    return STRING_STATUS_ERR;
 
   strncat(tmp, cstr, len);
   string->raw_str = tmp;
@@ -130,10 +131,10 @@ void string_crop(String *string) {
 
   current = &string->layout;
 
-  if (string->len == current->cap)
+  if (string->len == current->capacity)
     return;
 
-  layout_min(current, current->cap - string->len);
+  layout_min(current, current->capacity - string->len);
   tmp = layout_realloc(current, string->raw_str);
 
   if (current->status != LAYOUT_NON_NULL)

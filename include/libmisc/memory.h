@@ -27,9 +27,9 @@ typedef enum : int8_t {
 
 typedef struct CedMemoryLayout {
   Status status;
-  uint16_t t_size;
-  size_t cap;
-  size_t len;
+  uint16_t size;
+  size_t capacity;
+  size_t requested;
 } Layout;
 
 /*
