@@ -1,5 +1,5 @@
-#ifndef CED_STRING_H
-#define CED_STRING_H
+#ifndef MISC_STRING_H
+#define MISC_STRING_H
 
 #include <libmisc/Layout.h>
 #include <limits.h>
@@ -16,7 +16,7 @@
  * Use standard formatter if you want to print it to standard output.
  * */
 typedef struct CedString {
-  char *rawString;
+  char* rawString;
   size_t length;
   Layout layout;
 } String;
@@ -37,33 +37,33 @@ String StringNew(void);
  * Can be use to minimize the malloc() or realloc() call.
  * Return <count> on success, -1 on error.
  * */
-ssize_t StringReserve(String *string, size_t count);
+ssize_t StringReserve(String* string, size_t count);
 
 /*
  * Pushing a single character at the end of the raw buffer.
  * */
-int StringPush(String *string, char ch);
+int StringPush(String* string, char ch);
 
 /*
  * Pushing a char* at the end of the raw buffer.
  * */
-ssize_t StringPushstr(String *string, char *cstr);
+ssize_t StringPushstr(String* string, char* cstr);
 
 /*
  * Get a pointer to a single character at index <index>.
  * Return null if index >= String->length.
  * */
-char *StringAt(String *string, size_t index);
+char* StringAt(String* string, size_t index);
 
 /*
  * Truncate remaining unused bytes in the buffer.
  * The capacity is now equal to String->length.
  * */
-int StringCrop(String *string);
+int StringCrop(String* string);
 
 /*
  * Deallocate the inner buffer.
  * */
-void StringFree(String *string);
+void StringFree(String* string);
 
 #endif

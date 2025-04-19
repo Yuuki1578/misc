@@ -1,5 +1,5 @@
-#ifndef CED_LAYOUT_H
-#define CED_LAYOUT_H
+#ifndef MISC_LAYOUT_H
+#define MISC_LAYOUT_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -24,7 +24,7 @@ typedef enum : int8_t {
  *   • LAYOUT_NON_NULL == 1.
  * */
 
-typedef struct CedMemoryLayout {
+typedef struct MiscMemoryLayout {
   Status status;
   uint16_t size;
   size_t needed;

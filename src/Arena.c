@@ -10,24 +10,58 @@ Arena ArenaAllocator = {
 
 size_t ArenaAllocStep = ARENA_ALLOC_STEP_INITIALIZER;
 
+size_t ArenaGetCapacity(Arena* arenaContext) {
+  return arenaContext != nullptr ? arenaContext->capacity : 0;
+}
+
+size_t ArenaGetRemaining(Arena* arenaContext) {
+  return arenaContext != nullptr
+             ? arenaContext->capacity - arenaContext->position
+             : 0;
+}
+
+size_t ArenaGetPosition(Arena* arenaContext) {
+  return arenaContext != nullptr ? arenaContext->position : 0;
+}
+
+void* ArenaGetFirstAddress(Arena* arenaContext) {
+  return arenaContext != nullptr ? arenaContext : nullptr;
+}
+
+void* ArenaGetLastAddress(Arena* arenaContext) {
+  return arenaContext != nullptr
+             ? arenaContext->rawMemory + arenaContext->position
+             : nullptr;
+}
+
+void* ArenaGetBreakAddress(Arena* arenaContext) {
+  return arenaContext != nullptr
+             ? arenaContext->rawMemory + arenaContext->capacity
+             : nullptr;
+}
+
 size_t ArenaGetGlobalCapacity(void) {
-  return ArenaAllocator.capacity;
+  return ArenaGetCapacity(&ArenaAllocator);
+}
+
+size_t ArenaGetGlobalRemaining(void) {
+  return ArenaGetRemaining(&ArenaAllocator);
 }
 
 size_t ArenaGetGlobalPosition(void) {
-  return ArenaAllocator.position;
+  return ArenaGetPosition(&ArenaAllocator);
 }
 
 void* ArenaGetGlobalFirstAddress(void) {
-  return ArenaAllocator.rawMemory - ArenaAllocator.position;
+  return ArenaGetFirstAddress(&ArenaAllocator);
 }
 
 void* ArenaGetGlobalLastAddress(void) {
-  return ArenaAllocator.rawMemory + ArenaAllocator.position - 1;
+  return ArenaGetLastAddress(&ArenaAllocator);
 }
 
 void* ArenaGetGlobalBreakAddress(void) {
-  return ArenaAllocator.rawMemory + ArenaAllocator.capacity - 1;
+  return ArenaGetBreakAddress(&ArenaAllocator);
 }
 
 bool ArenaReachedLimit(Arena* arenaContext) {
@@ -126,7 +160,7 @@ void* ArenaGenericAlloc(Arena* arenaContext, size_t size) {
     return nullptr;
   }
 
-  memset(ready, 0, size);
+  // memset(ready, 0, size);
   return ready;
 }
 
@@ -147,14 +181,14 @@ void* ArenaGenericRealloc(Arena* arenaContext, void* dst, size_t size) {
     }
   }
 
-  void* ready = arenaContext->rawMemory + arenaContext->position;
-  int status = ArenaIncrement(arenaContext, size);
+  // void* ready = arenaContext->rawMemory + arenaContext->position;
+  // int status = ArenaIncrement(arenaContext, size);
+  void* ready = ArenaGenericAlloc(arenaContext, size);
 
   if (ready == nullptr) {
     return nullptr;
   }
 
-  memset(ready, 0, size);
   memcpy(ready, dst, size);
   return ready;
 }
@@ -168,7 +202,7 @@ void ArenaGenericDealloc(Arena* arenaContext) {
     return;
   }
 
-  free(arenaContext->rawMemory - arenaContext->position);
+  free(arenaContext->rawMemory);
   arenaContext->capacity = 0;
   arenaContext->position = 0;
 }

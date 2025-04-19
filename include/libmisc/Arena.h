@@ -10,7 +10,7 @@
 
 typedef struct Arena Arena;
 struct Arena {
-  void *rawMemory;
+  void* rawMemory;
   size_t capacity;
   size_t position;
 };
@@ -18,7 +18,15 @@ struct Arena {
 extern Arena ArenaAllocator;
 extern size_t ArenaAllocStep;
 
+extern size_t ArenaGetCapacity(Arena* arenaContext);
+extern size_t ArenaGetRemaining(Arena* arenaContext);
+extern size_t ArenaGetPosition(Arena* arenaContext);
+extern void* ArenaGetFirstAddress(Arena* arenaContext);
+extern void* ArenaGetLastAddress(Arena* arenaContext);
+extern void* ArenaGetBreakAddress(Arena* arenaContext);
+
 extern size_t ArenaGetGlobalCapacity(void);
+extern size_t ArenaGetGlobalRemaining(void);
 extern size_t ArenaGetGlobalPosition(void);
 extern void* ArenaGetGlobalFirstAddress(void);
 extern void* ArenaGetGlobalLastAddress(void);
@@ -26,14 +34,21 @@ extern void* ArenaGetGlobalBreakAddress(void);
 
 extern bool ArenaReachedLimit(Arena* arenaContext);
 extern int ArenaGlobalInitialize(void);
-extern int ArenaNew(Arena *arenaContext, size_t defaultCapacity);
-extern int ArenaGrow(Arena *arenaContext, size_t size);
-extern int ArenaIncrement(Arena *arenaContext, size_t offset);
-extern void *ArenaGenericAlloc(Arena *arenaContext, size_t size);
-extern void *ArenaAlloc(size_t size);
-extern void *ArenaGenericRealloc(Arena *arenaContext, void *dst, size_t size);
-extern void *ArenaRealloc(void *dst, size_t size);
-extern void ArenaGenericDealloc(Arena *arenaContext);
+extern int ArenaNew(Arena* arenaContext, size_t defaultCapacity);
+extern int ArenaGrow(Arena* arenaContext, size_t size);
+extern int ArenaIncrement(Arena* arenaContext, size_t offset);
+extern void* ArenaGenericAlloc(Arena* arenaContext, size_t size);
+extern void* ArenaAlloc(size_t size);
+
+// @NEED_SANITIZER
+[[deprecated]]
+extern void* ArenaGenericRealloc(Arena* arenaContext, void* dst, size_t size);
+
+// @NEED_SANITIZER
+[[deprecated]]
+extern void* ArenaRealloc(void* dst, size_t size);
+
+extern void ArenaGenericDealloc(Arena* arenaContext);
 extern void ArenaDealloc(void);
 
 #endif

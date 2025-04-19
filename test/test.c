@@ -3,18 +3,17 @@
 
 int main(void) {
   ArenaGlobalInitialize();
-  char* str = ArenaAlloc(14);
+  char* string = ArenaAlloc(64);
+  char* literal = strncpy(string, "Hello, world!", 14);
 
-  strcpy(str, "Hello, world!");
-  printf("address: %p\n", str);
+  int* large_array = ArenaAlloc(512);
 
-  str = ArenaRealloc(str, 64);
-  strcat(str, " Hell yeah! Arena!");
-  printf("address: %p\n", str);
+  puts(string);
+  puts(literal);
 
-  printf("str: %s\n", str);
-  printf("capacity: %zu\n", ArenaGetGlobalCapacity());
-  printf("position: %zu\n", ArenaGetGlobalPosition());
+  printf("Capacity: %zu bytes\n", ArenaGetGlobalCapacity());
+  printf("Remaining: %zu bytes\n", ArenaGetGlobalRemaining());
+  printf("Position: %zu from left\n", ArenaGetGlobalPosition());
 
   ArenaDealloc();
 }
