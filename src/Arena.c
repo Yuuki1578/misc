@@ -2,6 +2,15 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+void duplicateMemory(void* dst, void* src, size_t size) {
+  char* dstByte = dst;
+  char* srcByte = src;
+
+  while (size--) {
+    *(dstByte++) = *(srcByte++);
+  }
+}
+
 Arena ArenaAllocator = {
     .rawMemory = nullptr,
     .capacity = 0,
@@ -107,7 +116,7 @@ int ArenaGrow(Arena* arenaContext, size_t size) {
     return ARENA_NOAVAIL;
   }
 
-  if (arenaContext->capacity == 0) {
+  if (ArenaGetCapacity(arenaContext) == 0) {
     return ArenaNew(arenaContext, size);
   }
 
@@ -127,8 +136,13 @@ int ArenaIncrement(Arena* arenaContext, size_t offset) {
     return ARENA_BUSY;
   }
 
-  if (ArenaReachedLimit(arenaContext) || arenaContext->capacity < offset) {
-    size_t realSize = ArenaAllocStep < offset ? offset : ArenaAllocStep;
+  if (ArenaReachedLimit(arenaContext) || ArenaAllocStep < offset) {
+    size_t realSize = ArenaAllocStep;
+
+    while (realSize < offset) {
+      realSize *= 2;
+    }
+
     int status = ArenaGrow(arenaContext, realSize < offset);
 
     if (status != ARENA_READY) {
@@ -145,8 +159,12 @@ void* ArenaGenericAlloc(Arena* arenaContext, size_t size) {
     return nullptr;
   }
 
-  if (ArenaReachedLimit(arenaContext) || arenaContext->capacity < size) {
-    size_t realSize = ArenaAllocStep < size ? size : ArenaAllocStep;
+  if (ArenaReachedLimit(arenaContext) || ArenaAllocStep < size) {
+    size_t realSize = ArenaAllocStep;
+
+    while (realSize < size) {
+      realSize *= 2;
+    }
 
     if (ArenaGrow(arenaContext, realSize) != ARENA_READY) {
       return nullptr;
@@ -160,7 +178,6 @@ void* ArenaGenericAlloc(Arena* arenaContext, size_t size) {
     return nullptr;
   }
 
-  // memset(ready, 0, size);
   return ready;
 }
 
@@ -173,8 +190,12 @@ void* ArenaGenericRealloc(Arena* arenaContext, void* dst, size_t size) {
     return nullptr;
   }
 
-  if (ArenaReachedLimit(arenaContext) || arenaContext->capacity < size) {
-    size_t realSize = ArenaAllocStep < size ? size : ArenaAllocStep;
+  if (ArenaReachedLimit(arenaContext) || ArenaAllocStep < size) {
+    size_t realSize = ArenaAllocStep;
+
+    while (realSize < size) {
+      realSize *= 2;
+    }
 
     if (ArenaGrow(arenaContext, realSize) != ARENA_READY) {
       return nullptr;
@@ -189,7 +210,8 @@ void* ArenaGenericRealloc(Arena* arenaContext, void* dst, size_t size) {
     return nullptr;
   }
 
-  memcpy(ready, dst, size);
+  // memmove(ready, dst, size);
+  duplicateMemory(ready, dst, size);
   return ready;
 }
 

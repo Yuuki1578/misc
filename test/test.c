@@ -1,19 +1,23 @@
 #include <libmisc/Arena.h>
+#include <signal.h>
 #include <stdio.h>
 
 int main(void) {
   ArenaGlobalInitialize();
-  char* string = ArenaAlloc(64);
-  char* literal = strncpy(string, "Hello, world!", 14);
 
-  int* large_array = ArenaAlloc(512);
+  int* p = ArenaAlloc(sizeof(int));
+  *p = 1024;
 
-  puts(string);
-  puts(literal);
+  p = ArenaRealloc(p, sizeof(int) * 1024);
 
-  printf("Capacity: %zu bytes\n", ArenaGetGlobalCapacity());
-  printf("Remaining: %zu bytes\n", ArenaGetGlobalRemaining());
-  printf("Position: %zu from left\n", ArenaGetGlobalPosition());
+  if (p == nullptr) {
+    return SIGSEGV;
+  }
+
+  p[1] = *p * 2;
+
+  printf("%d\n", p[0]);
+  printf("%d\n", p[1]);
 
   ArenaDealloc();
 }

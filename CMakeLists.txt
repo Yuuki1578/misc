@@ -27,9 +27,9 @@ FILE(GLOB MISC_SOURCE_FILES "${MISC_SOURCE_DIR}/*.c")
 INCLUDE_DIRECTORIES(${MISC_INCLUDE_DIR})
 
 # Debugging
-# ADD_LINK_OPTIONS(
-#   -fsanitize=address
-# )
+ADD_LINK_OPTIONS(
+  -fsanitize=address
+)
 
 ADD_LIBRARY(${PROJECT_NAME}
   SHARED
