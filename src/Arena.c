@@ -1,8 +1,13 @@
 #include <libmisc/Arena.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 
-void duplicateMemory(void* dst, void* src, size_t size) {
+static void duplicateMemory(void* dst, void* src, size_t size) {
+  if (dst == nullptr || src == nullptr) [[clang::unlikely]] {
+    return;
+  }
+
   char* dstByte = dst;
   char* srcByte = src;
 
@@ -49,6 +54,22 @@ void* ArenaGetBreakAddress(Arena* arenaContext) {
              : nullptr;
 }
 
+void ArenaShowInformation(Arena* arenaContext) {
+  if (arenaContext == nullptr) {
+    return;
+  }
+
+  printf("Arena address:       %p\n", arenaContext);
+  printf("Arena first address: %p\n", ArenaGetFirstAddress(arenaContext));
+  printf("Arena last address:  %p\n", ArenaGetLastAddress(arenaContext));
+  printf("Arena break address: %p\n", ArenaGetBreakAddress(arenaContext));
+  printf("Arena capacity:      %zu byte\n", ArenaGetCapacity(arenaContext));
+  printf("Arena remaining:     %zu byte\n", ArenaGetRemaining(arenaContext));
+  printf("Arena position:      %zu from left\n",
+         ArenaGetPosition(arenaContext));
+  fflush(stdout);
+}
+
 size_t ArenaGetGlobalCapacity(void) {
   return ArenaGetCapacity(&ArenaAllocator);
 }
@@ -73,9 +94,16 @@ void* ArenaGetGlobalBreakAddress(void) {
   return ArenaGetBreakAddress(&ArenaAllocator);
 }
 
+void ArenaShowGlobalInformation(void) {
+  ArenaShowInformation(&ArenaAllocator);
+}
+
 bool ArenaReachedLimit(Arena* arenaContext) {
-  if (arenaContext == nullptr ||
-      arenaContext->capacity - 1 == arenaContext->position) {
+  if (arenaContext == nullptr) [[clang::unlikely]] {
+    return false;
+  }
+
+  if (ArenaGetCapacity(arenaContext) - 1 <= ArenaGetPosition(arenaContext)) {
     return true;
   }
 
@@ -116,7 +144,8 @@ int ArenaGrow(Arena* arenaContext, size_t size) {
     return ARENA_NOAVAIL;
   }
 
-  if (ArenaGetCapacity(arenaContext) == 0) {
+  if (ArenaGetCapacity(arenaContext) == 0 ||
+      ArenaGetFirstAddress(arenaContext) == nullptr) {
     return ArenaNew(arenaContext, size);
   }
 
@@ -132,20 +161,23 @@ int ArenaGrow(Arena* arenaContext, size_t size) {
 }
 
 int ArenaIncrement(Arena* arenaContext, size_t offset) {
+  size_t realSize = ArenaAllocStep;
+  int status = 0;
+
+  // @UNLIKELY
   if (arenaContext == nullptr || offset == 0) {
     return ARENA_BUSY;
   }
 
-  if (ArenaReachedLimit(arenaContext) || ArenaAllocStep < offset) {
-    size_t realSize = ArenaAllocStep;
-
+  if (ArenaAllocStep < offset) {
     while (realSize < offset) {
       realSize *= 2;
     }
+  }
 
-    int status = ArenaGrow(arenaContext, realSize < offset);
-
-    if (status != ARENA_READY) {
+  // @FIXME
+  if (arenaContext->position == arenaContext->capacity - 1) {
+    if ((status = ArenaGrow(arenaContext, realSize)) != ARENA_READY) {
       return status;
     }
   }
