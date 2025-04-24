@@ -1,3 +1,11 @@
+// April 2025, [https://github.com/Yuuki1578/misc.git]
+// This is a part of the libmisc library.
+// Shared and static building for this library are provided.
+// Any damage caused by this software is not my responsibility at all.
+
+// @file layout.h
+// @brief memory layout structure
+
 #ifndef MISC_LAYOUT_H
 #define MISC_LAYOUT_H
 

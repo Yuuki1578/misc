@@ -1,3 +1,11 @@
+// April 2025, [https://github.com/Yuuki1578/misc.git]
+// This is a part of the libmisc library.
+// Shared and static building for this library are provided.
+// Any damage caused by this software is not my responsibility at all.
+
+// @file string.c
+// @brief dynamically allocated string type
+
 #include <libmisc/layout.h>
 #include <libmisc/string.h>
 #include <limits.h>

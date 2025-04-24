@@ -1,3 +1,11 @@
+// April 2025, [https://github.com/Yuuki1578/misc.git]
+// This is a part of the libmisc library.
+// Shared and static building for this library are provided.
+// Any damage caused by this software is not my responsibility at all.
+
+// @file arena.c
+// @brief memory region based allocator (arena)
+
 #include <libmisc/arena.h>
 #include <stddef.h>
 #include <stdio.h>
