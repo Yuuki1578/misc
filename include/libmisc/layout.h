@@ -33,33 +33,33 @@ typedef struct MiscMemoryLayout {
 /*
  * Create a new Layout, if the size == 0, set to sizeof(char) by default.
  * */
-Layout LayoutNew(uint16_t size, size_t defaultLength);
+Layout layout_new(uint16_t size, size_t defaultLength);
 
 /*
  * Adding <count> element to the Layout, incrementing the length.
  * */
-void LayoutAdd(Layout *layout, size_t count);
+void layout_add(Layout* layout, size_t count);
 
 /*
  * Removing <count> bytes element.
  * This function does not reallocating.
  * */
-void LayoutMin(Layout *layout, size_t count);
+void layout_min(Layout* layout, size_t count);
 
 /*
  * Allocate memory from the heap, based on Layout->needed using malloc()
  * */
-void *LayoutAlloc(Layout *layout);
+void* layout_alloc(Layout* layout);
 
 /*
  * Reallocating the memory, based on Layout->needed using realloc()
  * */
-void *LayoutRealloc(Layout *layout, void *target);
+void* layout_realloc(Layout* layout, void* target);
 
 /*
  * Deallocating the memory.
  * The Layout->size is remain untouched for later usage.
  * */
-void LayoutDealloc(Layout *layout, void *target);
+void layout_dealloc(Layout* layout, void* target);
 
 #endif

@@ -1,7 +1,7 @@
 #ifndef MISC_STRING_H
 #define MISC_STRING_H
 
-#include <libmisc/Layout.h>
+#include <libmisc/layout.h>
 #include <limits.h>
 #include <stddef.h>
 #include <sys/types.h>
@@ -16,7 +16,7 @@
  * Use standard formatter if you want to print it to standard output.
  * */
 typedef struct CedString {
-  char* rawString;
+  char* rawptr;
   size_t length;
   Layout layout;
 } String;
@@ -25,45 +25,45 @@ typedef struct CedString {
  * A mutable unsigned 64-bit integer, use to set the byte
  * of every char* pushed onto the String.
  * */
-extern size_t StringStepDefault;
+extern size_t STRING_STEP_DFL;
 
 /*
  * Initialize null String.
  * */
-String StringNew(void);
+String string_new(void);
 
 /*
  * Allocate additional <count> bytes memory space to raw buffer.
  * Can be use to minimize the malloc() or realloc() call.
  * Return <count> on success, -1 on error.
  * */
-ssize_t StringReserve(String* string, size_t count);
+ssize_t string_reserve(String* string, size_t count);
 
 /*
  * Pushing a single character at the end of the raw buffer.
  * */
-int StringPush(String* string, char ch);
+int string_push(String* string, char ch);
 
 /*
  * Pushing a char* at the end of the raw buffer.
  * */
-ssize_t StringPushstr(String* string, char* cstr);
+ssize_t string_pushstr(String* string, char* cstr);
 
 /*
  * Get a pointer to a single character at index <index>.
  * Return null if index >= String->length.
  * */
-char* StringAt(String* string, size_t index);
+char* string_at(String* string, size_t index);
 
 /*
  * Truncate remaining unused bytes in the buffer.
  * The capacity is now equal to String->length.
  * */
-int StringCrop(String* string);
+int string_crop(String* string);
 
 /*
  * Deallocate the inner buffer.
  * */
-void StringFree(String* string);
+void string_free(String* string);
 
 #endif

@@ -1,19 +1,23 @@
-#include <libmisc/Arena.h>
+#include <libmisc/arena.h>
 #include <stdio.h>
+#include <string.h>
 
 int main(void) {
-  ArenaGlobalInitialize();
+  arena_global_initializer();
 
-  char* str = ArenaAlloc(1025);
+  char* s = arena_alloc(64);
+  arena_snapshot_global();
 
-  if (!str) {
-    puts("null");
-    return 1;
-  }
+  s = arena_alloc(1024);
+  arena_snapshot_global();
 
-  strcpy(str, "Hello, world! ");
-  puts(str);
-  ArenaShowGlobalInformation();
+  s = arena_alloc(12);
+  strcpy(s, "Booo!");
+  arena_snapshot_global();
 
-  ArenaDealloc();
+  s = arena_realloc(s, 12, 72);
+  puts(s);
+  arena_snapshot_global();
+
+  arena_dealloc();
 }
