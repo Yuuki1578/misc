@@ -9,14 +9,35 @@
 #ifndef MISC_ARENA_H
 #define MISC_ARENA_H
 
+#ifdef _WIN32  // Windows portability
+#define PAGE_SIZE 4096
+#else
 #include <bits/page_size.h>
+#endif
+
 #include <stddef.h>
 
-#define ARENA_ALLOC_STEP_INITIALIZER (PAGE_SIZE)
+// Default size for arena, work for non-POSIX system
+#define ARENA_ALLOC_STEP_INITIALIZER PAGE_SIZE
+
+// Ok
 #define ARENA_READY 0
+
+// Fatal
 #define ARENA_NOAVAIL -1
+
+// Warn
 #define ARENA_BUSY -2
 
+// @brief arena data types
+// 
+// On 32-bit system, this type is 12 byte in size,
+// while on 64-bit system, is 24 byte.
+// Each member of this struct can be fetch by
+// CPU in each cycle.
+// On 64-bit system for example, the CPU may
+// fetch 8 byte/cycle, so the CPU need 3 cycle
+// for fetching all struct member from memory.
 typedef struct Arena Arena;
 struct Arena {
   void* rawptr;
@@ -24,7 +45,11 @@ struct Arena {
   size_t offset;
 };
 
+// @brief global arena allocator
+// @asociated_function: *_global()
 extern Arena ARENA_ALLOCATOR;
+
+// @brief offset for each arena allocation
 extern size_t ARENA_STEP_DFL;
 
 extern size_t arena_capacity(Arena* self);

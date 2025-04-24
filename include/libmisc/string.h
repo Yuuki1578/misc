@@ -12,18 +12,28 @@
 #include <libmisc/layout.h>
 #include <limits.h>
 #include <stddef.h>
+
+#ifdef _WIN32
+#include <stdint.h>
+typedef int64_t ssize_t;
+#else
 #include <sys/types.h>
+#endif
 
 #define STRING_ALLOC_STEP 128ULL
 
 #define STRING_STATUS_OK 0
 #define STRING_STATUS_ERR -1
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * Non-terminated and heap-allocated string type, String.
  * Use standard formatter if you want to print it to standard output.
  * */
-typedef struct CedString {
+typedef struct DynString {
   char* rawptr;
   size_t length;
   Layout layout;
@@ -73,5 +83,9 @@ int string_crop(String* string);
  * Deallocate the inner buffer.
  * */
 void string_free(String* string);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

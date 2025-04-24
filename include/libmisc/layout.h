@@ -11,7 +11,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <sys/types.h>
 
 typedef enum : int8_t {
   LAYOUT_UNIQUE_PTR = -1,

@@ -11,7 +11,6 @@
 #include <limits.h>
 #include <stddef.h>
 #include <string.h>
-#include <sys/types.h>
 
 size_t STRING_STEP_DFL = STRING_ALLOC_STEP;
 

@@ -9,7 +9,6 @@
 #include <libmisc/layout.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>
 
 Layout layout_new(uint16_t size, size_t dflen) {
   if (size == 0) {

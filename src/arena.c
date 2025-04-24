@@ -48,7 +48,7 @@ void arena_snapshot(Arena* self) {
     return;
   }
 
-  printf("Arena address:       %p\n", self);
+  printf("Arena address:       %p\n", (void*)self);
   printf("Arena first address: %p\n", arena_first_addr(self));
   printf("Arena last address:  %p\n", arena_last_addr(self));
   printf("Arena break address: %p\n", arena_brk_addr(self));
@@ -142,6 +142,8 @@ void* arena_alloc_generic(Arena* self, size_t size) {
 
   if (size >= self->capacity || size >= remains) {
     size_t half_remains = self->capacity - remains;
+
+    // Add necessary byte if size is too large
     remains = remains + half_remains + size;
     void* tmp = realloc(self->rawptr, remains);
 
@@ -153,6 +155,13 @@ void* arena_alloc_generic(Arena* self, size_t size) {
     self->capacity += remains;
   }
 
+  // [0, 0, 0, 0, 0, 0]
+  //  ^
+  // offset
+  // 
+  // [0, 0, 0, 0, 0, 0]
+  //              ^
+  //            offset
   ready = self->rawptr + self->offset;
   self->offset += size;
 
@@ -163,9 +172,11 @@ void* arena_alloc(size_t size) {
   return arena_alloc_generic(&ARENA_ALLOCATOR, size);
 }
 
+// This may seem funny, but there is NO WAY i can know
+// the exact size of the block of memory before allocation.
 void* arena_realloc_generic(Arena* self,
                             void* dst,
-                            size_t old_size,
+                            size_t old_size, // <- actually life saver, real hero
                             size_t new_size) {
   void* ready;
 
@@ -175,6 +186,10 @@ void* arena_realloc_generic(Arena* self,
 
   if ((ready = arena_alloc_generic(self, new_size)) == nullptr) {
     return nullptr;
+  }
+
+  if (dst == nullptr) {
+    return ready;
   }
 
   memcpy(ready, dst, old_size);

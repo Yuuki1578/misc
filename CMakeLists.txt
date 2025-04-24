@@ -1,8 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.20...3.31)
-
-IF(WIN32)
-  MESSAGE(WARNING "Your host is not UNIX")
-ENDIF()
+CMAKE_MINIMUM_REQUIRED(VERSION 3.15...3.31)
 
 PROJECT(misc
   DESCRIPTION "Miscellanous library for C"
@@ -26,9 +22,21 @@ SET(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 FILE(GLOB MISC_SOURCE_FILES "${MISC_SOURCE_DIR}/*.c")
 INCLUDE_DIRECTORIES(${MISC_INCLUDE_DIR})
 
-# Debugging
+ADD_COMPILE_OPTIONS(
+  -O3
+  -march=native
+  -Wall
+  -Werror
+  -Wextra
+  -Wno-gnu-pointer-arith
+  -pedantic
+)
+
 ADD_LINK_OPTIONS(
+  # Memory sanitizer
+  # uncomment for testing
   -fsanitize=address
+  -s
 )
 
 ADD_LIBRARY(${PROJECT_NAME}
