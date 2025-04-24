@@ -10,6 +10,29 @@ struct link {
   int data;
 };
 
+void test_independent_arena(void) {
+  // Non-global arena with default size
+  Arena arena;
+  arena_new(&arena, ARENA_STEP_DFL);
+
+  char* some_string = arena_alloc_generic(&arena, 1 << 8);
+  strcpy(some_string, "C:");
+  strcat(some_string, __FILE__);
+
+  some_string = arena_realloc_generic(&arena, some_string, 1 << 8, 1 << 10);
+
+  // big chunk
+  void* trash = arena_alloc(PAGE_SIZE);
+  void* other_trash =
+      arena_realloc_generic(&arena, trash, PAGE_SIZE, PAGE_SIZE * 2);
+  memset(other_trash, 255, PAGE_SIZE * 2);
+
+  arena_snapshot(&arena);
+  arena_dealloc_generic(&arena);
+  putchar('\n');
+  fflush(stdout);
+}
+
 void test_linked_list(void) {
   link linked = arena_alloc(sizeof(struct link));
   link represent = linked;
@@ -106,6 +129,7 @@ int main(void) {
   // initialize global arena with @ARENA_STEP_DFL
   arena_global_initializer();
 
+  test_independent_arena();
   test_linked_list();
   test_realloc();
   test_heavy_string();

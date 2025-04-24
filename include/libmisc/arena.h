@@ -5,6 +5,7 @@
 
 // @file arena.h
 // @brief memory region based allocator (arena)
+// @note this API is not thread safe
 
 #ifndef MISC_ARENA_H
 #define MISC_ARENA_H
@@ -30,7 +31,7 @@
 #define ARENA_BUSY -2
 
 // @brief arena data types
-// 
+//
 // On 32-bit system, this type is 12 byte in size,
 // while on 64-bit system, is 24 byte.
 // Each member of this struct can be fetch by
