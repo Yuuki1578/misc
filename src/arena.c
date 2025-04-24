@@ -44,7 +44,7 @@ void* arena_brk_addr(Arena* self) {
 }
 
 void arena_snapshot(Arena* self) {
-  if (self == nullptr) [[clang::unlikely]] {
+  if (self == nullptr) {
     return;
   }
 
@@ -87,7 +87,7 @@ void arena_snapshot_global(void) {
 }
 
 bool arena_reached_limit(Arena* self) {
-  if (self == nullptr) [[clang::unlikely]] {
+  if (self == nullptr) {
     return false;
   }
 
@@ -126,14 +126,14 @@ void* arena_alloc_generic(Arena* self, size_t size) {
   void* ready;
   size_t remains;
 
-  if (self == nullptr || size == 0) [[clang::unlikely]] {
+  if (self == nullptr || size == 0) {
     return nullptr;
   }
 
   remains = arena_remaining(self);
 
   if (self->capacity == 0) {
-    int status = arena_new(self, ARENA_ALLOC_STEP_INITIALIZER);
+    int status = arena_new(self, ARENA_STEP_DFL);
 
     if (status != ARENA_READY) {
       return nullptr;
@@ -169,7 +169,7 @@ void* arena_realloc_generic(Arena* self,
                             size_t new_size) {
   void* ready;
 
-  if (self == nullptr || old_size == 0) [[clang::unlikely]] {
+  if (self == nullptr || old_size == 0) {
     return nullptr;
   }
 
