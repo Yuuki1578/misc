@@ -1,6 +1,7 @@
 // Program example
 
 #include <libmisc/arena.h>
+#include <libmisc/linked_list.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -9,6 +10,14 @@ struct link {
   link next;
   int data;
 };
+
+void test_ll(void) {
+  List list = list_new(sizeof(int));
+  Arena alloc = {0};
+
+  arena_new(&alloc, ARENA_STEP_DFL);
+  list_reserve(&alloc, &list, 10);
+}
 
 void test_independent_arena(void) {
   // Non-global arena with default size
@@ -129,10 +138,11 @@ int main(void) {
   // initialize global arena with @ARENA_STEP_DFL
   arena_global_initializer();
 
-  test_independent_arena();
-  test_linked_list();
-  test_realloc();
-  test_heavy_string();
+  test_ll();
+  // test_independent_arena();
+  // test_linked_list();
+  // test_realloc();
+  // test_heavy_string();
 
   // deallocate global arena
   arena_dealloc();

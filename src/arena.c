@@ -159,7 +159,9 @@ void* arena_alloc_generic(Arena* self, size_t size) {
     // Too large
     // ↓↓↓↓↓↓↓↓↓
     // remains = remains + half_remains + size;
+    // 
     // @FIXED April 26, 2025
+    // commit hash: cd1419554e83b05954ab290184ff1ed010e4af96
     void* tmp = realloc(self->rawptr, half_remains);
 
     if (tmp == nullptr) {
