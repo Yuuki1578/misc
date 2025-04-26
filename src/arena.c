@@ -141,11 +141,26 @@ void* arena_alloc_generic(Arena* self, size_t size) {
   }
 
   if (size >= self->capacity || size >= remains) {
-    size_t half_remains = self->capacity - remains;
+    size_t should_above = size > ARENA_STEP_DFL ? size : ARENA_STEP_DFL;
+    size_t half_remains = (self->capacity - remains) + should_above;
 
-    // Add necessary byte if size is too large
-    remains = remains + half_remains + size;
-    void* tmp = realloc(self->rawptr, remains);
+    // FIXME
+    // remains = half_remains + size
+    //
+    // ptr = 0x0
+    // cap = 8
+    // offset = 4
+    // request = 6
+    //
+    // cap += request + (cap - offset)
+    // request_ptr = ptr + offset
+    // offset += request
+    //
+    // Too large
+    // ↓↓↓↓↓↓↓↓↓
+    // remains = remains + half_remains + size;
+    // @FIXED April 26, 2025
+    void* tmp = realloc(self->rawptr, half_remains);
 
     if (tmp == nullptr) {
       return nullptr;
@@ -158,7 +173,7 @@ void* arena_alloc_generic(Arena* self, size_t size) {
   // [0, 0, 0, 0, 0, 0]
   //  ^
   // offset
-  // 
+  //
   // [0, 0, 0, 0, 0, 0]
   //              ^
   //            offset
@@ -174,10 +189,11 @@ void* arena_alloc(size_t size) {
 
 // This may seem funny, but there is NO WAY i can know
 // the exact size of the block of memory before allocation.
-void* arena_realloc_generic(Arena* self,
-                            void* dst,
-                            size_t old_size, // <- actually life saver, real hero
-                            size_t new_size) {
+void* arena_realloc_generic(
+    Arena* self,
+    void* dst,
+    size_t old_size,  // <- actually life saver, real hero
+    size_t new_size) {
   void* ready;
 
   if (self == nullptr || old_size == 0) {

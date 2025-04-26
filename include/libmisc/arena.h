@@ -32,8 +32,11 @@
 
 // @brief arena data types
 //
-// On 32-bit system, this type is 12 byte in size,
+// On 32-bit windows, this type is 12 byte in size,
 // while on 64-bit system, is 24 byte.
+// void* = 4 byte
+// size_t / unsigned long int = 4 byte
+// uint64_t unsigned long long = 8 byte.
 // Each member of this struct can be fetch by
 // CPU in each cycle.
 // On 64-bit system for example, the CPU may
