@@ -29,13 +29,14 @@ ADD_COMPILE_OPTIONS(
   -Werror
   -Wextra
   -Wno-gnu-pointer-arith
+  -Wno-pointer-arith
   -pedantic
 )
 
 ADD_LINK_OPTIONS(
   # Memory sanitizer
   # uncomment for testing
-  -fsanitize=address
+  # -fsanitize=address
   -s
 )
 
