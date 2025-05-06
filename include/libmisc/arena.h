@@ -10,10 +10,10 @@
 #ifndef MISC_ARENA_H
 #define MISC_ARENA_H
 
-#ifdef _WIN32  // Windows portability
-#define PAGE_SIZE 4096
-#else
+#ifdef __ANDROID__
 #include <bits/page_size.h>
+#else
+#define PAGE_SIZE 4096
 #endif
 
 #include <stddef.h>
