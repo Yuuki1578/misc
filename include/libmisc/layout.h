@@ -18,8 +18,8 @@ typedef enum : int8_t {
   LAYOUT_NON_NULL = 1,
 } Status;
 
-#define MEMORY_ALLOC_SUCCESS 0
-#define MEMORY_ALLOC_FAILURE -1
+constexpr auto MEMORY_ALLOC_SUCCESS = 0;
+constexpr auto MEMORY_ALLOC_FAILURE = -1;
 
 /*
  * simple memory layout, providing basic features such as:
@@ -31,7 +31,7 @@ typedef enum : int8_t {
  *   • LAYOUT_NON_NULL == 1.
  * */
 
-typedef struct MiscMemoryLayout {
+typedef struct {
   Status status;
   uint16_t size;
   size_t needed;

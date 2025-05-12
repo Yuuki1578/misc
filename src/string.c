@@ -12,7 +12,7 @@
 #include <stddef.h>
 #include <string.h>
 
-size_t STRING_STEP_DFL = STRING_ALLOC_STEP;
+size_t StringStepDefault = STRING_ALLOC_STEP;
 
 String string_new(void) {
   return (String){
@@ -22,20 +22,20 @@ String string_new(void) {
   };
 }
 
-ssize_t string_reserve(String* self, size_t count) {
+ssize_t string_reserve(String* string, size_t count) {
   Layout* layout;
   char* tmp;
 
-  if (self == nullptr || count == 0) {
+  if (string == nullptr || count == 0) {
     return STRING_STATUS_ERR;
   }
 
-  layout = &self->layout;
+  layout = &string->layout;
   layout_add(layout, count);
 
   switch (layout->status) {
     case LAYOUT_NON_NULL:
-      tmp = layout_realloc(layout, self->rawptr);
+      tmp = layout_realloc(layout, string->rawptr);
       break;
 
     default:
@@ -47,95 +47,95 @@ ssize_t string_reserve(String* self, size_t count) {
     return STRING_STATUS_ERR;
   }
 
-  self->rawptr = tmp;
+  string->rawptr = tmp;
   return count;
 }
 
-int string_push(String* self, char ch) {
+int string_push(String* string, char ch) {
   Layout* layout;
 
-  if (self == nullptr) {
+  if (string == nullptr) {
     return STRING_STATUS_ERR;
   }
 
-  layout = &self->layout;
+  layout = &string->layout;
 
-  if (layout->needed == 0 || layout->needed == layout->size * self->length) {
+  if (layout->needed == 0 || layout->needed == layout->size * string->length) {
     ssize_t status = string_reserve(
-        self, STRING_STEP_DFL < sizeof(char) ? sizeof(char) : STRING_STEP_DFL);
+        string, StringStepDefault < sizeof(char) ? sizeof(char) : StringStepDefault);
 
     if (status == STRING_STATUS_ERR) {
       return status;
     }
   }
 
-  self->rawptr[self->length++] = ch;
+  string->rawptr[string->length++] = ch;
   return STRING_STATUS_OK;
 }
 
-ssize_t string_pushstr(String* self, char* cstr) {
+ssize_t string_pushstr(String* string, char* cstr) {
   Layout* layout;
   size_t length;
 
-  if (self == nullptr || cstr == nullptr) {
+  if (string == nullptr || cstr == nullptr) {
     return STRING_STATUS_ERR;
   }
 
-  layout = &self->layout;
+  layout = &string->layout;
   length = strlen(cstr);
 
   if (layout->needed > layout->size * length) {
-    memcpy(self->rawptr + self->length, cstr, length);
-    self->length += length;
+    memcpy(string->rawptr + string->length, cstr, length);
+    string->length += length;
     return length;
   }
 
-  ssize_t status = string_reserve(self, length);
+  ssize_t status = string_reserve(string, length);
 
   if (status == STRING_STATUS_ERR) {
     return status;
   }
 
-  strncat(self->rawptr, cstr, length);
-  self->length += length;
+  strncat(string->rawptr, cstr, length);
+  string->length += length;
   return length;
 }
 
-char* string_at(String* self, size_t index) {
-  if (self == nullptr || self->layout.status == LAYOUT_NULL_PTR)
+char* string_at(String* string, size_t index) {
+  if (string == nullptr || string->layout.status == LAYOUT_NULL_PTR)
     return nullptr;
 
-  if (self->length <= index)
+  if (string->length <= index)
     return nullptr;
 
-  return &self->rawptr[index];
+  return &string->rawptr[index];
 }
 
-int string_crop(String* self) {
+int string_crop(String* string) {
   Layout* current;
   char* temporary;
 
-  if (self == nullptr || self->layout.status == LAYOUT_NULL_PTR)
+  if (string == nullptr || string->layout.status == LAYOUT_NULL_PTR)
     return STRING_STATUS_ERR;
 
-  current = &self->layout;
+  current = &string->layout;
 
-  if (self->length == current->needed)
+  if (string->length == current->needed)
     return STRING_STATUS_OK;
 
-  layout_min(current, current->needed - self->length);
-  temporary = layout_realloc(current, self->rawptr);
+  layout_min(current, current->needed - string->length);
+  temporary = layout_realloc(current, string->rawptr);
 
   if (current->status != LAYOUT_NON_NULL)
     return STRING_STATUS_ERR;
 
-  self->rawptr = temporary;
+  string->rawptr = temporary;
   return STRING_STATUS_OK;
 }
 
-void string_free(String* self) {
-  if (self == nullptr)
+void string_free(String* string) {
+  if (string == nullptr)
     return;
 
-  layout_dealloc(&self->layout, self->rawptr);
+  layout_dealloc(&string->layout, string->rawptr);
 }

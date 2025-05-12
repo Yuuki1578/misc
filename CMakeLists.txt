@@ -7,7 +7,6 @@ PROJECT(misc
   LANGUAGES C
 )
 
-SET(MISC_STATIC_LIBRARY "static-misc")
 SET(MISC_SOURCE_DIR "./src")
 SET(MISC_INCLUDE_DIR "./include")
 
@@ -25,6 +24,9 @@ INCLUDE_DIRECTORIES(${MISC_INCLUDE_DIR})
 ADD_COMPILE_OPTIONS(
   -O3
   -march=native
+  -mtune=native
+  -ffast-math
+  -funroll-loops
   -Wall
   -Werror
   -Wextra
@@ -34,18 +36,10 @@ ADD_COMPILE_OPTIONS(
 )
 
 ADD_LINK_OPTIONS(
-  # Memory sanitizer
-  # uncomment for testing
-  # -fsanitize=address
   -s
 )
 
 ADD_LIBRARY(${PROJECT_NAME}
-  SHARED
-  ${MISC_SOURCE_FILES}
-)
-
-ADD_LIBRARY(${MISC_STATIC_LIBRARY}
   STATIC
   ${MISC_SOURCE_FILES}
 )
@@ -53,4 +47,9 @@ ADD_LIBRARY(${MISC_STATIC_LIBRARY}
 ADD_EXECUTABLE(${MISC_TEST_EXE}
   ${MISC_TEST_FILE}
   ${MISC_SOURCE_FILES}
+)
+
+TARGET_LINK_OPTIONS(${MISC_TEST_EXE}
+  PUBLIC
+  -fsanitize=address
 )

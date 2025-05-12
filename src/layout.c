@@ -22,94 +22,94 @@ Layout layout_new(uint16_t size, size_t dflen) {
   };
 }
 
-void layout_add(Layout* self, size_t count) {
-  if (self == nullptr || count == 0) {
+void layout_add(Layout* layout, size_t count) {
+  if (layout == nullptr || count == 0) {
     return;
   }
 
-  if (self->needed == SIZE_MAX) {
+  if (layout->needed == SIZE_MAX) {
     return;
   }
 
-  if (self->size == 0) {
-    self->size = sizeof(char);
+  if (layout->size == 0) {
+    layout->size = sizeof(char);
   }
 
-  self->needed += self->size * count;
+  layout->needed += layout->size * count;
 }
 
-void layout_min(Layout* self, size_t count) {
-  if (self == nullptr || count == 0) {
+void layout_min(Layout* layout, size_t count) {
+  if (layout == nullptr || count == 0) {
     return;
   }
 
-  size_t currentTotal = self->size * count;
+  size_t currentTotal = layout->size * count;
 
-  if (self->needed < currentTotal || self->needed == 0) {
+  if (layout->needed < currentTotal || layout->needed == 0) {
     return;
   }
 
-  self->needed -= currentTotal;
+  layout->needed -= currentTotal;
 }
 
-void* layout_alloc(Layout* self) {
+void* layout_alloc(Layout* layout) {
   void* alloc;
   size_t needed;
 
-  if (self == nullptr) {
+  if (layout == nullptr) {
     return malloc(0);
   }
 
-  if (self->size == 0) {
-    self->size = sizeof(char);
+  if (layout->size == 0) {
+    layout->size = sizeof(char);
   }
 
-  if (self->needed == 0) {
+  if (layout->needed == 0) {
     alloc = malloc(0);
 
     if (alloc == nullptr) {
-      self->status = LAYOUT_NULL_PTR;
+      layout->status = LAYOUT_NULL_PTR;
     } else {
-      self->status = LAYOUT_UNIQUE_PTR;
+      layout->status = LAYOUT_UNIQUE_PTR;
     }
 
     return alloc;
   }
 
-  needed = self->needed;
+  needed = layout->needed;
   alloc = malloc(needed);
 
   if (alloc == nullptr) {
-    self->status = LAYOUT_NULL_PTR;
+    layout->status = LAYOUT_NULL_PTR;
   } else {
-    self->status = LAYOUT_NON_NULL;
+    layout->status = LAYOUT_NON_NULL;
   }
 
   return alloc;
 }
 
-void* layout_realloc(Layout* self, void* target) {
+void* layout_realloc(Layout* layout, void* target) {
   size_t needed;
   void* from_realloc;
 
-  if (self == nullptr || target == nullptr) {
+  if (layout == nullptr || target == nullptr) {
     return layout_alloc(nullptr);
   }
 
-  needed = self->needed;
+  needed = layout->needed;
   from_realloc = realloc(target, needed);
 
   if (from_realloc == nullptr) {
-    self->status = LAYOUT_NULL_PTR;
+    layout->status = LAYOUT_NULL_PTR;
   } else {
-    self->status = LAYOUT_NON_NULL;
+    layout->status = LAYOUT_NON_NULL;
   }
 
   return from_realloc;
 }
 
-void layout_dealloc(Layout* self, void* target) {
-  if (self == nullptr) {
+void layout_dealloc(Layout* layout, void* target) {
+  if (layout == nullptr) {
     if (target != nullptr) {
       free(target);
     }
@@ -117,12 +117,12 @@ void layout_dealloc(Layout* self, void* target) {
     return;
   }
 
-  if (self->status != LAYOUT_NULL_PTR && target != NULL) {
+  if (layout->status != LAYOUT_NULL_PTR && target != NULL) {
     free(target);
   }
 
   // invalidate the pointer
   target = nullptr;
-  self->needed = 0;
-  self->status = LAYOUT_NULL_PTR;
+  layout->needed = 0;
+  layout->status = LAYOUT_NULL_PTR;
 }

@@ -20,16 +20,16 @@ typedef int64_t ssize_t;
 #include <sys/types.h>
 #endif
 
-#define STRING_ALLOC_STEP 128ULL
-
-#define STRING_STATUS_OK 0
-#define STRING_STATUS_ERR -1
+constexpr auto STRING_ALLOC_STEP = 128ULL;
+constexpr auto STRING_STATUS_OK = 0;
+constexpr auto STRING_STATUS_ERR = -1;
 
 /*
  * Non-terminated and heap-allocated string type, String.
  * Use standard formatter if you want to print it to standard output.
+ * WARN any associated function with this type is not thread safe
  * */
-typedef struct DynString {
+typedef struct {
   char* rawptr;
   size_t length;
   Layout layout;
@@ -39,7 +39,7 @@ typedef struct DynString {
  * A mutable unsigned 64-bit integer, use to set the byte
  * of every char* pushed onto the String.
  * */
-extern size_t STRING_STEP_DFL;
+extern size_t StringStepDefault;
 
 /*
  * Initialize null String.

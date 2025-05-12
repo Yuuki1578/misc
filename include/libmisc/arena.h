@@ -5,7 +5,11 @@
 
 // @file arena.h
 // @brief memory region based allocator (arena)
-// @note this API is not thread safe
+// NOTE this API is not thread safe
+// If you want to prevent a global variable being
+// mutated by two or more threads, you should use
+// mutex or other primitive synchronization
+// see <threads.h> or <pthread.h>
 
 #ifndef MISC_ARENA_H
 #define MISC_ARENA_H
@@ -13,76 +17,107 @@
 #ifdef __ANDROID__
 #include <bits/page_size.h>
 #else
-#define PAGE_SIZE 4096
+constexpr auto PAGE_SIZE = 4096;
 #endif
 
 #include <stddef.h>
 
 // Default size for arena, work for non-POSIX system
-#define ARENA_ALLOC_STEP_INITIALIZER PAGE_SIZE
+constexpr auto ARENA_ALLOC_STEP = PAGE_SIZE;
 
 // Ok
-#define ARENA_READY 0
+constexpr auto ARENA_READY = 0;
 
 // Fatal
-#define ARENA_NOAVAIL -1
+constexpr auto ARENA_NOAVAIL = -1;
 
 // Warn
-#define ARENA_BUSY -2
+constexpr auto ARENA_BUSY = -2;
 
 // @brief arena data types
-//
-// On 32-bit windows, this type is 12 byte in size,
-// while on 64-bit system, is 24 byte.
-// void* = 4 byte
-// size_t / unsigned long int = 4 byte
-// uint64_t unsigned long long = 8 byte.
-// Each member of this struct can be fetch by
-// CPU in each cycle.
-// On 64-bit system for example, the CPU may
-// fetch 8 byte/cycle, so the CPU need 3 cycle
-// for fetching all struct member from memory.
-typedef struct Arena Arena;
-struct Arena {
-  void* rawptr;
-  size_t capacity;
-  size_t offset;
-};
+typedef struct {
+  void* rawptr;     // pointer to allocated memory
+  size_t capacity;  // total memory that arena can hold
+  size_t offset;    // an offset from the left of the pointer
+  size_t step;      // how much bytes per allocation
+} Arena;
 
 // @brief global arena allocator
 // @asociated_function: *_global()
 extern Arena ARENA_ALLOCATOR;
 
-// @brief offset for each arena allocation
-extern size_t ARENA_STEP_DFL;
+// Create a new Arena, can be allocated early if should_allocated is true.
+extern int arena_new(Arena* arena, size_t step, bool should_allocate);
 
-extern size_t arena_capacity(Arena* self);
-extern size_t arena_remaining(Arena* self);
-extern size_t arena_position(Arena* self);
-extern void* arena_first_addr(Arena* self);
-extern void* arena_last_addr(Arena* self);
-extern void* arena_brk_addr(Arena* self);
-extern void arena_snapshot(Arena* self);
+// Return an allocated chunk of memory from arena to the caller
+extern void* arena_alloc(Arena* arena, size_t size);
 
+// Change the size of the allocated memory from dst
+// from old_size into new_size. Return the newly reallocated
+// chunk of memory from arena.
+extern void* arena_realloc(Arena* arena,
+                           void* dst,
+                           size_t old_size,
+                           size_t new_size);
+
+// Freeing the memory hold by arena.
+extern void arena_dealloc(Arena* arena);
+
+// Return the arena capacity (in bytes).
+extern size_t arena_capacity(Arena* arena);
+
+// Return the remaining arena capacity
+extern size_t arena_remaining(Arena* arena);
+
+// Return offset from the left of arena.
+extern size_t arena_offset(Arena* arena);
+
+// Return the first memory address from arena.
+extern void* arena_first_addr(Arena* arena);
+
+// Return the last memory address used from arena.
+extern void* arena_last_addr(Arena* arena);
+
+// Return the last memory address from arena.
+extern void* arena_brk_addr(Arena* arena);
+
+// Print the arena status to the standard output.
+extern void arena_snapshot(Arena* arena);
+
+// Check whether the arena offset is equal to arena capacity - 1.
+extern bool arena_on_limit(Arena* arena);
+
+// Create global arena struct.
+extern int arena_new_global(void);
+
+// Return global arena capacity.
 extern size_t arena_capacity_global(void);
+
+// Return the remaining capacity of global arena.
 extern size_t arena_remaining_global(void);
-extern size_t arena_position_global(void);
+
+// Return the offset of global arena.
+extern size_t arena_offset_global(void);
+
+// Return first memory address from global arena.
 extern void* arena_first_addr_global(void);
+
+// Return last used memory address from global arena.
 extern void* arena_last_addr_global(void);
+
+// Return last memory address from allocated memory.
 extern void* arena_brk_addr_global(void);
+
+// Print global arena status.
 extern void arena_snapshot_global(void);
 
-extern bool arena_reached_limit(Arena* self);
-extern int arena_global_initializer(void);
-extern int arena_new(Arena* self, size_t dflcap);
-extern void* arena_alloc_generic(Arena* self, size_t size);
-extern void* arena_alloc(size_t size);
-extern void* arena_realloc_generic(Arena* self,
-                                   void* dst,
-                                   size_t old_size,
-                                   size_t new_size);
-extern void* arena_realloc(void* dst, size_t old_size, size_t new_size);
-extern void arena_dealloc_generic(Arena* self);
-extern void arena_dealloc(void);
+// Return a chunk of memory from global arena.
+extern void* arena_alloc_global(size_t size);
+
+// Return newly reallocated memory from global arena.
+extern void* arena_realloc_global(void* dst, size_t old_size, size_t new_size);
+
+// Freeing memory from global arena.
+extern void arena_dealloc_global(void);
 
 #endif
