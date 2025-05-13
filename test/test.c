@@ -1,16 +1,23 @@
 #include <libmisc/arena.h>
 #include <stdio.h>
+#include <string.h>
 
 int main(void) {
-  if (arena_new_global() != ARENA_READY) {
+  Arena* arena = &(Arena){};
+  if (arena_new(arena, PAGE_SIZE, true) != ARENA_READY) {
     return 1;
   }
 
-  char* string = arena_alloc_global(PAGE_SIZE);
-  strcpy(string, __FILE__);
-  printf("%s\n", string);
-  arena_snapshot_global();
+  char* string = arena_alloc(arena, 64);
+  strcpy(string, "Hello");
 
-  arena_dealloc_global();
+  char* another = arena_alloc(arena, 64);
+  strcpy(another, __FILE__);
+  printf("%s\n", string);
+  printf("%s\n", another);
+
+  arena_snapshot(arena);
+  arena_dealloc(arena);
+
   return 0;
 }

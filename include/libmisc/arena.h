@@ -42,10 +42,6 @@ typedef struct {
   size_t step;      // how much bytes per allocation
 } Arena;
 
-// @brief global arena allocator
-// @asociated_function: *_global()
-extern Arena ARENA_ALLOCATOR;
-
 // Create a new Arena, can be allocated early if should_allocated is true.
 extern int arena_new(Arena* arena, size_t step, bool should_allocate);
 
@@ -86,38 +82,5 @@ extern void arena_snapshot(Arena* arena);
 
 // Check whether the arena offset is equal to arena capacity - 1.
 extern bool arena_on_limit(Arena* arena);
-
-// Create global arena struct.
-extern int arena_new_global(void);
-
-// Return global arena capacity.
-extern size_t arena_capacity_global(void);
-
-// Return the remaining capacity of global arena.
-extern size_t arena_remaining_global(void);
-
-// Return the offset of global arena.
-extern size_t arena_offset_global(void);
-
-// Return first memory address from global arena.
-extern void* arena_first_addr_global(void);
-
-// Return last used memory address from global arena.
-extern void* arena_last_addr_global(void);
-
-// Return last memory address from allocated memory.
-extern void* arena_brk_addr_global(void);
-
-// Print global arena status.
-extern void arena_snapshot_global(void);
-
-// Return a chunk of memory from global arena.
-extern void* arena_alloc_global(size_t size);
-
-// Return newly reallocated memory from global arena.
-extern void* arena_realloc_global(void* dst, size_t old_size, size_t new_size);
-
-// Freeing memory from global arena.
-extern void arena_dealloc_global(void);
 
 #endif

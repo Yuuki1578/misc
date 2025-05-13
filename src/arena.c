@@ -54,34 +54,6 @@ void arena_snapshot(Arena* arena) {
   fflush(stdout);
 }
 
-size_t arena_capacity_global(void) {
-  return arena_capacity(&ARENA_ALLOCATOR);
-}
-
-size_t arena_remaining_global(void) {
-  return arena_remaining(&ARENA_ALLOCATOR);
-}
-
-size_t arena_offset_global(void) {
-  return arena_offset(&ARENA_ALLOCATOR);
-}
-
-void* arena_first_addr_global(void) {
-  return arena_first_addr(&ARENA_ALLOCATOR);
-}
-
-void* arena_last_addr_global(void) {
-  return arena_last_addr(&ARENA_ALLOCATOR);
-}
-
-void* arena_brk_addr_global(void) {
-  return arena_brk_addr(&ARENA_ALLOCATOR);
-}
-
-void arena_snapshot_global(void) {
-  arena_snapshot(&ARENA_ALLOCATOR);
-}
-
 bool arena_on_limit(Arena* arena) {
   if (arena == nullptr) {
     return false;
@@ -92,10 +64,6 @@ bool arena_on_limit(Arena* arena) {
   }
 
   return false;
-}
-
-int arena_new_global(void) {
-  return arena_new(&ARENA_ALLOCATOR, ARENA_ALLOC_STEP, true);
 }
 
 int arena_new(Arena* arena, size_t step, bool should_allocate) {
@@ -165,10 +133,6 @@ void* arena_alloc(Arena* arena, size_t size) {
   return ready;
 }
 
-void* arena_alloc_global(size_t size) {
-  return arena_alloc(&ARENA_ALLOCATOR, size);
-}
-
 // This may seem funny, but there is NO WAY i can know
 // the exact size of the block of memory before allocation.
 void* arena_realloc(Arena* arena,
@@ -193,10 +157,6 @@ void* arena_realloc(Arena* arena,
   return ready;
 }
 
-void* arena_realloc_global(void* dst, size_t old_size, size_t new_size) {
-  return arena_realloc(&ARENA_ALLOCATOR, dst, old_size, new_size);
-}
-
 void arena_dealloc(Arena* arena) {
   if (arena == nullptr || arena->capacity == 0) {
     return;
@@ -205,8 +165,4 @@ void arena_dealloc(Arena* arena) {
   free(arena->rawptr);
   arena->capacity = 0;
   arena->offset = 0;
-}
-
-void arena_dealloc_global(void) {
-  arena_dealloc(&ARENA_ALLOCATOR);
 }
