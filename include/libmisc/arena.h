@@ -1,15 +1,11 @@
-// April 2025, [https://github.com/Yuuki1578/misc.git]
-// This is a part of the libmisc library.
-// Shared and static building for this library are provided.
-// Any damage caused by this software is not my responsibility at all.
+/*
+ * April 2025, [https://github.com/Yuuki1578/misc.git]
+ * This is a part of the libmisc library.
+ * Any damage caused by this software is not my responsibility at all.
 
-// @file arena.h
-// @brief memory region based allocator (arena)
-// NOTE this API is not thread safe
-// If you want to prevent a global variable being
-// mutated by two or more threads, you should use
-// mutex or other primitive synchronization
-// see <threads.h> or <pthread.h>
+ * @file arena.h
+ * @brief memory region based allocator (arena)
+ * */
 
 #ifndef MISC_ARENA_H
 #define MISC_ARENA_H
@@ -36,51 +32,46 @@ constexpr auto ARENA_BUSY = -2;
 
 // @brief arena data types
 typedef struct {
-  void* rawptr;     // pointer to allocated memory
-  size_t capacity;  // total memory that arena can hold
-  size_t offset;    // an offset from the left of the pointer
-  size_t step;      // how much bytes per allocation
+    void    *rawptr;   // pointer to allocated memory
+    size_t  capacity;  // total memory that arena can hold
+    size_t  offset;    // an offset from the left of the pointer
+    size_t  step;      // how much bytes per allocation
 } Arena;
 
 // Create a new Arena, can be allocated early if should_allocated is true.
-extern int arena_new(Arena* arena, size_t step, bool should_allocate);
+extern int arena_new(Arena *arena, size_t step, bool should_allocate);
 
-// Return an allocated chunk of memory from arena to the caller
-extern void* arena_alloc(Arena* arena, size_t size);
+// Return an allocated chunk of memory from arena to the caller.
+extern void *arena_alloc(Arena *arena, size_t size);
 
-// Change the size of the allocated memory from dst
-// from old_size into new_size. Return the newly reallocated
-// chunk of memory from arena.
-extern void* arena_realloc(Arena* arena,
-                           void* dst,
-                           size_t old_size,
-                           size_t new_size);
+// Change the size of the allocated memory.
+void *arena_realloc(Arena   *arena,
+                    void    *dst,
+                    size_t  old_size,
+                    size_t  new_size);
 
 // Freeing the memory hold by arena.
-extern void arena_dealloc(Arena* arena);
+extern void arena_dealloc(Arena *arena);
 
 // Return the arena capacity (in bytes).
-extern size_t arena_capacity(Arena* arena);
+extern size_t arena_capacity(Arena *arena);
 
-// Return the remaining arena capacity
-extern size_t arena_remaining(Arena* arena);
+// Return the remaining arena capacity.
+extern size_t arena_remaining(Arena *arena);
 
 // Return offset from the left of arena.
-extern size_t arena_offset(Arena* arena);
+extern size_t arena_offset(Arena *arena);
 
 // Return the first memory address from arena.
-extern void* arena_first_addr(Arena* arena);
+extern void *arena_first_addr(Arena *arena);
 
 // Return the last memory address used from arena.
-extern void* arena_last_addr(Arena* arena);
+extern void *arena_last_addr(Arena *arena);
 
 // Return the last memory address from arena.
-extern void* arena_brk_addr(Arena* arena);
-
-// Print the arena status to the standard output.
-extern void arena_snapshot(Arena* arena);
+extern void *arena_brk_addr(Arena *arena);
 
 // Check whether the arena offset is equal to arena capacity - 1.
-extern bool arena_on_limit(Arena* arena);
+extern bool arena_on_limit(Arena *arena);
 
 #endif
