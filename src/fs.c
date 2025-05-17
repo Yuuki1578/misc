@@ -17,21 +17,13 @@ char *fs_readall(Arena *arena, FILE *file)
     
     clearerr(file);
 
-    if (fseeko(file, 0, SEEK_END) != 0) {
-        switch (errno) {
-        case EOVERFLOW:
-            offset = INT64_MAX;
-            goto rewinded;
-        }
-
+    if (fseeko(file, 0, SEEK_END) != 0)
         return nullptr;
-    }
 
     else
         if ((offset = ftello(file)) <= 0)
             return nullptr;
 
-rewinded:
     rewind(file);
 
     char *buffer = arena_alloc(arena, offset);
@@ -76,7 +68,7 @@ PollFd pfd_new(int fd, int event)
     return (PollFd){
         .inner  = {
             .fd     = fd,
-            .event  = event,
+            .events = event,
         },
 
         .buffer = nullptr,
@@ -96,7 +88,7 @@ PollFd pfd_write(int fd, char *buffer, size_t wrcount)
 PollFd pfd_read(Arena *arena, int fd, size_t rdcount)
 {
     PollFd pfd  = pfd_new(fd, MISCIO_EVREAD);
-    pfd.buffer  = arena_alloc(arena, count);
+    pfd.buffer  = arena_alloc(arena, rdcount);
     pfd.count   = rdcount;
 
     return pfd;
