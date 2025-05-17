@@ -3,7 +3,7 @@ LIBRARY = libmisc.a
 CC = cc
 CFLAGS = -O3 -Wall -Werror -Wextra \
 		 -pedantic -ffast-math \
-		 -std=c23 -march=native \
+		 -std=c2y -march=native \
 		 -Wno-pointer-arith \
 		 -mtune=native -Iinclude \
 		 -funroll-loops \
@@ -13,8 +13,7 @@ AR = ar
 ARFLAGS = rcs
 
 SRCDIR = src
-SRCS = $(SRCDIR)/arena.c \
-	   $(SRCDIR)/fs.c
+SRCS = $(SRCDIR)/arena.c
 
 BUILDIR = build
 OBJS = $(patsubst $(SRCDIR)/%.c, $(BUILDIR)/%.o, $(SRCS))
