@@ -33,9 +33,12 @@ extern char *fs_readall_fd(Arena *arena, int fd);
 #ifdef MISC_NONBLOCK_UNLOCK
 
 extern PollFd pfd_new(int fd, int event);
+extern PollFd pfd_write(int fd, char *buffer, size_t wrcount);
+extern PollFd pfd_read(Arena *arena, int fd, size_t rdcount);
+
 extern int fs_nb_open(const char *path, int flag, ...);
-extern int fs_nb_read(Arena *arena, PollFd *pfds, pcount_t count);
-extern int fs_nb_write(Arena *arena, PollFd, *pfds, pcount_t count);
+extern int fs_nb_write(Arena *arena, PollFd *pfds, pcount_t wrcount);
+extern int fs_nb_read(Arena *arena, PollFd *pfds, pcount_t rdcount);
 
 #endif
 

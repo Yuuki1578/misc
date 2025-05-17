@@ -5,5 +5,5 @@ test.o: test.c
 
 .PHONY: clean
 
-clean: test test.o
-	rm $^
+clean:
+	rm test test.o
