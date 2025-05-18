@@ -4,7 +4,8 @@
  * Any damage caused by this software is not my responsibility at all.
 
  * @file arena.c
- * @brief memory region based allocator (arena)
+ * @brief linear allocator with segmented region (arena)
+ *
  * */
 
 #include <libmisc/arena.h>
@@ -74,6 +75,24 @@ int arena_new(Arena *arena, size_t step, bool should_allocate)
     return ARENA_READY;
 }
 
+int arena_from(Arena *arena, void *rawptr, size_t count)
+{
+    if (arena == nullptr || rawptr == nullptr)
+        return -1;
+
+    if (count == 0)
+        return -1;
+
+    *arena = (Arena){
+        .rawptr = rawptr,
+        .capacity = count,
+        .offset = 0,
+        .step = count,
+    };
+
+    return 0;
+}
+
 void *arena_alloc(Arena *arena, size_t size)
 {
     void *ready;
@@ -102,24 +121,15 @@ void *arena_alloc(Arena *arena, size_t size)
         arena->capacity += remains;
     }
 
-    // [0, 0, 0, 0, 0, 0]
-    //  ^
-    // offset
-    //
-    // [0, 0, 0, 0, 0, 0]
-    //              ^
-    //            offset
     ready = arena->rawptr + arena->offset;
     arena->offset += size;
 
     return ready;
 }
 
-// This may seem funny, but there is NO WAY i can know
-// the exact size of the block of memory before allocation.
 void *arena_realloc(Arena   *arena,
                     void    *dst,
-                    size_t  old_size,  // <- actually life saver, real hero
+                    size_t  old_size,
                     size_t  new_size)
 {
     void *ready;
@@ -145,4 +155,19 @@ void arena_dealloc(Arena *arena)
     free(arena->rawptr);
     arena->capacity = 0;
     arena->offset = 0;
+}
+
+void *arena_popout(Arena *arena)
+{
+    if (arena == nullptr)
+        return nullptr;
+
+    void *mem = arena->rawptr;
+
+    arena->rawptr = nullptr;
+    arena->capacity = 0;
+    arena->offset = 0;
+    arena->step = 0;
+
+    return mem;
 }
