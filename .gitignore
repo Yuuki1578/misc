@@ -1,5 +1,2 @@
 build/
-libmisc/
 .cache/
-test
-test.o
