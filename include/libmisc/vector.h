@@ -6,6 +6,10 @@
  * @file vector.h
  * @brief header only dynamic vector
  *
+ * One thing to be concerned is that, if you use the macro provided in this header file
+ * Your program might have slightly bigger binary size, because the macro is expanded and
+ * hardcoded into binary itself, maybe the behavior is same as inline function
+ *
  * */
 
 #pragma once
@@ -13,7 +17,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <wchar.h>
 
 /*
  * The size for each allocation can be modified through this macro
@@ -58,12 +61,24 @@
  * typedef typeof(vector(int)) VectorInt;
  * ...
  *
+ * Also, you can use static array on this macro, because it'll break
+ * at preprocessor stage
+ *
+ * you can use:
+ *
+ * vector(struct dirent*) dirs;
+ *
+ * instead of:
+ *
+ * vector(struct dirent[restrict 8]) dirs;
+ * ...
+ *
  * */
-#define vector(Type)        \
-    struct {                \
-        Type    *elems;     \
-        size_t  cap;        \
-        size_t  len;        \
+#define vector(Type)    \
+    struct {            \
+        Type    *elems; \
+        size_t  cap;    \
+        size_t  len;    \
     }
 
 /*
@@ -103,21 +118,21 @@
  * the vector is then reallocated into vector.cap += VECTOR_STEP
  *
  * */
-#define vector_push(vector, elem)                                                                       \
-    do {                                                                                                \
-        if (vector.elems == nullptr) {                                                                  \
-            vector.elems = calloc(VECTOR_STEP, sizeof(elem));                                           \
-            if (vector.elems == nullptr)                                                                \
-                break;                                                                                  \
-            vector.cap += VECTOR_STEP;                                                                  \
-        }                                                                                               \
-        else if (vector.cap == vector.len) {                                                            \
-            typeof(elem) *tmp = realloc(vector.elems, (vector.cap += VECTOR_STEP) * sizeof(elem));      \
-            if (tmp == nullptr)                                                                         \
-                break;                                                                                  \
-            vector.elems = tmp;                                                                         \
-        }                                                                                               \
-        vector.elems[vector.len++] = elem;                                                              \
+#define vector_push(vector, elem)                                                                                   \
+    do {                                                                                                            \
+        if (vector.elems == nullptr) {                                                                              \
+            vector.elems = calloc(VECTOR_STEP, sizeof(*vector.elems));                                              \
+            if (vector.elems == nullptr)                                                                            \
+                break;                                                                                              \
+            vector.cap += VECTOR_STEP;                                                                              \
+        }                                                                                                           \
+        else if (vector.cap == vector.len) {                                                                        \
+            typeof(vector.elems) tmp = realloc(vector.elems, (vector.cap += VECTOR_STEP) * sizeof(*vector.elems));  \
+            if (tmp == nullptr)                                                                                     \
+                break;                                                                                              \
+            vector.elems = tmp;                                                                                     \
+        }                                                                                                           \
+        vector.elems[vector.len++] = (typeof(*vector.elems)) elem;                                                  \
     } while (false)
 
 /*

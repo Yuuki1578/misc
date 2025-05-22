@@ -16,33 +16,20 @@
 #ifdef __ANDROID__
 #include <bits/page_size.h>
 #else
-
-/*
- * constexpr (constant expression): determined at compile time
- * present as read-only data on binary file (maybe platform dependent)
- * 
- * auto: different from auto for storage class specifier, this is more like
- * in C++, where the type is expanded at compile time through the right hand side expression
- *
- * */
-constexpr auto PAGE_SIZE = 4096;
+#define PAGE_SIZE 4096;
 #endif
 
 #include <stddef.h>
-
-/*
- * Default size for arena, work for non-POSIX system
- * 
- * */
-constexpr auto ARENA_ALLOC_STEP = PAGE_SIZE;
 
 /* 
  * Magic values
  *
  * */
-constexpr auto ARENA_READY = 0;
-constexpr auto ARENA_NOAVAIL = -1;
-constexpr auto ARENA_BUSY = -2;
+enum {
+    ARENA_READY = 0,
+    ARENA_NOAVAIL = -1,
+    ARENA_ALLOC_STEP = PAGE_SIZE,
+};
 
 /*
  * Arena data types
@@ -66,25 +53,25 @@ typedef struct {
  * Create a new Arena, can be allocated early if should_allocated is true
  *
  * */
-extern int arena_new(Arena *arena, size_t step, bool should_allocate);
+extern int arena_new(Arena *restrict arena, size_t step, bool should_allocate);
 
 /*
  * Create a new arena from rawptr[count]
  *
  * */
-extern int arena_from(Arena *arena, void *rawptr, size_t count);
+extern int arena_from(Arena *restrict arena, void *rawptr, size_t count);
 
 /*
  * Return an allocated chunk of memory from arena to the caller
  *
  * */
-extern void *arena_alloc(Arena *arena, size_t size);
+extern void *arena_alloc(Arena *restrict arena, size_t size);
 
 /* 
  * Change the size of the allocated memory
  * 
  * */
-void *arena_realloc(Arena   *arena,
+void *arena_realloc(Arena   *restrict arena,
                     void    *dst,
                     size_t  old_size,
                     size_t  new_size);
@@ -93,52 +80,52 @@ void *arena_realloc(Arena   *arena,
  * Freeing the memory hold by arena
  *
  * */
-extern void arena_dealloc(Arena *arena);
+extern void arena_dealloc(Arena *restrict arena);
 
 /*
  * Return the arena capacity (in bytes)
  *
  * */
-extern size_t arena_capacity(Arena *arena);
+extern size_t arena_capacity(Arena *restrict arena);
 
 /*
  * Return the remaining arena capacity
  *
  * */
-extern size_t arena_remaining(Arena *arena);
+extern size_t arena_remaining(Arena *restrict arena);
 
 /*
  * Return offset from the left of arena
  *
  * */
-extern size_t arena_offset(Arena *arena);
+extern size_t arena_offset(Arena *restrict arena);
 
 /*
  * Return the first memory address from arena
  *
  * */
-extern void *arena_first_addr(Arena *arena);
+extern void *arena_first_addr(Arena *restrict arena);
 
 /*
  * Return the last memory address used from arena
  * 
  * */
-extern void *arena_last_addr(Arena *arena);
+extern void *arena_last_addr(Arena *restrict arena);
 
 /*
  * Return the last memory address from arena
  * 
  * */
-extern void *arena_brk_addr(Arena *arena);
+extern void *arena_brk_addr(Arena *restrict arena);
 
 /*
  * Check whether the arena offset is equal to arena capacity - 1
  *
  * */
-extern bool arena_on_limit(Arena *arena);
+extern bool arena_on_limit(Arena *restrict arena);
 
 /*
  * Return the inner buffer as new allocated pointer and freeing the arena.
  *
  * */
-extern void *arena_popout(Arena *arena);
+extern void *arena_popout(Arena *restrict arena);

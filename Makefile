@@ -13,7 +13,8 @@ AR = ar
 ARFLAGS = rcs
 
 SRCDIR = src
-SRCS = $(SRCDIR)/arena.c
+SRCS = $(SRCDIR)/arena.c \
+	   $(SRCDIR)/nonblock.c
 
 BUILDIR = build
 OBJS = $(patsubst $(SRCDIR)/%.c, $(BUILDIR)/%.o, $(SRCS))
