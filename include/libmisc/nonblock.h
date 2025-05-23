@@ -35,8 +35,36 @@
  * with the O_NONBLOCK flags (fcntl.h)
  *
  * */
+#define MISCNB_PARTIAL 1 << 10
 
-#define MISCNB_PARTIAL (1 << 10)
+enum MiscEvent {
+    MISCNB_EVWRITE  = POLLWRNORM,
+    MISCNB_EVREAD   = POLLRDNORM,
+};
+
+typedef struct {
+    struct pollfd   poller;
+    void            *buffer;
+    size_t          count;
+    bool            complete;
+} Pollio;
+
+/*
+ * Registering file descriptor to be monitored with event
+ * The event must be one of MISCNB_EV*
+ *
+ * This functionality is far differ from one defined in poll.h
+ *
+ * */
+Pollio pollio_register(int fd, enum MiscEvent event);
+
+/*
+ * Monitoring each file descriptor, wait for it to be ready and perform reading
+ * The readyness of file descriptor is still unknown, so the file descriptor
+ * being read is may / may not be unordered
+ *
+ * */
+void pollio_multiplex(Pollio *polls, size_t count, int timeout);
 
 /*
  * Attempt to read from a file descriptor without blocking the main thread
@@ -69,7 +97,7 @@ void *readnball(int nbfd, int timeout);
 
 /*
  * Write up to buf[count] to the file descriptor
- * The write operation is not synced using fsync, so the user gotta do it themselves
+ * The write operation is not synced using fsync(), so the user gotta do it themselves
  *
  * */
 ssize_t writenb(int     nbfd,

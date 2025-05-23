@@ -2,6 +2,101 @@
 #include <stdlib.h>
 #include <string.h>
 
+Pollio pollio_register(int nbfd, enum MiscEvent event, size_t count)
+{
+    return (Pollio){
+        .poller = {
+            .fd = nbfd,
+            .events = event,
+        },
+
+        .buffer = nullptr,
+        .count = event == MISCNB_EVREAD ? 0 : count,
+        .complete = false,
+    };
+}
+
+static void __pollio_duplicate(struct pollfd *polls, Pollio *pollios, size_t count)
+{
+    while (count--)
+        *(polls++) = (pollios++)->poller;
+}
+
+void pollio_multiplex(Pollio *polls, size_t count, int timeout)
+{
+    if (!polls || count == 0)
+        return;
+
+    struct pollfd *realpolls = calloc(count, sizeof *realpolls);
+    if (!realpolls)
+        return;
+
+    __pollio_duplicate(realpolls, polls, count);
+
+    while (true) {
+        int status = poll(realpolls, count, timeout);
+        if (status == 0 || status == -1)
+            break;
+
+        for (size_t i = 0, complete = 0; i < count && complete != count; i++) {
+            if (realpolls[i].complete) {
+                complete++;
+                goto nextfor;
+            }
+
+
+            if (realpolls[i].revents & realpolls[i].events) {
+                switch (realpolls[i].events) {
+                case MISCNB_EVWRITE:
+                    if (realpolls[i].count <= MISCNB_PARTIAL)
+                        write(realpolls[i].poller.fd, realpolls[i].buffer, realpolls[i].count);
+                    else {
+                        size_t written = 0;
+                        size_t wrcount = realpolls[i].count;
+
+                        while (written < wrcount) {
+                            size_t remains = wrcount - written;
+                            size_t wrsize = remains < MISCNB_PARTIAL ? remains : MISCNB_PARTIAL;
+
+                            if (write(realpolls[i].poller.fd, realpolls[i].buffer + written, wrsize) == -1) {
+                                realpolls[i].complete = true;
+                                goto done;
+                            }
+
+                            written += wrsize;
+                        }
+                    }
+                
+                case MISCNB_EVREAD:
+                    if (realpolls[i].count <= MISCNB_PARTIAL)
+                        read(realpolls[i].poller.fd, realpolls[i].buffer, realpolls[i].count);
+                    else {
+                        size_t readed = 0;
+                        size_t rdcount = realpolls[i].count;
+
+                        while (readed < rdcount) {
+                            size_t remains = wrcount - readed;
+                            size_t rdsize = remains < MISCNB_PARTIAL ? remains : MISCNB_PARTIAL;
+
+                            if (read(realpolls[i].poller.fd, realpolls[i].buffer + readed, wrsize) <= 0) {
+                                realpolls[i].complete = true;
+                                goto done;
+                            }
+
+                            readed += rdsize;
+                        }
+                    }
+                }
+            }
+
+        done:
+        }
+    nextfor:
+    }
+
+    free(realpolls);
+}
+
 static ssize_t __ionb(int       nbfd,
                         void    *buf,
                         size_t  count,
