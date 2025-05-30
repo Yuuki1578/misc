@@ -42,8 +42,17 @@
 
 enum { MISCNB_PARTIAL = 1 << 10 };
 
+/*
+ * Magic values
+ *
+ * */
+typedef enum {
+  EVTRIG_EVENT_DONE = 0xBADF00D,
+  EVTRIG_EVENT_WAIT = 0xBADFEEL,
+} EventTrigger;
+
 typedef int milisecond_t;
-typedef void (*on_ready_t)(int fd, int event, void *any);
+typedef EventTrigger (*on_ready_t)(int fd_context, int fd_event, void *any);
 
 typedef struct {
   struct pollfd *polls;
@@ -51,7 +60,8 @@ typedef struct {
   milisecond_t timeout;
 } PollRegister;
 
-void pollreg_multiplex(PollRegister *pr, on_ready_t callback);
+void pollreg_multiplex(PollRegister *restrict pr, on_ready_t callback,
+                       void *any);
 
 /*
  * Attempt to read from a file descriptor without blocking the main thread

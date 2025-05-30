@@ -3,6 +3,43 @@
 #include <stdlib.h>
 #include <string.h>
 
+void pollreg_multiplex(PollRegister *pr, on_ready_t callback, void *any) {
+  nfds_t done_io = 0;
+  struct pollfd *polls;
+
+  if (!pr || pr->count == 0)
+    return;
+
+  if (!callback)
+    return;
+
+  while (done_io != pr->count) {
+    polls = pr->polls;
+    int status_poll = poll(pr->polls, pr->count, pr->timeout);
+
+    if (status_poll == -1 || status_poll == 0)
+      break;
+
+    for (register nfds_t ind = 0; ind < pr->count; ind++) {
+      if (polls[ind].fd == -1)
+        goto next_fd;
+
+      if (polls[ind].revents & polls[ind].events) {
+        switch (callback(polls[ind].fd, polls[ind].revents, any)) {
+        case EVTRIG_EVENT_DONE:
+          polls[ind].fd = -1;
+          done_io++;
+          // @FALLTRHOUGH
+
+        default:
+          goto next_fd;
+        }
+      }
+    next_fd:
+    }
+  }
+}
+
 static ssize_t __ionb(int nbfd, void *buf, size_t count, int event,
                       milisecond_t timeout) {
   struct pollfd poller = {
@@ -69,8 +106,8 @@ void *readnball(int nbfd, milisecond_t timeout) {
       buffer = tmp;
     }
 
-    if ((from_readcall = readnb(nbfd, buffer + readed, MISCNB_PARTIAL, timeout)) <=
-        0)
+    if ((from_readcall =
+             readnb(nbfd, buffer + readed, MISCNB_PARTIAL, timeout)) <= 0)
       break;
 
     readed += from_readcall;
