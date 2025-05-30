@@ -3,18 +3,19 @@
 #include <stdlib.h>
 #include <string.h>
 
-void pollreg_multiplex(PollRegister *pr, on_ready_t callback, void *any) {
+void pollreg_multiplex(PollRegister *pr, OnReady callback, void *any) {
   nfds_t done_io = 0;
   struct pollfd *polls;
 
-  if (!pr || pr->count == 0)
+  if (pr == nullptr || pr->count == 0)
     return;
 
-  if (!callback)
+  if (callback == nullptr)
     return;
+
+  polls = pr->polls;
 
   while (done_io != pr->count) {
-    polls = pr->polls;
     int status_poll = poll(pr->polls, pr->count, pr->timeout);
 
     if (status_poll == -1 || status_poll == 0)

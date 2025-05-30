@@ -39,7 +39,7 @@ int main(void) {
   PollRegister pr = {
       .polls = nullptr,
       .count = 2,
-      .timeout = -1,
+      .timeout = 1,
   };
 
   posix_memalign((void **)&buffer.buf, 8, 1 << 12);

@@ -51,17 +51,51 @@ typedef enum {
   EVTRIG_EVENT_WAIT = 0xBADFEEL,
 } EventTrigger;
 
+/*
+ * Timeout in milisecond
+ *
+ * */
 typedef int milisecond_t;
-typedef EventTrigger (*on_ready_t)(int fd_context, int fd_event, void *any);
 
+/*
+ * A Function pointer that get called when a file descriptor is ready
+ * @SYNOPSIS
+ *
+ * @fd_context -> file descriptor that is ready
+ * @fd_event   -> event from struct pollfd -> revents
+ * @any        -> any data, can be converted into any pointer types
+ *
+ * */
+typedef EventTrigger (*OnReady)(int fd_context, int fd_event, void *any);
+
+/*
+ * Data structure for poll_multiplex, member of this struct get passed to
+ * poll() on the fly
+ *
+ * */
 typedef struct {
   struct pollfd *polls;
   nfds_t count;
   milisecond_t timeout;
 } PollRegister;
 
-void pollreg_multiplex(PollRegister *restrict pr, on_ready_t callback,
-                       void *any);
+/*
+ * Attempt to do an I/O operation or else, specified in @callback, on a ready
+ * file descriptor, the @any parameter is passed onto callback when fd is ready
+ *
+ * This function checking in a loop, whether an fd is -1 or not, -1 indicate
+ * that the @callback return @EVTRIG_EVENT_DONE, which mean the I/O operation is
+ * done
+ *
+ * When there is no fd left, the function is return,
+ *
+ * The @oncall can be modified to return some event, the event is:
+ * 1. @EVTRIG_EVENT_DONE -> Set the fd to -1 on return, I/O operation is done
+ * 2. @EVTRIG_EVENT_WAIT -> The fd can be used again or the operation isn't done
+ * yet
+ *
+ * */
+void pollreg_multiplex(PollRegister *restrict pr, OnReady callback, void *any);
 
 /*
  * Attempt to read from a file descriptor without blocking the main thread
