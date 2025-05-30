@@ -16,7 +16,7 @@
 #ifdef __ANDROID__
 #include <bits/page_size.h>
 #else
-#define PAGE_SIZE 4096;
+#define PAGE_SIZE 4096
 #endif
 
 #include <stddef.h>
