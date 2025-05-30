@@ -17,8 +17,10 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
 /*
  * The size for each allocation can be modified through this macro
@@ -75,6 +77,9 @@
  * vector(struct dirent[restrict 8]) dirs;
  * ...
  *
+ * WARN
+ * ALL VECTOR MUST BE INITIALIZE WITH VECTOR_NEW
+ *
  * */
 #define vector(Type)                                                           \
   struct {                                                                     \
@@ -84,6 +89,24 @@
   }
 
 /*
+ * Create a vector instance and initialize it
+ * i've always get sanitizer error on test if the vector isn't initialized yet
+ * so you better initialize it
+ *
+ * Category: macro
+ *
+ * Synopsis
+ * @Type type name
+ * @Name variable name
+ *
+ * Example:
+ * vector_new(va_list, va_args);
+ * ...
+ *
+ * */
+#define vector_new(Type, Name) vector(Type) Name = VECTOR_NEW
+
+/*
  * Reserve some capacity for later use
  * The behavior is as follow:
  *
@@ -91,23 +114,61 @@
  * vector
  * 2. If the vector isn't empty, then the vector is reallocated to string.cap +
  * <count>
+ * 3. If the specified <count> is less than or equal to the current capacity,
+ * it'll break immediately
  *
  * */
 #define vector_reserve(vector, count)                                          \
   do {                                                                         \
-    if (vector.cap == 0) {                                                     \
-      vector.elems = calloc(count, sizeof(*vector.elems));                     \
-      if (vector.elems == nullptr)                                             \
+    if ((vector).cap >= count)                                                 \
+      break;                                                                   \
+    if ((vector).cap == 0) {                                                   \
+      (vector).elems = calloc(count, sizeof(*vector.elems));                   \
+      if ((vector).elems == nullptr)                                           \
         break;                                                                 \
     } else {                                                                   \
-      typeof(vector.elems) backup =                                            \
-          realloc(vector.elems, (vector.cap + count) * sizeof(*vector.elems)); \
+      void *backup = realloc((vector).elems, ((vector).cap + count) *          \
+                                                 sizeof(*(vector).elems));     \
       if (backup == nullptr)                                                   \
         break;                                                                 \
-      vector.elems = backup;                                                   \
+      (vector).elems = backup;                                                 \
     }                                                                          \
-    vector.cap += count;                                                       \
+    (vector).cap += count;                                                     \
   } while (false)
+
+/*
+ * Shrinking vector to it's length, plus additional room
+ * It's important to know that the sanitizer is very mad when i use it
+ * without additional room for null terminator byte on string_t
+ *
+ * Example:
+ * vector(struct pollfd) pfds = VECTOR_NEW;
+ * // Do thing with pfds until it's cap is 1024, while len is 100
+ *
+ * shrink_to_fit(pfds, 0);
+ * // Truncate it's cap to it's len
+ * ...
+ *
+ * */
+#define shrink_to_fit(vector, additional)                                      \
+  do {                                                                         \
+    if ((vector).elems == nullptr)                                             \
+      break;                                                                   \
+    if ((vector).cap == (vector).len)                                          \
+      break;                                                                   \
+    void *tmp = realloc((vector).elems, (((vector).len + (additional)) *       \
+                                         sizeof(*(vector).elems)));            \
+    if (tmp == nullptr)                                                        \
+      break;                                                                   \
+    (vector).elems = tmp;                                                      \
+    (vector).cap = (vector).len + additional;                                  \
+  } while (false)
+
+/*
+ * Shrinking vector cap to it's len without additional room
+ *
+ * */
+#define vector_shrink_to_fit(vector) shrink_to_fit(vector, 0)
 
 /*
  * Appending element into vector
@@ -124,19 +185,20 @@
  * */
 #define vector_push(vector, elem)                                              \
   do {                                                                         \
-    if (vector.elems == nullptr) {                                             \
-      vector.elems = calloc(VECTOR_STEP, sizeof(*vector.elems));               \
-      if (vector.elems == nullptr)                                             \
+    if ((vector).elems == nullptr) {                                           \
+      (vector).elems = calloc((VECTOR_STEP), sizeof(*(vector).elems));         \
+      if ((vector).elems == nullptr)                                           \
         break;                                                                 \
-      vector.cap += VECTOR_STEP;                                               \
-    } else if (vector.cap == vector.len) {                                     \
-      typeof(vector.elems) tmp = realloc(                                      \
-          vector.elems, (vector.cap += VECTOR_STEP) * sizeof(*vector.elems));  \
+      (vector).cap += (VECTOR_STEP);                                           \
+    } else if ((vector).cap == (vector).len - 1) {                             \
+      void *tmp = realloc((vector).elems, (vector.cap + (VECTOR_STEP)) *       \
+                                              sizeof(*(vector).elems));        \
       if (tmp == nullptr)                                                      \
         break;                                                                 \
-      vector.elems = tmp;                                                      \
+      (vector).elems = tmp;                                                    \
+      (vector).cap += (VECTOR_STEP);                                           \
     }                                                                          \
-    vector.elems[vector.len++] = (typeof(*vector.elems))elem;                  \
+    (vector).elems[(vector).len++] = (typeof(*(vector).elems))elem;            \
   } while (false)
 
 /*
@@ -145,7 +207,7 @@
  *
  * */
 #define vector_at(vector, index)                                               \
-  (vector.len <= index ? nullptr : &vector.elems[index])
+  ((vector).len <= (size_t)(index) ? nullptr : &(vector).elems[(index)])
 
 /*
  * Freeing the vector
@@ -154,7 +216,7 @@
  * */
 #define vector_free(vector)                                                    \
   do {                                                                         \
-    free(vector.elems);                                                        \
+    free((vector).elems);                                                      \
     vector = (typeof(vector))VECTOR_NEW;                                       \
   } while (false)
 
@@ -167,7 +229,7 @@
  * 3. Only accept bytes within ASCII range
  *
  * */
-typedef vector(char) string;
+typedef vector(char) string_t;
 
 /*
  * Same as VECTOR_STEP macro, can be modified before included any header
@@ -179,7 +241,7 @@ typedef vector(char) string;
  *
  * */
 #ifndef STRING_STEP
-#define STRING_STEP 8
+#define STRING_STEP 32
 #endif
 
 /*
@@ -193,6 +255,12 @@ typedef vector(char) string;
  *
  * */
 #define string_reserve(string, count) vector_reserve(string, count)
+
+/*
+ * Shrinking string to it's len, plus additional room for null terminator byte
+ *
+ * */
+#define string_shrink_to_fit(string) shrink_to_fit(string, 1)
 
 /*
  * Alias for vector_push()
@@ -221,16 +289,41 @@ typedef vector(char) string;
  * */
 #define string_pushstr(string, str)                                            \
   do {                                                                         \
-    size_t len = strlen(str);                                                  \
+    size_t len = strlen((str));                                                \
     if (len == 0)                                                              \
       break;                                                                   \
-    if (string.cap == 0)                                                       \
-      string_reserve(string, len + STRING_STEP);                               \
-    else if (string.cap - string.len <= len)                                   \
-      string_reserve(string, string.cap + len + STRING_STEP);                  \
-    if (string.elems == nullptr)                                               \
+    if ((string).cap == 0)                                                     \
+      string_reserve((string), len + (STRING_STEP));                           \
+    else if (len >= (string).cap - (string).len)                               \
+      string_reserve((string), (string).cap + len + (STRING_STEP));            \
+    if ((string).elems == nullptr)                                             \
       break;                                                                   \
-    typeof(string.elems) upwards = string.elems + string.len;                  \
-    memcpy(upwards, str, len);                                                 \
-    string.len += len;                                                         \
+    strncat((string).elems, (str), len);                                       \
+    (string).len += len;                                                       \
   } while (false)
+
+/*
+ * Wide 32-bit character string
+ *
+ * The data of this struct is represented as array of 32-bit unsigned integer
+ * I intended to use only wchar_t, but in windows, it size is only 16-bit (What
+ * a joke!)
+ *
+ * */
+typedef
+#if UINT32_MAX == WCHAR_MAX
+    vector(wchar_t)
+#else
+    vector(uint32_t)
+#endif
+        string32_t;
+
+#define string32_reserve(string32, count) vector_reserve(string32, count)
+#define string32_shrink_to_fit(string32) shrink_to_fit(string32, 1)
+#define string32_push(string32, elem) vector_push(string32, elem)
+#define string32_at(string32, index) vector_at(string32, index)
+#define string32_free(string32, index) vector_free(string32)
+
+/* @PR */
+#define string32_pushstr(string32, str)
+#define string32_pushwstr(string32, wstr)

@@ -1,9 +1,10 @@
+#include <libmisc/arena.h>
 #include <libmisc/nonblock.h>
 #include <stdlib.h>
 #include <string.h>
 
 static ssize_t __ionb(int nbfd, void *buf, size_t count, int event,
-                      int timeout) {
+                      milisecond_t timeout) {
   struct pollfd poller = {
       .fd = nbfd,
       .events = event,
@@ -45,43 +46,47 @@ endpoll:
   return status;
 }
 
-ssize_t readnb(int nbfd, void *buf, size_t count, int timeout) {
+ssize_t readnb(int nbfd, void *buf, size_t count, milisecond_t timeout) {
   return __ionb(nbfd, buf, count, POLLIN, timeout);
 }
 
-void *readnball(int nbfd, int timeout) {
-  off64_t length = lseek64(nbfd, 0, SEEK_END);
+void *readnball(int nbfd, milisecond_t timeout) {
+  size_t readed = 0, buffer_cap = PAGE_SIZE;
+  ssize_t from_readcall;
+  char *buffer = calloc(buffer_cap, 1);
 
-  if (length == -1)
-    return nullptr;
-  else if (lseek64(nbfd, 0, SEEK_SET) == -1)
-    return nullptr;
-
-  char *buff = malloc(length);
-  if (!buff)
+  if (!buffer)
     return nullptr;
 
-  if (length <= MISCNB_PARTIAL)
-    readnb(nbfd, buff, length, timeout);
-  else {
-    size_t count = 0;
-    while (readnb(nbfd, buff + count, MISCNB_PARTIAL, timeout) > 0)
-      count += MISCNB_PARTIAL;
+  while (true) {
+    if (readed >= buffer_cap - 1) {
+      buffer_cap *= 2;
+      char *tmp = realloc(buffer, buffer_cap);
 
-    size_t len = strlen(buff) + 1;
-    if (count > len) {
-      char *tmp = realloc(buff, len);
-      if (!tmp) {
-        return buff;
-      }
+      if (!tmp)
+        return buffer;
 
-      buff = tmp;
+      buffer = tmp;
     }
+
+    if ((from_readcall = readnb(nbfd, buffer + readed, MISCNB_PARTIAL, timeout)) <=
+        0)
+      break;
+
+    readed += from_readcall;
   }
 
-  return buff;
+  if (readed < buffer_cap) {
+    char *tmp = realloc(buffer, readed + 1);
+    if (!tmp)
+      return buffer;
+
+    buffer = tmp;
+  }
+
+  return buffer;
 }
 
-ssize_t writenb(int nbfd, void *buf, size_t count, int timeout) {
+ssize_t writenb(int nbfd, void *buf, size_t count, milisecond_t timeout) {
   return __ionb(nbfd, buf, count, POLLOUT, timeout);
 }

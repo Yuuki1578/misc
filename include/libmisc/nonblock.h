@@ -17,6 +17,16 @@
  *
  * */
 
+/*
+ * @SYNOPSIS
+ *
+ * @nbfd    -> nonblock file descriptor (open with O_NONBLOCK)
+ * @buf     -> buffer for storing the file descriptor content
+ * @count   -> how many bytes to store on @buf
+ * @timeout -> timeout in milisecond, negative timeout means timeout forever
+ *
+ * */
+
 #pragma once
 
 #define _LARGEFILE64_SOURCE
@@ -32,18 +42,28 @@
 
 enum { MISCNB_PARTIAL = 1 << 10 };
 
+typedef int milisecond_t;
+typedef void (*on_ready_t)(int fd, int event, void *any);
+
+typedef struct {
+  struct pollfd *polls;
+  nfds_t count;
+  milisecond_t timeout;
+} PollRegister;
+
+void pollreg_multiplex(PollRegister *pr, on_ready_t callback);
+
 /*
  * Attempt to read from a file descriptor without blocking the main thread
  * The function may be use partialy
  *
- * The timeout is same as in poll.h, minus timeout indicate unlimited timeout
+ * The timeout is same as in poll(), negative timeout indicate unlimited timeout
  * The fd is going to be a member of a struct pollfd, as defined in poll.h,
  *
- * For reading, the events is POLLRDNORM, while for writing is POLLWRNORM
- * I plan for adding more events such as POLLWRBAND, POLLRDBAND, etc
+ * For reading, the events is POLLIN, while for writing is POLLOUT
  *
  * */
-ssize_t readnb(int nbfd, void *buf, size_t count, int timeout);
+ssize_t readnb(int nbfd, void *buf, size_t count, milisecond_t timeout);
 
 /*
  * Read all the file content until EOF
@@ -56,7 +76,7 @@ ssize_t readnb(int nbfd, void *buf, size_t count, int timeout);
  * - 1) - 1 bytes or approximately 9,2 GiB
  *
  * */
-void *readnball(int nbfd, int timeout);
+void *readnball(int nbfd, milisecond_t timeout);
 
 /*
  * Write up to buf[count] to the file descriptor
@@ -64,4 +84,4 @@ void *readnball(int nbfd, int timeout);
  * themselves
  *
  * */
-ssize_t writenb(int nbfd, void *buf, size_t count, int timeout);
+ssize_t writenb(int nbfd, void *buf, size_t count, milisecond_t timeout);

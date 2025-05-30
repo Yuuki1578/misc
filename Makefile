@@ -2,12 +2,12 @@ LIBRARY = libmisc.a
 
 CC = cc
 CFLAGS = -O3 -Wall -Werror -Wextra \
-		 -pedantic -ffast-math \
-		 -std=c2y -march=native \
-		 -Wno-pointer-arith \
-		 -mtune=native -Iinclude \
-		 -funroll-loops \
-		 -fomit-frame-pointer
+		-pedantic -ffast-math \
+		-std=c2y -march=native \
+		-Wno-pointer-arith \
+		-mtune=native -Iinclude \
+		-funroll-loops \
+		-fomit-frame-pointer
 
 AR = ar
 ARFLAGS = rcs

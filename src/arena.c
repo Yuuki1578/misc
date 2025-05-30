@@ -74,6 +74,7 @@ void *arena_alloc(Arena *restrict arena, size_t size) {
       return nullptr;
   }
 
+  /* FIXME */
   if (size >= arena->capacity || size >= remains) {
     size_t size_addition = size > arena->step ? size : arena->step;
     size_t half_remains = (arena->capacity - remains) + size_addition;
@@ -85,6 +86,7 @@ void *arena_alloc(Arena *restrict arena, size_t size) {
     arena->rawptr = tmp;
     arena->capacity += remains;
   }
+  /* FIXME */
 
   ready = arena->rawptr + arena->offset;
   arena->offset += size;

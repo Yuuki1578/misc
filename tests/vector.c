@@ -1,12 +1,29 @@
+#define VECTOR_STEP 1024
+#define STRING_STEP VECTOR_STEP
+
 #include <libmisc/vector.h>
 #include <stdio.h>
 
 int main(void) {
-  string str = STRING_NEW;
-  string_pushstr(str, "Hello, world!\n");
-  string_pushstr(str, "My name is Awang!\n");
-  string_pushstr(str, "Nice to meet ya");
+  vector_new(int, ints);
 
+  for (int i = 0, j = 1; i < 100; i++, j++) {
+    vector_push(ints, i * 100);
+  }
+
+  vector_shrink_to_fit(ints);
+  printf("%zu\n", ints.cap);
+  printf("%zu\n", ints.len);
+
+  vector_free(ints);
+
+  string_t str = STRING_NEW;
+  string_pushstr(str, "My file located in: ");
+  string_pushstr(str, __FILE__);
+
+  printf("%zu\n", str.cap);
+  string_shrink_to_fit(str);
   printf("%s\n", str.elems);
-  string_free(str);
+  printf("%zu\n", str.cap);
+  printf("%zu\n", str.len);
 }
