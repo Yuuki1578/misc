@@ -9,10 +9,15 @@
  * */
 
 /*
- * I don't know if bits/size.h exist on all UNIX like system so yeah
- * This device is using __ANDROID_API__ 24
+ * I don't know if bits/size.h exist on all UNIX like system so yeah.
+ * This device is using __ANDROID_API__ 24.
  *
  * */
+
+#pragma once
+
+#include <libmisc/versioning.h>
+
 #ifdef __ANDROID__
 #include <bits/page_size.h>
 #else
@@ -21,8 +26,12 @@
 
 #include <stddef.h>
 
+#ifdef __cplusplus
+MISC_CXX_EXTERN
+#endif
+
 /*
- * Magic values
+ * Magic values.
  *
  * */
 enum {
@@ -32,80 +41,84 @@ enum {
 };
 
 /*
- * Arena data types
- * The arena is responsible for managing its inner buffer
+ * Arena data types.
+ * The arena is responsible for managing its inner buffer.
  *
  * Task like segmenting pointer, allocating it to another, growing its size
- * things like that
+ * things like that.
  *
  * You can initialize the arena once, use it everywhere, and have to free it
- * only once
+ * only once.
  *
  * */
 typedef struct {
-  void *rawptr;    // pointer to allocated memory
-  size_t capacity; // total memory that arena can hold
-  size_t offset;   // an offset from the left of the pointer
-  size_t step;     // how much bytes per allocation
+  void *rawptr;    // pointer to allocated memory.
+  size_t capacity; // total memory that arena can hold.
+  size_t offset;   // an offset from the left of the pointer.
+  size_t step;     // how much bytes per allocation.
 } Arena;
 
 /*
- * Create a new Arena, can be allocated early if should_allocated is true
+ * Create a new Arena, can be allocated early if should_allocated is true.
  *
  * */
-extern int arena_init(Arena *restrict arena, size_t step, bool should_allocate);
+int arena_init(Arena *restrict arena, size_t step, bool should_allocate);
 
 /*
- * Return an allocated chunk of memory from arena to the caller
+ * Return an allocated chunk of memory from arena to the caller.
  *
  * */
-extern void *arena_alloc(Arena *restrict arena, size_t size);
+void *arena_alloc(Arena *restrict arena, size_t size);
 
 /*
- * Change the size of the allocated memory
+ * Change the size of the allocated memory.
  *
  * */
 void *arena_realloc(Arena *restrict arena, void *dst, size_t old_size,
                     size_t new_size);
 
 /*
- * Freeing the memory hold by arena
+ * Freeing the memory hold by arena.
  *
  * */
-extern void arena_dealloc(Arena *restrict arena);
+void arena_dealloc(Arena *restrict arena);
 
 /*
- * Return the remaining arena capacity
+ * Return the remaining arena capacity.
  *
  * */
-extern size_t arena_remaining(Arena *restrict arena);
+size_t arena_remaining(Arena *restrict arena);
 
 /*
- * Return the first memory address from arena
+ * Return the first memory address from arena.
  *
  * */
-extern void *arena_first_addr(Arena *restrict arena);
+void *arena_first_addr(Arena *restrict arena);
 
 /*
- * Return the last memory address used from arena
+ * Return the last memory address used from arena.
  *
  * */
-extern void *arena_last_addr(Arena *restrict arena);
+void *arena_last_addr(Arena *restrict arena);
 
 /*
- * Return the last memory address from arena
+ * Return the last memory address from arena.
  *
  * */
-extern void *arena_brk_addr(Arena *restrict arena);
+void *arena_brk_addr(Arena *restrict arena);
 
 /*
- * Check whether the arena offset is equal to arena capacity - 1
+ * Check whether the arena offset is equal to arena capacity - 1.
  *
  * */
-extern bool arena_on_limit(Arena *restrict arena);
+bool arena_on_limit(Arena *restrict arena);
 
 /*
  * Return the inner buffer as new allocated pointer and freeing the arena.
  *
  * */
-extern void *arena_popout(Arena *restrict arena);
+void *arena_popout(Arena *restrict arena);
+
+#ifdef __cplusplus
+MIMISC_CXX_ENDEXTERN
+#endif

@@ -10,40 +10,47 @@
 
 /*
  * The functionality itself is nonblock, but if the I/O count for such file
- * is too big, then the I/O operation might blocking the threads
+ * is too big, then the I/O operation might blocking the threads.
  *
  * And there is solution for that fortunately, by using the function partialy,
- * we can minimalize the count for such byte stream from / into file descriptor
+ * we can minimalize the count for such byte stream from / into file descriptor.
  *
  * */
 
 /*
  * @SYNOPSIS
  *
- * @nbfd    -> nonblock file descriptor (open with O_NONBLOCK)
- * @buf     -> buffer for storing the file descriptor content
- * @count   -> how many bytes to store on @buf
- * @timeout -> timeout in milisecond, negative timeout means timeout forever
+ * @nbfd    -> nonblock file descriptor (open with O_NONBLOCK).
+ * @buf     -> buffer for storing the file descriptor content.
+ * @count   -> how many bytes to store on @buf.
+ * @timeout -> timeout in milisecond, negative timeout means timeout forever.
  *
  * */
 
 #pragma once
-
-#define _LARGEFILE64_SOURCE
 
 #if defined(_WIN32) || defined(_WIN64)
 #error Windows is not supported
 #endif
 
 #include <fcntl.h>
+#include <libmisc/versioning.h>
 #include <poll.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#ifdef __cplusplus
+MISC_CXX_EXTERN
+#endif
+
+/*
+ * WARN @DEPRECATED
+ *
+ * */
 enum { MISCNB_PARTIAL = 1 << 10 };
 
 /*
- * Magic values
+ * Magic values.
  *
  * */
 typedef enum {
@@ -52,25 +59,25 @@ typedef enum {
 } EventTrigger;
 
 /*
- * Timeout in milisecond
+ * Timeout in milisecond.
  *
  * */
 typedef int milisecond_t;
 
 /*
- * A Function pointer that get called when a file descriptor is ready
+ * A Function pointer that get called when a file descriptor is ready.
  * @SYNOPSIS
  *
- * @fd_context -> file descriptor that is ready
- * @fd_event   -> event from struct pollfd -> revents
- * @any        -> any data, can be converted into any pointer types
+ * @fd_context -> file descriptor that is ready.
+ * @fd_event   -> event from struct pollfd -> revents.
+ * @any        -> any data, can be converted into any pointer types.
  *
  * */
 typedef EventTrigger (*OnReady)(int fd_context, int fd_event, void *any);
 
 /*
  * Data structure for poll_multiplex, member of this struct get passed to
- * poll() on the fly
+ * poll() on the fly.
  *
  * */
 typedef struct {
@@ -81,51 +88,59 @@ typedef struct {
 
 /*
  * Attempt to do an I/O operation or else, specified in @callback, on a ready
- * file descriptor, the @any parameter is passed onto callback when fd is ready
+ * file descriptor. The @any parameter is passed onto callback when fd is ready.
  *
- * This function checking in a loop, whether an fd is -1 or not, -1 indicate
+ * This function checking in a loop, whether an fd is -1 or not. -1 indicate
  * that the @callback return @EVTRIG_EVENT_DONE, which mean the I/O operation is
- * done
+ * done.
  *
- * When there is no fd left, the function is return,
+ * When there is no fd left, the function is return.
  *
  * The @oncall can be modified to return some event, the event is:
- * 1. @EVTRIG_EVENT_DONE -> Set the fd to -1 on return, I/O operation is done
+ * 1. @EVTRIG_EVENT_DONE -> Set the fd to -1 on return, I/O operation is done.
  * 2. @EVTRIG_EVENT_WAIT -> The fd can be used again or the operation isn't done
- * yet
+ * yet.
  *
  * */
 void pollreg_multiplex(PollRegister *restrict pr, OnReady callback, void *any);
 
 /*
- * Attempt to read from a file descriptor without blocking the main thread
- * The function may be use partialy
+ * Attempt to read from a file descriptor without blocking the main thread.
+ * The function may be use partialy.
  *
- * The timeout is same as in poll(), negative timeout indicate unlimited timeout
- * The fd is going to be a member of a struct pollfd, as defined in poll.h,
+ * The timeout is same as in poll(), negative timeout indicate unlimited
+ * timeout. The fd is going to be a member of a struct pollfd, as defined in
+ * <poll.h>.
  *
- * For reading, the events is POLLIN, while for writing is POLLOUT
+ * For reading, the events is POLLIN, while for writing is POLLOUT.
  *
  * */
-ssize_t readnb(int nbfd, void *buf, size_t count, milisecond_t timeout);
+ssize_t readnb(int nbfd, void *buf, size_t count, milisecond_t timeout)
+    MISC_DEPRECATED("This function is obsolete", "pollreg_multiplex");
 
 /*
- * Read all the file content until EOF
+ * Read all the file content until EOF.
  * If the file length is greater than MISCNB_PARTIAL, the file is readed
- * partialy to prevent blocking the thread
+ * partialy to prevent blocking the thread.
  *
- * If not, read the file until EOF
+ * If not, read the file until EOF.
  *
  * Is safe to use this function if your file size is less than or equal to 2^(64
- * - 1) - 1 bytes or approximately 9,2 GiB
+ * - 1) - 1 bytes or approximately 9,2 GiB.
  *
  * */
-void *readnball(int nbfd, milisecond_t timeout);
+void *readnball(int nbfd, milisecond_t timeout)
+    MISC_DEPRECATED("This function is obsolete", "pollreg_multiplex");
 
 /*
- * Write up to buf[count] to the file descriptor
+ * Write up to buf[count] to the file descriptor.
  * The write operation is not synced using fsync(), so the user gotta do it
- * themselves
+ * themselves.
  *
  * */
-ssize_t writenb(int nbfd, void *buf, size_t count, milisecond_t timeout);
+ssize_t writenb(int nbfd, void *buf, size_t count, milisecond_t timeout)
+    MISC_DEPRECATED("This function is obsolete", "pollreg_multiplex");
+
+#ifdef __cplusplus
+MISC_CXX_ENMISC_CXX_ENDEXTERN
+#endif

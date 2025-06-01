@@ -7,15 +7,16 @@
  * @brief header only dynamic vector
  *
  * One thing to be concerned is that, if you use the macro provided in this
- header file
+ * header file.
  * Your program might have slightly bigger binary size, because the macro is
- expanded and
+ * expanded and
  * hardcoded into binary itself, maybe the behavior is same as inline function
  *
  * */
 
 #pragma once
 
+#include <libmisc/versioning.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -23,7 +24,7 @@
 #include <wchar.h>
 
 /*
- * The size for each allocation can be modified through this macro
+ * The size for each allocation can be modified through this macro.
  * example:
  *
  * #define VECTOR_STEP 1024     // define first
@@ -36,8 +37,8 @@
 #endif
 
 /*
- * Vector initialization value
- * Put simply, i don't want the user had a garbage value
+ * Vector initialization value.
+ * Put simply, i don't want the user had a garbage value.
  *
  * */
 #define VECTOR_NEW                                                             \
@@ -48,12 +49,12 @@
   }
 
 /*
- * Vector types
+ * Vector types.
  * You might be dissapointed, but the type of this is just
- * an anonymous struct with generic type <Type>
+ * an anonymous struct with generic type <Type>.
  *
- * The user named the anonymous struct
- * You can obtain the type of this struct by using typeof() operator
+ * The user named the anonymous struct.
+ * You can obtain the type of this struct by using typeof() operator.
  * example:
  *
  * vector(int) ints = VECTOR_NEW;
@@ -66,7 +67,7 @@
  * ...
  *
  * Also, you can use static array on this macro, because it'll break
- * at preprocessor stage
+ * at preprocessor stage.
  *
  * you can use:
  *
@@ -78,7 +79,7 @@
  * ...
  *
  * WARN
- * ALL VECTOR MUST BE INITIALIZE WITH VECTOR_NEW
+ * ALL VECTOR MUST BE INITIALIZE WITH VECTOR_NEW.
  *
  * */
 #define vector(Type)                                                           \
@@ -89,15 +90,15 @@
   }
 
 /*
- * Create a vector instance and initialize it
+ * Create a vector instance and initialize it.
  * i've always get sanitizer error on test if the vector isn't initialized yet
- * so you better initialize it
+ * so you better initialize it.
  *
  * Category: macro
  *
  * Synopsis
- * @Type type name
- * @Name variable name
+ * @Type type name.
+ * @Name variable name.
  *
  * Example:
  * vector_new(va_list, va_args);
@@ -107,15 +108,15 @@
 #define vector_new(Type, Name) vector(Type) Name = VECTOR_NEW
 
 /*
- * Reserve some capacity for later use
+ * Reserve some capacity for later use.
  * The behavior is as follow:
  *
  * 1. If the vector is empty, then it's same as allocating <count> bytes into
- * vector
+ * vector.
  * 2. If the vector isn't empty, then the vector is reallocated to string.cap +
- * <count>
+ * <count>.
  * 3. If the specified <count> is less than or equal to the current capacity,
- * it'll break immediately
+ * it'll break immediately.
  *
  * */
 #define vector_reserve(vector, count)                                          \
@@ -137,9 +138,9 @@
   } while (false)
 
 /*
- * Shrinking vector to it's length, plus additional room
+ * Shrinking vector to it's length, plus additional room.
  * It's important to know that the sanitizer is very mad when i use it
- * without additional room for null terminator byte on string_t
+ * without additional room for null terminator byte on string_t.
  *
  * Example:
  * vector(struct pollfd) pfds = VECTOR_NEW;
@@ -165,22 +166,22 @@
   } while (false)
 
 /*
- * Shrinking vector cap to it's len without additional room
+ * Shrinking vector cap to it's len without additional room.
  *
  * */
 #define vector_shrink_to_fit(vector) shrink_to_fit(vector, 0)
 
 /*
- * Appending element into vector
- * The element MUST be the same type with the vector(<Type>) macro
- * Otherwise, the program might behave strangely
+ * Appending element into vector.
+ * The element MUST be the same type with the vector(<Type>) macro.
+ * Otherwise, the program might behave strangely.
  *
  * If your vector is null, then 8 room for each one is allocated
  * as defined in VECTOR_STEP, you can change the step before including
- * this header
+ * this header.
  *
- * If your vector is full, or vector.cap == vector.len
- * the vector is then reallocated into vector.cap += VECTOR_STEP
+ * If your vector is full, or vector.cap == vector.len.
+ * the vector is then reallocated into vector.cap += VECTOR_STEP.
  *
  * */
 #define vector_push(vector, elem)                                              \
@@ -202,16 +203,16 @@
   } while (false)
 
 /*
- * Return the pointer to vector.elems[index]
- * If the index >= vector.len, then nullptr is returned
+ * Return the pointer to vector.elems[index].
+ * If the index >= vector.len, then nullptr is returned.
  *
  * */
 #define vector_at(vector, index)                                               \
   ((vector).len <= (size_t)(index) ? nullptr : &(vector).elems[(index)])
 
 /*
- * Freeing the vector
- * Set it back to VECTOR_NEW
+ * Freeing the vector.
+ * Set it back to VECTOR_NEW.
  *
  * */
 #define vector_free(vector)                                                    \
@@ -221,18 +222,18 @@
   } while (false)
 
 /*
- * Dynamic string, alias for vector(char)
+ * Dynamic string, alias for vector(char).
  *
- * The difference between C-string
- * 1. It's not null terminated
- * 2. The end of the string is handled by higher level data structure
- * 3. Only accept bytes within ASCII range
+ * The difference between C-string.
+ * 1. It's not null terminated.
+ * 2. The end of the string is handled by higher level data structure.
+ * 3. Only accept bytes within ASCII range.
  *
  * */
 typedef vector(char) string_t;
 
 /*
- * Same as VECTOR_STEP macro, can be modified before included any header
+ * Same as VECTOR_STEP macro, can be modified before included any header.
  * example:
  *
  * #define STRING_STEP 1024
@@ -245,46 +246,46 @@ typedef vector(char) string_t;
 #endif
 
 /*
- * Default value for string
+ * Default value for string.
  *
  * */
 #define STRING_NEW VECTOR_NEW
 
 /*
- * Alias for vector_reserve()
+ * Alias for vector_reserve().
  *
  * */
 #define string_reserve(string, count) vector_reserve(string, count)
 
 /*
- * Shrinking string to it's len, plus additional room for null terminator byte
+ * Shrinking string to it's len, plus additional room for null terminator byte.
  *
  * */
 #define string_shrink_to_fit(string) shrink_to_fit(string, 1)
 
 /*
- * Alias for vector_push()
+ * Alias for vector_push().
  *
  * */
 #define string_push(string, ch) vector_push(string, ch)
 
 /*
- * Alias for vector_at()
+ * Alias for vector_at().
  *
  * */
 #define string_at(string, index) vector_at(string, index)
 
 /*
- * Alias for vector_free()
+ * Alias for vector_free().
  *
  * */
 #define string_free(string) vector_free(string)
 
 /*
- * Appending C-string to string
- * If the string is empty ("\0"), it skipped
+ * Appending C-string to string.
+ * If the string is empty ("\0"), it just skipped.
  *
- * The resulting length is string.len + strlen(str)
+ * The resulting length is string.len + strlen(str).
  *
  * */
 #define string_pushstr(string, str)                                            \
@@ -303,11 +304,11 @@ typedef vector(char) string_t;
   } while (false)
 
 /*
- * Wide 32-bit character string
+ * 32-bit wide character string.
  *
- * The data of this struct is represented as array of 32-bit unsigned integer
+ * The data of this struct is represented as array of 32-bit unsigned integer.
  * I intended to use only wchar_t, but in windows, it size is only 16-bit (What
- * a joke!)
+ * a joke!).
  *
  * */
 typedef

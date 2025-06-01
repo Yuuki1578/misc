@@ -5,15 +5,12 @@
 
 void pollreg_multiplex(PollRegister *pr, OnReady callback, void *any) {
   nfds_t done_io = 0;
-  struct pollfd *polls;
 
   if (pr == nullptr || pr->count == 0)
     return;
 
   if (callback == nullptr)
     return;
-
-  polls = pr->polls;
 
   while (done_io != pr->count) {
     int status_poll = poll(pr->polls, pr->count, pr->timeout);
@@ -22,21 +19,19 @@ void pollreg_multiplex(PollRegister *pr, OnReady callback, void *any) {
       break;
 
     for (register nfds_t ind = 0; ind < pr->count; ind++) {
-      if (polls[ind].fd == -1)
+      if (pr->polls[ind].fd == -1)
         goto next_fd;
 
-      if (polls[ind].revents & polls[ind].events) {
-        switch (callback(polls[ind].fd, polls[ind].revents, any)) {
+      if (pr->polls[ind].revents & pr->polls[ind].events) {
+        switch (callback(pr->polls[ind].fd, pr->polls[ind].revents, any)) {
         case EVTRIG_EVENT_DONE:
-          polls[ind].fd = -1;
+          pr->polls[ind].fd = -1;
           done_io++;
-          // @FALLTRHOUGH
 
-        default:
-          goto next_fd;
+        default:;
         }
       }
-    next_fd:
+    next_fd:;
     }
   }
 }
@@ -93,7 +88,7 @@ void *readnball(int nbfd, milisecond_t timeout) {
   ssize_t from_readcall;
   char *buffer = calloc(buffer_cap, 1);
 
-  if (!buffer)
+  if (buffer == nullptr)
     return nullptr;
 
   while (true) {
@@ -101,7 +96,7 @@ void *readnball(int nbfd, milisecond_t timeout) {
       buffer_cap *= 2;
       char *tmp = realloc(buffer, buffer_cap);
 
-      if (!tmp)
+      if (tmp == nullptr)
         return buffer;
 
       buffer = tmp;
@@ -116,7 +111,7 @@ void *readnball(int nbfd, milisecond_t timeout) {
 
   if (readed < buffer_cap) {
     char *tmp = realloc(buffer, readed + 1);
-    if (!tmp)
+    if (tmp == nullptr)
       return buffer;
 
     buffer = tmp;

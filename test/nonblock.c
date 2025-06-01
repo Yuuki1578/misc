@@ -26,15 +26,12 @@ EventTrigger on_call(int fd, int revents, void *any) {
   return EVTRIG_EVENT_DONE;
 }
 
-int main(void) {
+void pollreg_test(void) {
   int fd1 = open(__FILE__, O_RDONLY | O_NONBLOCK),
       fd2 = open("/data/data/com.termux/files/home/.bashrc",
                  O_RDONLY | O_NONBLOCK);
 
   struct buf_t buffer = {nullptr, 0};
-
-  if (fd1 == -1 && fd2 == -1)
-    return 1;
 
   PollRegister pr = {
       .polls = nullptr,
@@ -42,8 +39,8 @@ int main(void) {
       .timeout = 1,
   };
 
-  posix_memalign((void **)&buffer.buf, 8, 1 << 12);
-  posix_memalign((void **)&pr.polls, 8, sizeof(struct pollfd) * 2);
+  (void)posix_memalign((void **)&buffer.buf, 8, 1 << 12);
+  (void)posix_memalign((void **)&pr.polls, 8, sizeof(struct pollfd) * 2);
 
   pr.polls[0] = (struct pollfd){
       .fd = fd1,
@@ -56,11 +53,16 @@ int main(void) {
   };
 
   pollreg_multiplex(&pr, on_call, &buffer);
-  write(STDOUT_FILENO, buffer.buf, buffer.len);
+  // (void)write(STDOUT_FILENO, buffer.buf, buffer.len);
 
   close(fd1);
   close(fd2);
 
   free(buffer.buf);
   free(pr.polls);
+}
+
+int main(void) {
+  pollreg_test();
+  return 0;
 }
