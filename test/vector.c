@@ -17,7 +17,7 @@ int main(void) {
 
   vector_free(ints);
 
-  string_t str = STRING_NEW;
+  String str = STRING_NEW;
   string_pushstr(str, "My file located in: ");
   string_pushstr(str, __FILE__);
 

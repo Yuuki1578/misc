@@ -9,7 +9,7 @@ struct buf_t {
   size_t len;
 };
 
-EventTrigger on_call(int fd, int revents, void *any) {
+Event_Trigger on_call(int fd, int revents, void *any) {
   struct buf_t *buf = any;
   ssize_t readed = 0;
 
@@ -33,7 +33,7 @@ void pollreg_test(void) {
 
   struct buf_t buffer = {nullptr, 0};
 
-  PollRegister pr = {
+  Poll_Register pr = {
       .polls = nullptr,
       .count = 2,
       .timeout = 1,

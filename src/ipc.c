@@ -2,7 +2,7 @@
 #include <libmisc/ipc.h>
 #include <unistd.h>
 
-Socket_Address sockaddr_new(const char *ipv4_addr, Socket_Port port) {
+Socket_Address socket_address_new(const char *ipv4_addr, Socket_Port port) {
   Socket_Address addr = {
       .sin_family = AF_INET,
       .sin_port = htons(port),
@@ -15,16 +15,18 @@ Socket_Address sockaddr_new(const char *ipv4_addr, Socket_Port port) {
   return addr;
 }
 
-Socket socket_server(Socket_Type type, Socket_Address *addr_v4, int queue) {
-  Socket sockfd = socket(AF_INET, type, 0);
+Socket socket_new(Socket_Type type) { return socket(AF_INET, type, 0); }
+
+static Socket socket_server(Socket_Type type, Socket_Address *addr, int queue) {
+  Socket sockfd = socket_new(type);
 
   if (sockfd == -1)
     return SOCKSTAT_ERR;
 
-  if (addr_v4 == nullptr)
+  if (addr == nullptr)
     return sockfd;
 
-  if (bind(sockfd, (Socket_Generic *)addr_v4, sizeof *addr_v4) == -1) {
+  if (socket_bind(sockfd, addr) == -1) {
     close(sockfd);
     return SOCKSTAT_ERR;
   }
@@ -37,16 +39,24 @@ Socket socket_server(Socket_Type type, Socket_Address *addr_v4, int queue) {
   return sockfd;
 }
 
-Socket socket_new(Socket_Type type) {
-  // default socket
-  return socket(AF_INET, type, 0);
+Socket socket_tcp_server(Socket_Address *addr, int queue) {
+  return socket_server(SOCK_STREAM, addr, queue);
 }
 
-Socket_Status socket_connect(Socket sockfd, Socket_Address *addr_v4) {
-  if (sockfd == SOCKSTAT_ERR || addr_v4 == nullptr)
-    return SOCKSTAT_ERR;
+Socket socket_udp_server(Socket_Address *addr, int queue) {
+  return socket_server(SOCK_DGRAM, addr, queue);
+}
 
-  return connect(sockfd, (Socket_Generic *)addr_v4, sizeof *addr_v4);
+Socket socket_bind(Socket sockfd, Socket_Address *addr) {
+  return bind(sockfd, (Socket_Generic *)addr, SOCKADDR_V4LEN);
+}
+
+Socket socket_accept(Socket sockfd, Socket_Address *addr) {
+  return accept(sockfd, (Socket_Generic *)addr, &(socklen_t){SOCKADDR_V4LEN});
+}
+
+Socket_Status socket_connect(Socket sockfd, Socket_Address *addr) {
+  return connect(sockfd, (Socket_Generic *)addr, SOCKADDR_V4LEN);
 }
 
 Socket_Status socket_die(Socket sockfd) {

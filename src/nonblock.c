@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-void pollreg_multiplex(PollRegister *pr, OnReady callback, void *any) {
+void pollreg_multiplex(Poll_Register *pr, On_Ready callback, void *any) {
   nfds_t done_io = 0;
 
   if (pr == nullptr || pr->count == 0)
@@ -37,7 +37,7 @@ void pollreg_multiplex(PollRegister *pr, OnReady callback, void *any) {
 }
 
 static ssize_t __ionb(int nbfd, void *buf, size_t count, int event,
-                      milisecond_t timeout) {
+                      Milisecond_t timeout) {
   struct pollfd poller = {
       .fd = nbfd,
       .events = event,
@@ -79,11 +79,11 @@ endpoll:
   return status;
 }
 
-ssize_t readnb(int nbfd, void *buf, size_t count, milisecond_t timeout) {
+ssize_t readnb(int nbfd, void *buf, size_t count, Milisecond_t timeout) {
   return __ionb(nbfd, buf, count, POLLIN, timeout);
 }
 
-void *readnball(int nbfd, milisecond_t timeout) {
+void *readnball(int nbfd, Milisecond_t timeout) {
   size_t readed = 0, buffer_cap = PAGE_SIZE;
   ssize_t from_readcall;
   char *buffer = calloc(buffer_cap, 1);
@@ -120,6 +120,6 @@ void *readnball(int nbfd, milisecond_t timeout) {
   return buffer;
 }
 
-ssize_t writenb(int nbfd, void *buf, size_t count, milisecond_t timeout) {
+ssize_t writenb(int nbfd, void *buf, size_t count, Milisecond_t timeout) {
   return __ionb(nbfd, buf, count, POLLOUT, timeout);
 }

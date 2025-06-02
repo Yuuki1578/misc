@@ -1,10 +1,12 @@
 #include <arpa/inet.h>
+#include <errno.h>
 #include <libmisc/ipc.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-char *usage = R"(
+volatile char *usage = R"(
 USAGE:
   Server mode:
     ./ipc                 # local server on port 3000
@@ -43,24 +45,22 @@ int main(int argc, char **argv) {
   }
 
   /* Create IP and Port as AF_INET */
-  addr = sockaddr_new(ipaddr, sockport);
+  addr = socket_address_new(ipaddr, sockport);
 
   switch (argc) {
   case 1:
     /* Create socket server and listen to it */
-    Socket server_socket = socket_server(SOCK_STREAM, &addr, 1);
+    Socket server_socket = socket_tcp_server(&addr, 1);
     if (server_socket == -1)
       return 1;
 
     while (true) {
       Socket client_socket;
       Socket_Address client_addr = {0};
-      socklen_t v4len = SOCKADDR_V4LEN;
       char msg[] = "Hello from server!", from[INET_ADDRSTRLEN + 1] = {0};
 
       /* Accept incoming connection from client */
-      if ((client_socket = accept(server_socket, (Socket_Generic *)&client_addr,
-                                  &v4len)) == -1) {
+      if ((client_socket = socket_accept(server_socket, &client_addr)) == -1) {
         goto server_die;
       }
 
@@ -82,12 +82,15 @@ int main(int argc, char **argv) {
     if (sock_client == -1)
       return 1;
 
-    while (connect(sock_client, (Socket_Generic *)&addr, sizeof addr) == -1) {
-      // try again
+    if (socket_connect(sock_client, &addr) == -1) {
+      fprintf(stderr, "socket_connect: %s\n", strerror(errno));
+      goto client_die;
     }
 
     recv(sock_client, buf, sizeof(buf) - 1, 0);
     printf("Response recieved: %s\n", buf);
+
+  client_die:
     socket_die(sock_client);
   }
 }

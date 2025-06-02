@@ -230,7 +230,7 @@
  * 3. Only accept bytes within ASCII range.
  *
  * */
-typedef vector(char) string_t;
+typedef vector(char) String;
 
 /*
  * Same as VECTOR_STEP macro, can be modified before included any header.
@@ -317,7 +317,7 @@ typedef
 #else
     vector(uint32_t)
 #endif
-        string32_t;
+        String_32;
 
 #define string32_reserve(string32, count) vector_reserve(string32, count)
 #define string32_shrink_to_fit(string32) shrink_to_fit(string32, 1)

@@ -56,13 +56,13 @@ enum { MISCNB_PARTIAL = 1 << 10 };
 typedef enum {
   EVTRIG_EVENT_DONE = 0xBADF00D,
   EVTRIG_EVENT_WAIT = 0xBADFEEL,
-} EventTrigger;
+} Event_Trigger;
 
 /*
  * Timeout in milisecond.
  *
  * */
-typedef int milisecond_t;
+typedef int Milisecond_t;
 
 /*
  * A Function pointer that get called when a file descriptor is ready.
@@ -73,7 +73,7 @@ typedef int milisecond_t;
  * @any        -> any data, can be converted into any pointer types.
  *
  * */
-typedef EventTrigger (*OnReady)(int fd_context, int fd_event, void *any);
+typedef Event_Trigger (*On_Ready)(int fd_context, int fd_event, void *any);
 
 /*
  * Data structure for poll_multiplex, member of this struct get passed to
@@ -83,8 +83,8 @@ typedef EventTrigger (*OnReady)(int fd_context, int fd_event, void *any);
 typedef struct {
   struct pollfd *polls;
   nfds_t count;
-  milisecond_t timeout;
-} PollRegister;
+  Milisecond_t timeout;
+} Poll_Register;
 
 /*
  * Attempt to do an I/O operation or else, specified in @callback, on a ready
@@ -102,7 +102,7 @@ typedef struct {
  * yet.
  *
  * */
-void pollreg_multiplex(PollRegister *restrict pr, OnReady callback, void *any);
+void pollreg_multiplex(Poll_Register *restrict pr, On_Ready callback, void *any);
 
 /*
  * Attempt to read from a file descriptor without blocking the main thread.
@@ -115,7 +115,7 @@ void pollreg_multiplex(PollRegister *restrict pr, OnReady callback, void *any);
  * For reading, the events is POLLIN, while for writing is POLLOUT.
  *
  * */
-ssize_t readnb(int nbfd, void *buf, size_t count, milisecond_t timeout)
+ssize_t readnb(int nbfd, void *buf, size_t count, Milisecond_t timeout)
     MISC_DEPRECATED("This function is obsolete", "pollreg_multiplex");
 
 /*
@@ -129,7 +129,7 @@ ssize_t readnb(int nbfd, void *buf, size_t count, milisecond_t timeout)
  * - 1) - 1 bytes or approximately 9,2 GiB.
  *
  * */
-void *readnball(int nbfd, milisecond_t timeout)
+void *readnball(int nbfd, Milisecond_t timeout)
     MISC_DEPRECATED("This function is obsolete", "pollreg_multiplex");
 
 /*
@@ -138,7 +138,7 @@ void *readnball(int nbfd, milisecond_t timeout)
  * themselves.
  *
  * */
-ssize_t writenb(int nbfd, void *buf, size_t count, milisecond_t timeout)
+ssize_t writenb(int nbfd, void *buf, size_t count, Milisecond_t timeout)
     MISC_DEPRECATED("This function is obsolete", "pollreg_multiplex");
 
 #ifdef __cplusplus
