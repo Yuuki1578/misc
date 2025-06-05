@@ -1,3 +1,11 @@
+/*
+    No-Build for libmisc
+    This file only provide a shared library *.so
+
+    nob: [https://github.com/tsoding/nob.h]
+    misc [https://github.com/Yuuki1578/misc]
+*/
+
 #define NOB_IMPLEMENTATION
 #if defined(_WIN32) || defined(_WIN64)
 #error Use cmake build system instead
