@@ -18,7 +18,7 @@ void sighandler(int signum)
 
 int main(void)
 {
-    listener = listener_new(NULL, 8000);
+    listener           = listener_new(NULL, 8000);
     Tcp_Stream *stream = NULL;
 
     signal(SIGINT, sighandler);
@@ -32,7 +32,7 @@ int main(void)
     }
 
     while ((stream = listener_accept(listener)) != NULL) {
-        stream_settimeout(stream, 5);
+        stream_settimeout(stream, 95);
 
         if (stream_send(stream, buffer, sizeof buffer, 0) == -1) {
             stream_shutdown(stream);

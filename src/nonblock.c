@@ -1,4 +1,4 @@
-#include "libmisc/nonblock.h"
+#include <libmisc/nonblock.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -37,11 +37,10 @@ void pollreg_multiplex(Poll_Register *pr, On_Ready callback, void *any)
     }
 }
 
-static ssize_t __ionb(int nbfd, void *buf, size_t count, int event,
-                      Milisecond_t timeout)
+static ssize_t __ionb(int nbfd, void *buf, size_t count, int event, Milisecond_t timeout)
 {
     struct pollfd poller = {
-        .fd = nbfd,
+        .fd     = nbfd,
         .events = event,
     };
 
@@ -106,8 +105,7 @@ void *readnball(int nbfd, Milisecond_t timeout)
             buffer = tmp;
         }
 
-        if ((from_readcall =
-                 readnb(nbfd, buffer + readed, MISCNB_PARTIAL, timeout)) <= 0)
+        if ((from_readcall = readnb(nbfd, buffer + readed, MISCNB_PARTIAL, timeout)) <= 0)
             break;
 
         readed += from_readcall;

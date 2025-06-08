@@ -17,7 +17,6 @@ void listener_shutdown(Tcp_Listener *listener);
 
 Tcp_Stream *stream_connect(const char *addr, uint16_t port);
 int stream_settimeout(Tcp_Stream *stream, int timeout_ms);
-ssize_t stream_send(Tcp_Stream *stream, const void *buf, size_t count,
-                    int flags);
+ssize_t stream_send(Tcp_Stream *stream, const void *buf, size_t count, int flags);
 ssize_t stream_recv(Tcp_Stream *stream, void *buf, size_t count, int flags);
 int stream_shutdown(Tcp_Stream *stream);

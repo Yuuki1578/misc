@@ -5,22 +5,16 @@
 // @file arena.c
 // @brief linear allocator with segmented region (arena)
 
-#include "libmisc/arena.h"
+#include <libmisc/arena.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
-size_t arena_remaining(Arena *arena)
-{
-    return arena != NULL ? arena->capacity - arena->offset : 0;
-}
+size_t arena_remaining(Arena *arena) { return arena != NULL ? arena->capacity - arena->offset : 0; }
 
 void *arena_first_addr(Arena *arena) { return arena != NULL ? arena : NULL; }
 
-void *arena_last_addr(Arena *arena)
-{
-    return arena != NULL ? arena->rawptr + arena->offset : NULL;
-}
+void *arena_last_addr(Arena *arena) { return arena != NULL ? arena->rawptr + arena->offset : NULL; }
 
 void *arena_brk_addr(Arena *arena)
 {
@@ -54,8 +48,8 @@ int arena_init(Arena *arena, size_t step, bool should_allocate)
     }
 
     arena->capacity = step;
-    arena->step = step;
-    arena->offset = 0;
+    arena->step     = step;
+    arena->offset   = 0;
     return ARENA_READY;
 }
 
@@ -78,8 +72,8 @@ void *arena_alloc(Arena *arena, size_t size)
     // FIXME
     if (size >= arena->capacity || size >= remains) {
         size_t size_addition = size > arena->step ? size : arena->step;
-        size_t half_remains = (arena->capacity - remains) + size_addition;
-        void *tmp = realloc(arena->rawptr, half_remains);
+        size_t half_remains  = (arena->capacity - remains) + size_addition;
+        void *tmp            = realloc(arena->rawptr, half_remains);
 
         if (tmp == NULL)
             return NULL;
@@ -119,7 +113,7 @@ void arena_dealloc(Arena *arena)
 
     free(arena->rawptr);
     arena->capacity = 0;
-    arena->offset = 0;
+    arena->offset   = 0;
 }
 
 void *arena_popout(Arena *arena)
@@ -129,10 +123,10 @@ void *arena_popout(Arena *arena)
 
     void *mem = arena->rawptr;
 
-    arena->rawptr = NULL;
+    arena->rawptr   = NULL;
     arena->capacity = 0;
-    arena->offset = 0;
-    arena->step = 0;
+    arena->offset   = 0;
+    arena->step     = 0;
 
     return mem;
 }

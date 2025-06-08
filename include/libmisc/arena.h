@@ -20,8 +20,8 @@
 #include <stddef.h>
 
 enum {
-    ARENA_READY = 0,
-    ARENA_NOAVAIL = -1,
+    ARENA_READY      = 0,
+    ARENA_NOAVAIL    = -1,
     ARENA_ALLOC_STEP = PAGE_SIZE,
 };
 
