@@ -1,5 +1,6 @@
-#include <libmisc/tcp.h>
+#include <libmisc/ipc/tcp.h>
 #include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -7,41 +8,42 @@ char buffer[] = {
 #embed "../src/tcp.c"
 };
 
-Tcp_Listener *listener;
+TcpListener *listener = NULL;
+uint16_t port         = 8000;
 
 void sighandler(int signum)
 {
     printf("Caught signal SIGINT, cleaning up...\n");
-    listener_shutdown(listener);
+    TcpListener_shutdown(listener);
     exit(signum);
 }
 
 int main(void)
 {
-    listener           = listener_new(NULL, 8000);
-    Tcp_Stream *stream = NULL;
+    listener          = TcpListener_new(NULL, port);
+    TcpStream *stream = NULL;
 
     signal(SIGINT, sighandler);
 
     if (listener == NULL)
         return 1;
 
-    if (listener_listen(listener, 10) != 0) {
-        listener_shutdown(listener);
+    if (TcpListener_listen(listener, 10) != 0) {
+        TcpListener_shutdown(listener);
         return 2;
     }
 
-    while ((stream = listener_accept(listener)) != NULL) {
-        stream_settimeout(stream, 95);
+    while ((stream = TcpListener_accept(listener)) != NULL) {
+        TcpStream_settimeout(stream, 95);
 
-        if (stream_send(stream, buffer, sizeof buffer, 0) == -1) {
-            stream_shutdown(stream);
+        if (TcpStream_send(stream, buffer, sizeof buffer, 0) == -1) {
+            TcpStream_shutdown(stream);
             break;
         }
 
-        stream_shutdown(stream);
+        TcpStream_shutdown(stream);
     }
 
-    listener_shutdown(listener);
+    TcpListener_shutdown(listener);
     return 0;
 }

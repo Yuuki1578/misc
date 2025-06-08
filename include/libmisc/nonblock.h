@@ -27,13 +27,13 @@ enum { MISCNB_PARTIAL = 1 << 10 };
 typedef enum {
     EVTRIG_EVENT_DONE = 0xBADF00D,
     EVTRIG_EVENT_WAIT = 0xBADFEEL,
-} Event_Trigger;
+} EventTrigger;
 
 // Timeout in milisecond
 typedef int Milisecond_t;
 
 // Function pointer that get called when a file descriptor is ready.
-typedef Event_Trigger (*On_Ready)(int fd_context, int fd_event, void *any);
+typedef EventTrigger (*OnReady)(int fd_context, int fd_event, void *any);
 
 // Data structure for poll_multiplex, member of this struct get passed to
 // poll() on the fly.
@@ -41,7 +41,7 @@ typedef struct {
     struct pollfd *polls;
     nfds_t count;
     Milisecond_t timeout;
-} Poll_Register;
+} PollEvent;
 
 // Attempt to do an I/O operation or else, specified in @callback, on a ready
 // file descriptor. The @any parameter is passed onto callback when fd is ready.
@@ -56,7 +56,7 @@ typedef struct {
 // 1. @EVTRIG_EVENT_DONE -> Set the fd to -1 on return, I/O operation is done.
 // 2. @EVTRIG_EVENT_WAIT -> The fd can be used again or the operation isn't done
 // yet.
-void pollreg_multiplex(Poll_Register *pr, On_Ready callback, void *any);
+void PollEvent_multiplex(PollEvent *pr, OnReady callback, void *any);
 
 // Attempt to read from a file descriptor without blocking the main thread.
 // The function may be use partialy.

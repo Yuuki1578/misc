@@ -1,32 +1,31 @@
 #include <libmisc/nonblock.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
-void pollreg_multiplex(Poll_Register *pr, On_Ready callback, void *any)
+void PollEvent_multiplex(PollEvent *pe, OnReady callback, void *any)
 {
     nfds_t done_io = 0;
 
-    if (pr == NULL || pr->count == 0)
+    if (pe == NULL || pe->count == 0)
         return;
 
     if (callback == NULL)
         return;
 
-    while (done_io != pr->count) {
-        int status_poll = poll(pr->polls, pr->count, pr->timeout);
+    while (done_io != pe->count) {
+        int status_poll = poll(pe->polls, pe->count, pe->timeout);
 
         if (status_poll == -1 || status_poll == 0)
             break;
 
-        for (register nfds_t ind = 0; ind < pr->count; ind++) {
-            if (pr->polls[ind].fd == -1)
+        for (register nfds_t ind = 0; ind < pe->count; ind++) {
+            if (pe->polls[ind].fd == -1)
                 goto next_fd;
 
-            if (pr->polls[ind].revents & pr->polls[ind].events) {
-                switch (callback(pr->polls[ind].fd, pr->polls[ind].revents, any)) {
+            if (pe->polls[ind].revents & pe->polls[ind].events) {
+                switch (callback(pe->polls[ind].fd, pe->polls[ind].revents, any)) {
                 case EVTRIG_EVENT_DONE:
-                    pr->polls[ind].fd = -1;
+                    pe->polls[ind].fd = -1;
                     done_io++;
 
                 default:;

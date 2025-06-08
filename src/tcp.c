@@ -1,5 +1,12 @@
+// April 2025, [https://github.com/Yuuki1578/misc.git]
+// This is a part of the libmisc library.
+// Any damage caused by this software is not my responsibility at all.
+//
+// @file tcp.c
+// @brief TCP/IPv4 API around UNIX socket
+
 #include <arpa/inet.h>
-#include <libmisc/tcp.h>
+#include <libmisc/ipc/tcp.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <poll.h>
@@ -9,48 +16,47 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-struct Tcp_Listener {
-    struct sockaddr_in tcp_addr;
-    socklen_t tcp_len;
-    int tcp_socket;
+struct TcpListener {
+    struct sockaddr_in addr;
+    socklen_t addrlen;
+    int sockfd;
 };
 
-struct Tcp_Stream {
-    struct sockaddr_in stream_addr;
-    socklen_t stream_len;
-    int stream_socket;
-    int stream_timeout;
-    unsigned char __pad[4];
+struct TcpStream {
+    struct sockaddr_in addr;
+    socklen_t addrlen;
+    int sockfd;
+    int timeout;
 };
 
-Tcp_Listener *listener_new(const char *addr, uint16_t port)
+TcpListener *TcpListener_new(const char *addr, uint16_t port)
 {
-    Tcp_Listener *listener = calloc(1, sizeof(struct Tcp_Listener));
+    TcpListener *listener = calloc(1, sizeof(struct TcpListener));
     if (listener == NULL)
         return NULL;
 
-    if ((listener->tcp_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+    if ((listener->sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
         return NULL;
 
-    listener->tcp_len  = sizeof(listener->tcp_addr);
-    listener->tcp_addr = (struct sockaddr_in){
-        .sin_family = AF_INET,
-        .sin_addr   = {0},
-        .sin_port   = htons(port),
+    listener->addrlen = sizeof(listener->addr);
+    listener->addr    = (struct sockaddr_in){
+           .sin_family = AF_INET,
+           .sin_addr   = {0},
+           .sin_port   = htons(port),
     };
 
     if (addr == NULL)
         addr = "127.0.0.1"; // loopback address
 
-    if (!inet_pton(AF_INET, addr, &listener->tcp_addr.sin_addr)) {
-        close(listener->tcp_socket);
+    if (!inet_pton(AF_INET, addr, &listener->addr.sin_addr)) {
+        close(listener->sockfd);
         free(listener);
         return NULL;
     }
 
-    struct sockaddr *sockaddr = (void *)&listener->tcp_addr;
-    if (bind(listener->tcp_socket, sockaddr, listener->tcp_len) != 0) {
-        close(listener->tcp_socket);
+    struct sockaddr *sockaddr = (void *)&listener->addr;
+    if (bind(listener->sockfd, sockaddr, listener->addrlen) != 0) {
+        close(listener->sockfd);
         free(listener);
         return NULL;
     }
@@ -58,31 +64,31 @@ Tcp_Listener *listener_new(const char *addr, uint16_t port)
     return listener;
 }
 
-int listener_listen(Tcp_Listener *listener, int backlog)
+int TcpListener_listen(TcpListener *listener, int backlog)
 {
     if (listener == NULL)
         return -1;
 
-    return listen(listener->tcp_socket, backlog);
+    return listen(listener->sockfd, backlog);
 }
 
-Tcp_Stream *listener_accept(Tcp_Listener *listener)
+TcpStream *TcpListener_accept(TcpListener *listener)
 {
     if (listener == NULL)
         return NULL;
 
-    if (listener->tcp_socket == -1 || listener->tcp_len != sizeof(struct sockaddr_in))
+    if (listener->sockfd == -1 || listener->addrlen != sizeof(struct sockaddr_in))
         return NULL;
 
-    Tcp_Stream *stream = calloc(1, sizeof(struct Tcp_Stream));
+    TcpStream *stream = calloc(1, sizeof(struct TcpStream));
     if (stream == NULL)
         return NULL;
 
-    struct sockaddr *addr  = (void *)&stream->stream_addr;
-    stream->stream_timeout = 0;
-    stream->stream_len     = listener->tcp_len;
+    struct sockaddr *addr = (void *)&stream->addr;
+    stream->timeout       = 0;
+    stream->addrlen       = listener->addrlen;
 
-    if ((stream->stream_socket = accept(listener->tcp_socket, addr, &stream->stream_len)) == -1) {
+    if ((stream->sockfd = accept(listener->sockfd, addr, &stream->addrlen)) == -1) {
         free(stream);
         return NULL;
     }
@@ -90,46 +96,46 @@ Tcp_Stream *listener_accept(Tcp_Listener *listener)
     return stream;
 }
 
-void listener_shutdown(Tcp_Listener *listener)
+void TcpListener_shutdown(TcpListener *listener)
 {
     if (listener == NULL)
         return;
 
-    close(listener->tcp_socket);
+    close(listener->sockfd);
     free(listener);
 }
 
-Tcp_Stream *stream_connect(const char *addr, uint16_t port)
+TcpStream *TcpStream_connect(const char *addr, uint16_t port)
 {
-    Tcp_Stream *stream = calloc(1, sizeof(struct Tcp_Stream));
+    TcpStream *stream = calloc(1, sizeof(struct TcpStream));
     if (stream == NULL)
         return NULL;
 
     if (addr == NULL)
         addr = "127.0.0.1";
 
-    if ((stream->stream_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+    if ((stream->sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
         free(stream);
         return NULL;
     }
 
-    stream->stream_timeout = 0;
-    stream->stream_len     = sizeof(struct sockaddr_in);
-    stream->stream_addr    = (struct sockaddr_in){
+    stream->timeout = 0;
+    stream->addrlen = sizeof(struct sockaddr_in);
+    stream->addr    = (struct sockaddr_in){
            .sin_family = AF_INET,
            .sin_addr   = {0},
            .sin_port   = htons(port),
     };
 
-    if (!inet_pton(AF_INET, addr, &stream->stream_addr.sin_addr)) {
-        close(stream->stream_socket);
+    if (!inet_pton(AF_INET, addr, &stream->addr.sin_addr)) {
+        close(stream->sockfd);
         free(stream);
         return NULL;
     }
 
-    struct sockaddr *sockaddr = (void *)&stream->stream_addr;
-    if (connect(stream->stream_socket, sockaddr, stream->stream_len) != 0) {
-        close(stream->stream_socket);
+    struct sockaddr *sockaddr = (void *)&stream->addr;
+    if (connect(stream->sockfd, sockaddr, stream->addrlen) != 0) {
+        close(stream->sockfd);
         free(stream);
         return NULL;
     }
@@ -137,16 +143,24 @@ Tcp_Stream *stream_connect(const char *addr, uint16_t port)
     return stream;
 }
 
-int stream_settimeout(Tcp_Stream *stream, int timeout_ms)
+int TcpStream_sockfd(TcpStream *stream)
 {
     if (stream == NULL)
         return -1;
 
-    stream->stream_timeout = timeout_ms;
+    return stream->sockfd;
+}
+
+int TcpStream_settimeout(TcpStream *stream, int timeout_ms)
+{
+    if (stream == NULL)
+        return -1;
+
+    stream->timeout = timeout_ms;
     return 0;
 }
 
-ssize_t stream_send(Tcp_Stream *stream, const void *buf, size_t count, int flags)
+ssize_t TcpStream_send(TcpStream *stream, const void *buf, size_t count, int flags)
 {
     // bytes sended
     ssize_t sended = 0;
@@ -156,16 +170,16 @@ ssize_t stream_send(Tcp_Stream *stream, const void *buf, size_t count, int flags
         return -1;
 
     // don't poll() if timeout is 0
-    if (stream->stream_timeout == 0)
-        return send(stream->stream_socket, buf, count, flags);
+    if (stream->timeout == 0)
+        return send(stream->sockfd, buf, count, flags);
 
     struct pollfd pfd = {
-        .fd     = stream->stream_socket, // socket fd
-        .events = POLLOUT,               // event for send(), sendto(), sendmsg()
+        .fd     = stream->sockfd, // socket fd
+        .events = POLLOUT,        // event for send(), sendto(), sendmsg()
     };
 
     for (; remain != 0;) {
-        int pollstat = poll(&pfd, 1, stream->stream_timeout);
+        int pollstat = poll(&pfd, 1, stream->timeout);
         if (pollstat == -1) // error
             return -1;
 
@@ -192,7 +206,7 @@ ssize_t stream_send(Tcp_Stream *stream, const void *buf, size_t count, int flags
     return sended;
 }
 
-ssize_t stream_recv(Tcp_Stream *stream, void *buf, size_t count, int flags)
+ssize_t TcpStream_recv(TcpStream *stream, void *buf, size_t count, int flags)
 {
     // bytes sended
     ssize_t recieved = 0;
@@ -202,16 +216,16 @@ ssize_t stream_recv(Tcp_Stream *stream, void *buf, size_t count, int flags)
         return -1;
 
     // don't poll() if timeout is 0
-    if (stream->stream_timeout == 0)
-        return recv(stream->stream_socket, buf, count, flags);
+    if (stream->timeout == 0)
+        return recv(stream->sockfd, buf, count, flags);
 
     struct pollfd pfd = {
-        .fd     = stream->stream_socket, // socket fd
-        .events = POLLIN,                // event for send(), sendto(), sendmsg()
+        .fd     = stream->sockfd, // socket fd
+        .events = POLLIN,         // event for recv(), recvfrom(), recvmsg()
     };
 
     for (; remain != 0;) {
-        int pollstat = poll(&pfd, 1, stream->stream_timeout);
+        int pollstat = poll(&pfd, 1, stream->timeout);
         if (pollstat == -1) // error
             return -1;
 
@@ -238,12 +252,12 @@ ssize_t stream_recv(Tcp_Stream *stream, void *buf, size_t count, int flags)
     return recieved;
 }
 
-int stream_shutdown(Tcp_Stream *stream)
+int TcpStream_shutdown(TcpStream *stream)
 {
     if (stream == NULL)
         return -1;
 
-    int status = shutdown(stream->stream_socket, SHUT_RDWR);
+    int status = shutdown(stream->sockfd, SHUT_RDWR);
     free(stream);
     return status;
 }

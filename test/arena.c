@@ -1,10 +1,24 @@
 #include <libmisc/arena.h>
+#include <stdio.h>
+#include <string.h>
 
 Arena *arena = &(Arena){0};
 
 int main(void)
 {
-    arena_init(arena, PAGE_SIZE, true);
+    Arena_init(arena, PAGE_SIZE, true);
+    char *s = Arena_alloc(arena, 512);
 
-    arena_dealloc(arena);
+    if (s == NULL)
+        goto cleanup;
+
+    strcat(s, "Hello from Arena!\n");
+    strcat(s, "Hello from Arena!\n");
+    strcat(s, "Hello from Arena!\n");
+    strcat(s, "Hello from Arena!\n");
+    strcat(s, "Hello from Arena!\n");
+    printf("%s", s);
+
+cleanup:
+    Arena_dealloc(arena);
 }

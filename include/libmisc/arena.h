@@ -16,7 +16,10 @@
 #define PAGE_SIZE 4096
 #endif
 
+#if __STDC_VERSION__ < 202311L
 #include <stdbool.h>
+#endif
+
 #include <stddef.h>
 
 enum {
@@ -41,31 +44,31 @@ typedef struct {
 } Arena;
 
 // Create a new Arena, can be allocated early if should_allocated is true.
-int arena_init(Arena *arena, size_t step, bool should_allocate);
+int Arena_init(Arena *arena, size_t step, bool should_allocate);
 
 // Return an allocated chunk of memory from arena to the caller.
-void *arena_alloc(Arena *arena, size_t size);
+void *Arena_alloc(Arena *arena, size_t size);
 
 // Change the size of the allocated memory.
-void *arena_realloc(Arena *arena, void *dst, size_t old_size, size_t new_size);
+void *Arena_realloc(Arena *arena, void *dst, size_t old_size, size_t new_size);
 
 // Freeing the memory hold by arena.
-void arena_dealloc(Arena *arena);
+void Arena_dealloc(Arena *arena);
 
 // Return the remaining arena capacity.
-size_t arena_remaining(Arena *arena);
+size_t Arena_remaining(Arena *arena);
 
 // Return the first memory address from arena.
-void *arena_first_addr(Arena *arena);
+void *Arena_first_addr(Arena *arena);
 
 // Return the last memory address used from arena.
-void *arena_last_addr(Arena *arena);
+void *Arena_last_addr(Arena *arena);
 
 // Return the last memory address from arena.
-void *arena_brk_addr(Arena *arena);
+void *Arena_brk_addr(Arena *arena);
 
 // Check whether the arena offset is equal to arena capacity - 1.
-bool arena_on_limit(Arena *arena);
+bool Arena_on_limit(Arena *arena);
 
 // Return the inner buffer as new allocated pointer and freeing the arena.
-void *arena_popout(Arena *arena);
+void *Arena_popout(Arena *arena);
