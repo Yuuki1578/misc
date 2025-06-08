@@ -10,7 +10,7 @@ PROJECT(misc
 SET(MISC_SOURCE_DIR "./src")
 SET(MISC_INCLUDE_DIR "./include")
 
-ADD_SUBDIRECTORY(test)
+ADD_SUBDIRECTORY("./test")
 
 SET(CMAKE_C_STANDARD 23)
 SET(CMAKE_C_STANDARD_REQUIRED TRUE)
@@ -25,10 +25,10 @@ ADD_COMPILE_OPTIONS(
   -mtune=native
   -ffast-math
   -funroll-loops
+  -fomit-frame-pointer
   -Wall
   -Werror
   -Wextra
-  -Wno-gnu-pointer-arith
   -Wno-pointer-arith
   -pedantic
 )
