@@ -1,4 +1,4 @@
-#include <libmisc/arena.h>
+#include "libmisc/arena.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -6,8 +6,8 @@ Arena *arena = &(Arena){0};
 
 int main(void)
 {
-    Arena_init(arena, PAGE_SIZE, true);
-    char *s = Arena_alloc(arena, 512);
+    ArenaInit(arena, PAGE_SIZE, true);
+    char *s = ArenaAlloc(arena, 512);
 
     if (s == NULL)
         goto cleanup;
@@ -20,5 +20,5 @@ int main(void)
     printf("%s", s);
 
 cleanup:
-    Arena_dealloc(arena);
+    ArenaDealloc(arena);
 }

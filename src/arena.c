@@ -5,23 +5,20 @@
 // @file arena.c
 // @brief linear allocator with segmented region (arena)
 
-#include <libmisc/arena.h>
+#include "libmisc/arena.h"
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
-size_t Arena_remaining(Arena *arena) { return arena != NULL ? arena->capacity - arena->offset : 0; }
+size_t ArenaRemaining(Arena *arena) { return arena != NULL ? arena->capacity - arena->offset : 0; }
 
-void *Arena_first_addr(Arena *arena) { return arena != NULL ? arena : NULL; }
+void *ArenaFirstPtr(Arena *arena) { return arena != NULL ? arena : NULL; }
 
-void *Arena_last_addr(Arena *arena) { return arena != NULL ? arena->rawptr + arena->offset : NULL; }
+void *ArenaLastPtr(Arena *arena) { return arena != NULL ? arena->rawptr + arena->offset : NULL; }
 
-void *Arena_brk_addr(Arena *arena)
-{
-    return arena != NULL ? arena->rawptr + arena->capacity : NULL;
-}
+void *ArenaBreakPtr(Arena *arena) { return arena != NULL ? arena->rawptr + arena->capacity : NULL; }
 
-bool Arena_on_limit(Arena *arena)
+bool ArenaIsFull(Arena *arena)
 {
     if (arena == NULL)
         return false;
@@ -32,7 +29,7 @@ bool Arena_on_limit(Arena *arena)
     return false;
 }
 
-int Arena_init(Arena *arena, size_t step, bool should_allocate)
+int ArenaInit(Arena *arena, size_t step, bool should_allocate)
 {
     if (arena == NULL)
         return ARENA_NOAVAIL;
@@ -53,7 +50,7 @@ int Arena_init(Arena *arena, size_t step, bool should_allocate)
     return ARENA_READY;
 }
 
-void *Arena_alloc(Arena *arena, size_t size)
+void *ArenaAlloc(Arena *arena, size_t size)
 {
     void *ready;
     size_t remains;
@@ -61,10 +58,10 @@ void *Arena_alloc(Arena *arena, size_t size)
     if (arena == NULL || size == 0)
         return NULL;
 
-    remains = Arena_remaining(arena);
+    remains = ArenaRemaining(arena);
 
     if (arena->capacity == 0) {
-        int status = Arena_init(arena, arena->step, true);
+        int status = ArenaInit(arena, arena->step, true);
         if (status != ARENA_READY)
             return NULL;
     }
@@ -89,14 +86,14 @@ void *Arena_alloc(Arena *arena, size_t size)
     return ready;
 }
 
-void *Arena_realloc(Arena *arena, void *dst, size_t old_size, size_t new_size)
+void *ArenaRealloc(Arena *arena, void *dst, size_t old_size, size_t new_size)
 {
     void *ready;
 
     if (arena == NULL || old_size == 0)
         return NULL;
 
-    if ((ready = Arena_alloc(arena, new_size)) == NULL)
+    if ((ready = ArenaAlloc(arena, new_size)) == NULL)
         return NULL;
 
     if (dst == NULL)
@@ -106,7 +103,7 @@ void *Arena_realloc(Arena *arena, void *dst, size_t old_size, size_t new_size)
     return ready;
 }
 
-void Arena_dealloc(Arena *arena)
+void ArenaDealloc(Arena *arena)
 {
     if (arena == NULL || arena->capacity == 0)
         return;
@@ -116,7 +113,7 @@ void Arena_dealloc(Arena *arena)
     arena->offset   = 0;
 }
 
-void *Arena_popout(Arena *arena)
+void *ArenaPopOut(Arena *arena)
 {
     if (arena == NULL)
         return NULL;

@@ -1,8 +1,8 @@
-#include <libmisc/nonblock.h>
+#include "libmisc/nonblock.h"
 #include <stdlib.h>
 #include <string.h>
 
-void PollEvent_multiplex(PollEvent *pe, OnReady callback, void *any)
+void PollEventBegin(PollEvent *pe, OnReady callback, void *any)
 {
     nfds_t done_io = 0;
 
@@ -36,7 +36,7 @@ void PollEvent_multiplex(PollEvent *pe, OnReady callback, void *any)
     }
 }
 
-static ssize_t __ionb(int nbfd, void *buf, size_t count, int event, Milisecond_t timeout)
+static ssize_t __ionb(int nbfd, void *buf, size_t count, int event, Milisecond timeout)
 {
     struct pollfd poller = {
         .fd     = nbfd,
@@ -79,12 +79,12 @@ endpoll:
     return status;
 }
 
-ssize_t readnb(int nbfd, void *buf, size_t count, Milisecond_t timeout)
+ssize_t ReadNb(int nbfd, void *buf, size_t count, Milisecond timeout)
 {
     return __ionb(nbfd, buf, count, POLLIN, timeout);
 }
 
-void *readnball(int nbfd, Milisecond_t timeout)
+void *ReadNbAll(int nbfd, Milisecond timeout)
 {
     size_t readed = 0, buffer_cap = PAGE_SIZE;
     ssize_t from_readcall;
@@ -104,7 +104,7 @@ void *readnball(int nbfd, Milisecond_t timeout)
             buffer = tmp;
         }
 
-        if ((from_readcall = readnb(nbfd, buffer + readed, MISCNB_PARTIAL, timeout)) <= 0)
+        if ((from_readcall = ReadNb(nbfd, buffer + readed, MISCNB_PARTIAL, timeout)) <= 0)
             break;
 
         readed += from_readcall;
@@ -121,7 +121,7 @@ void *readnball(int nbfd, Milisecond_t timeout)
     return buffer;
 }
 
-ssize_t writenb(int nbfd, void *buf, size_t count, Milisecond_t timeout)
+ssize_t WriteNb(int nbfd, void *buf, size_t count, Milisecond timeout)
 {
     return __ionb(nbfd, buf, count, POLLOUT, timeout);
 }

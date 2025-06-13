@@ -5,12 +5,13 @@
 // @file tcp.c
 // @brief TCP/IPv4 API around UNIX socket
 
+#include "libmisc/ipc/tcp.h"
 #include <arpa/inet.h>
-#include <libmisc/ipc/tcp.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <poll.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -29,7 +30,7 @@ struct TcpStream {
     int timeout;
 };
 
-TcpListener *TcpListener_new(const char *addr, uint16_t port)
+TcpListener *TcpListenerNew(const char *addr, uint16_t port)
 {
     TcpListener *listener = calloc(1, sizeof(struct TcpListener));
     if (listener == NULL)
@@ -64,7 +65,7 @@ TcpListener *TcpListener_new(const char *addr, uint16_t port)
     return listener;
 }
 
-int TcpListener_listen(TcpListener *listener, int backlog)
+int TcpListenerListen(TcpListener *listener, int backlog)
 {
     if (listener == NULL)
         return -1;
@@ -72,7 +73,7 @@ int TcpListener_listen(TcpListener *listener, int backlog)
     return listen(listener->sockfd, backlog);
 }
 
-TcpStream *TcpListener_accept(TcpListener *listener)
+TcpStream *TcpListenerAccept(TcpListener *listener)
 {
     if (listener == NULL)
         return NULL;
@@ -96,7 +97,48 @@ TcpStream *TcpListener_accept(TcpListener *listener)
     return stream;
 }
 
-void TcpListener_shutdown(TcpListener *listener)
+TcpStream *TcpListenerAcceptFor(TcpListener *listener, int timeout_ms)
+{
+    if (listener == NULL)
+        return NULL;
+
+    if (listener->sockfd == -1 || listener->addrlen != sizeof(struct sockaddr_in))
+        return NULL;
+
+    TcpStream *stream = calloc(1, sizeof(struct TcpStream));
+    if (stream == NULL)
+        return NULL;
+
+    struct sockaddr *addr = (void *)&stream->addr;
+    struct pollfd pfd     = {listener->sockfd, POLLIN, 0};
+    stream->timeout       = 0;
+    stream->addrlen       = listener->addrlen;
+
+    for (int pollstat = poll(&pfd, 1, timeout_ms);;) {
+        if (pollstat == -1) {
+            free(stream);
+            return NULL;
+        }
+
+        if (pollstat == 0) {
+            free(stream);
+            return STREAM_TIMED_OUT;
+        }
+
+        if (pfd.events & POLLIN) {
+            if ((stream->sockfd = accept(listener->sockfd, addr, &stream->addrlen)) == -1) {
+                free(stream);
+                return NULL;
+            }
+
+            break;
+        }
+    }
+
+    return stream;
+}
+
+void TcpListenerShutdown(TcpListener *listener)
 {
     if (listener == NULL)
         return;
@@ -105,7 +147,7 @@ void TcpListener_shutdown(TcpListener *listener)
     free(listener);
 }
 
-TcpStream *TcpStream_connect(const char *addr, uint16_t port)
+TcpStream *TcpStreamConnect(const char *addr, uint16_t port)
 {
     TcpStream *stream = calloc(1, sizeof(struct TcpStream));
     if (stream == NULL)
@@ -143,7 +185,7 @@ TcpStream *TcpStream_connect(const char *addr, uint16_t port)
     return stream;
 }
 
-int TcpStream_sockfd(TcpStream *stream)
+int TcpStreamGetSocket(TcpStream *stream)
 {
     if (stream == NULL)
         return -1;
@@ -151,7 +193,7 @@ int TcpStream_sockfd(TcpStream *stream)
     return stream->sockfd;
 }
 
-int TcpStream_settimeout(TcpStream *stream, int timeout_ms)
+int TcpStreamSetTimeout(TcpStream *stream, int timeout_ms)
 {
     if (stream == NULL)
         return -1;
@@ -160,7 +202,7 @@ int TcpStream_settimeout(TcpStream *stream, int timeout_ms)
     return 0;
 }
 
-ssize_t TcpStream_send(TcpStream *stream, const void *buf, size_t count, int flags)
+ssize_t TcpStreamSend(TcpStream *stream, const void *buf, size_t count, int flags)
 {
     // bytes sended
     ssize_t sended = 0;
@@ -206,7 +248,7 @@ ssize_t TcpStream_send(TcpStream *stream, const void *buf, size_t count, int fla
     return sended;
 }
 
-ssize_t TcpStream_recv(TcpStream *stream, void *buf, size_t count, int flags)
+ssize_t TcpStreamRecv(TcpStream *stream, void *buf, size_t count, int flags)
 {
     // bytes sended
     ssize_t recieved = 0;
@@ -252,7 +294,7 @@ ssize_t TcpStream_recv(TcpStream *stream, void *buf, size_t count, int flags)
     return recieved;
 }
 
-int TcpStream_shutdown(TcpStream *stream)
+int TcpStreamShutdown(TcpStream *stream)
 {
     if (stream == NULL)
         return -1;

@@ -1,9 +1,13 @@
 #define VECTOR_STEP (1024)
-#include <libmisc/vector.h>
+#include "libmisc/vector.h"
 #include <stdint.h>
 #include <stdio.h>
 
+#ifdef __SIZEOF_INT128__
 typedef __uint128_t uint128_t;
+#else
+typedef unsigned long long uint128_t;
+#endif
 
 int main(void)
 {

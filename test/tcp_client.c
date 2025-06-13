@@ -1,19 +1,26 @@
-#include <libmisc/ipc/tcp.h>
+#include "libmisc/ipc/tcp.h"
 #include <stddef.h>
 #include <stdio.h>
 
 int main(void)
 {
-    TcpStream *stream = TcpStream_connect(NULL, 8000);
+    // Create a connection to loopback address.
+    TcpStream *stream = TcpStreamConnect(NULL, 8000);
+
+    // Setup a buffer.
     char buf[(1 << 12) * 2];
 
     if (stream == NULL)
         return 1;
 
-    TcpStream_settimeout(stream, 120);
-    TcpStream_recv(stream, buf, sizeof(buf) - 1, 0);
+    // Setting up a timeout for @recv().
+    TcpStreamSetTimeout(stream, 120);
+
+    // Recieving bytes from loopback address.
+    TcpStreamRecv(stream, buf, sizeof(buf) - 1, 0);
     printf("%s", buf);
 
-    TcpStream_shutdown(stream);
+    // Shutdown the stream.
+    TcpStreamShutdown(stream);
     return 0;
 }

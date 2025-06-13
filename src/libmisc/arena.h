@@ -44,31 +44,31 @@ typedef struct {
 } Arena;
 
 // Create a new Arena, can be allocated early if should_allocated is true.
-int Arena_init(Arena *arena, size_t step, bool should_allocate);
+int ArenaInit(Arena *arena, size_t step, bool should_allocate);
 
 // Return an allocated chunk of memory from arena to the caller.
-void *Arena_alloc(Arena *arena, size_t size);
+void *ArenaAlloc(Arena *arena, size_t size);
 
 // Change the size of the allocated memory.
-void *Arena_realloc(Arena *arena, void *dst, size_t old_size, size_t new_size);
+void *ArenaRealloc(Arena *arena, void *dst, size_t old_size, size_t new_size);
 
 // Freeing the memory hold by arena.
-void Arena_dealloc(Arena *arena);
+void ArenaDealloc(Arena *arena);
 
 // Return the remaining arena capacity.
-size_t Arena_remaining(Arena *arena);
+size_t ArenaRemaining(Arena *arena);
 
 // Return the first memory address from arena.
-void *Arena_first_addr(Arena *arena);
+void *ArenaFirstPtr(Arena *arena);
 
 // Return the last memory address used from arena.
-void *Arena_last_addr(Arena *arena);
+void *ArenaLastPtr(Arena *arena);
 
 // Return the last memory address from arena.
-void *Arena_brk_addr(Arena *arena);
+void *ArenaBreakPtr(Arena *arena);
 
 // Check whether the arena offset is equal to arena capacity - 1.
-bool Arena_on_limit(Arena *arena);
+bool ArenaIsFull(Arena *arena);
 
 // Return the inner buffer as new allocated pointer and freeing the arena.
-void *Arena_popout(Arena *arena);
+void *ArenaPopOut(Arena *arena);

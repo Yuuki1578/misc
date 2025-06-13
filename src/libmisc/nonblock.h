@@ -30,7 +30,7 @@ typedef enum {
 } EventTrigger;
 
 // Timeout in milisecond
-typedef int Milisecond_t;
+typedef int Milisecond;
 
 // Function pointer that get called when a file descriptor is ready.
 typedef EventTrigger (*OnReady)(int fd_context, int fd_event, void *any);
@@ -40,7 +40,7 @@ typedef EventTrigger (*OnReady)(int fd_context, int fd_event, void *any);
 typedef struct {
     struct pollfd *polls;
     nfds_t count;
-    Milisecond_t timeout;
+    Milisecond timeout;
 } PollEvent;
 
 // Attempt to do an I/O operation or else, specified in @callback, on a ready
@@ -56,7 +56,7 @@ typedef struct {
 // 1. @EVTRIG_EVENT_DONE -> Set the fd to -1 on return, I/O operation is done.
 // 2. @EVTRIG_EVENT_WAIT -> The fd can be used again or the operation isn't done
 // yet.
-void PollEvent_multiplex(PollEvent *pr, OnReady callback, void *any);
+void PollEventBegin(PollEvent *pr, OnReady callback, void *any);
 
 // Attempt to read from a file descriptor without blocking the main thread.
 // The function may be use partialy.
@@ -66,7 +66,7 @@ void PollEvent_multiplex(PollEvent *pr, OnReady callback, void *any);
 // <poll.h>.
 //
 // For reading, the events is POLLIN, while for writing is POLLOUT.
-ssize_t readnb(int nbfd, void *buf, size_t count, Milisecond_t timeout);
+ssize_t ReadNb(int nbfd, void *buf, size_t count, Milisecond timeout);
 
 // Read all the file content until EOF.
 // If the file length is greater than MISCNB_PARTIAL, the file is readed
@@ -76,9 +76,9 @@ ssize_t readnb(int nbfd, void *buf, size_t count, Milisecond_t timeout);
 //
 // Is safe to use this function if your file size is less than or equal to 2^(64
 // - 1) - 1 bytes or approximately 9,2 GiB.
-void *readnball(int nbfd, Milisecond_t timeout);
+void *ReadNbAll(int nbfd, Milisecond timeout);
 
 // Write up to buf[count] to the file descriptor.
 // The write operation is not synced using fsync(), so the user gotta do it
 // themselves.
-ssize_t writenb(int nbfd, void *buf, size_t count, Milisecond_t timeout);
+ssize_t WriteNb(int nbfd, void *buf, size_t count, Milisecond timeout);

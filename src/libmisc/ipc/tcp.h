@@ -17,51 +17,61 @@
 // it might blocking the thread, so the IO API provide
 // a way for setting up the timeout
 #define BUFFER_FRAGMENT_SIZE (1024)
+#define STREAM_TIMED_OUT ((void *)-1)
 
 // TCP/IPv4 Listener server.
-// The @Tcp_Listener struct is an opaque type for interacting
+// The @TcpListener struct is an opaque type for interacting
 // with UNIX @IPPROTO_TCP server. Fill it with address and port,
 // then you are ready to go.
 typedef struct TcpListener TcpListener;
 
 // TCP/IPv4 Connection stream.
-// The @Tcp_Stream struct is also an opaque type for sending / recieving
+// The @TcpStream struct is also an opaque type for sending / recieving
 // bytes between process using TCP/IPv4. This struct is returned from
 // @listener_accept() or @stream_connect()
 typedef struct TcpStream TcpStream;
 
-// Create a newly allocated @Tcp_Listener struct with an address and port
+// Create a newly allocated @TcpListener struct with an address and port
 // bound with it. @addr must be a valid IPv4 address.
 //
 // RETURN:
-// return an allocated @Tcp_Listener on success, return NULL on failed and
+// return an allocated @TcpListener on success, return NULL on failed and
 // set @errno to corresponding error.
-TcpListener *TcpListener_new(const char *addr, uint16_t port);
+TcpListener *TcpListenerNew(const char *addr, uint16_t port);
 
 // Listening to incoming connections, with the maximum of @backlog's connections.
 //
 // RETURN:
 // return 0 on success, -1 on error and set @errno.
-int TcpListener_listen(TcpListener *listener, int backlog);
+int TcpListenerListen(TcpListener *listener, int backlog);
 
-// Accepting a connection from @listener, returning a @Tcp_Stream instance
+// Accepting a connection from @listener, returning a @TcpStream instance
 // for @stream_send() or @stream_recv().
 //
 // RETURN:
-// return an allocated @Tcp_Stream on success, return NULL on error and set @errno.
-TcpStream *TcpListener_accept(TcpListener *listener);
+// return an allocated @TcpStream on success, return NULL on error and set @errno.
+TcpStream *TcpListenerAccept(TcpListener *listener);
+
+// Accept a connection from @listener for @timeout_ms miliseconds, returning
+// 3 possible values.
+//
+// RETURN:
+// 1. STREAM_TIMED_OUT: @accept call timed out after @timeout_ms miliseconds.
+// 2. NULL: @accept call somehow fail.
+// 3. A pointer to @TcpStream instance on success.
+TcpStream *TcpListenerAcceptFor(TcpListener *listener, int timeout_ms);
 
 // Shutting down the server, freeing it's memory.
 //
 // RETURN:
 // NONE
-void TcpListener_shutdown(TcpListener *listener);
+void TcpListenerShutdown(TcpListener *listener);
 
 // Attempt to connect to a remote address from @addr in port @port.
 //
 // RETURN:
-// return a pointer to @Tcp_Stream on success, return NULL on error and set @errno.
-TcpStream *TcpStream_connect(const char *addr, uint16_t port);
+// return a pointer to @TcpStream on success, return NULL on error and set @errno.
+TcpStream *TcpStreamConnect(const char *addr, uint16_t port);
 
 // Return the underlying file descriptor for socket.
 // The @listener can be a @TcpListener or a @TcpStream,
@@ -69,33 +79,33 @@ TcpStream *TcpStream_connect(const char *addr, uint16_t port);
 //
 // RETURN:
 // return the valid file descriptor on success, return -1 on error.
-int TcpStream_sockfd(TcpStream *stream);
+int TcpStreamGetSocket(TcpStream *stream);
 
 // Setting up a timeout for @stream, limiting it's operation for @timeout_ms milisecond.
 //
 // RETURN:
 // return 0 on sucess, return -1 on error.
-int TcpStream_settimeout(TcpStream *stream, int timeout_ms);
+int TcpStreamSetTimeout(TcpStream *stream, int timeout_ms);
 
 // Sending a @count bytes @buffer to @stream.
-// If the timeout is not set, this function might blocking the thread, if it's setted,
-// then the @send() opeation is done by partialy sending a chunk of byte when ONLY the
+// If the timeout is not set, this function might blocking the thread, if it's set,
+// then the @send() operation is done by partialy sending a chunk of byte when ONLY the
 // socket is ready to @send() or @POLLOUT.
 //
 // RETURN:
 // return the total bytes sended to @stream on success, return -1 on error, return 0 on timeout.
-ssize_t TcpStream_send(TcpStream *stream, const void *buf, size_t count, int flags);
+ssize_t TcpStreamSend(TcpStream *stream, const void *buf, size_t count, int flags);
 
 // Recieving a @count bytes of data from @stream and save the data into @buf.
 // The behavior is same as @stream_send(), it might or might not blocking the thread
-// if the timeout is setted.
+// if the timeout is set.
 //
 // RETURN:
 // return the total bytes recieved from @stream on success, return -1 on error, return 0 on timeout.
-ssize_t TcpStream_recv(TcpStream *stream, void *buf, size_t count, int flags);
+ssize_t TcpStreamRecv(TcpStream *stream, void *buf, size_t count, int flags);
 
 // Shutting down the @stream, both for READ and WRITE.
 //
 // RETURN:
 // return 0 on success, return -1 on error.
-int TcpStream_shutdown(TcpStream *stream);
+int TcpStreamShutdown(TcpStream *stream);

@@ -1,49 +1,63 @@
-#include <libmisc/ipc/tcp.h>
+#include "libmisc/ipc/tcp.h"
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-char buffer[] = {
+// C23 only.
+char Buffer[] = {
 #embed "../src/tcp.c"
 };
 
-TcpListener *listener = NULL;
-uint16_t port         = 8000;
+// Setting up a listener and port.
+TcpListener *Listener = NULL;
+uint16_t Port         = 8000;
 
+// Interrupt handler to cleaning up resources.
 void sighandler(int signum)
 {
     printf("Caught signal SIGINT, cleaning up...\n");
-    TcpListener_shutdown(listener);
+    TcpListenerShutdown(Listener);
     exit(signum);
 }
 
 int main(void)
 {
-    listener          = TcpListener_new(NULL, port);
+    // Create a listener with loopback address.
+    Listener          = TcpListenerNew(NULL, Port);
     TcpStream *stream = NULL;
 
+    // Handling the signal.
     signal(SIGINT, sighandler);
 
-    if (listener == NULL)
+    if (Listener == NULL)
         return 1;
 
-    if (TcpListener_listen(listener, 10) != 0) {
-        TcpListener_shutdown(listener);
+    // Setup the backlog.
+    if (TcpListenerListen(Listener, 80) != 0) {
+        TcpListenerShutdown(Listener);
         return 2;
     }
 
-    while ((stream = TcpListener_accept(listener)) != NULL) {
-        TcpStream_settimeout(stream, 95);
+    // Accepting connection for 65ms.
+    while ((stream = TcpListenerAcceptFor(Listener, 65)) != NULL) {
+        if (stream == STREAM_TIMED_OUT)
+            continue;
 
-        if (TcpStream_send(stream, buffer, sizeof buffer, 0) == -1) {
-            TcpStream_shutdown(stream);
-            break;
+        // Set timeout for both, @send() and @recv().
+        TcpStreamSetTimeout(stream, 120);
+
+        // Send the bytes.
+        if (TcpStreamSend(stream, Buffer, sizeof Buffer, 0) == -1) {
+            TcpStreamShutdown(stream);
+            continue;
         }
 
-        TcpStream_shutdown(stream);
+        // Shutting down the stream.
+        TcpStreamShutdown(stream);
     }
 
-    TcpListener_shutdown(listener);
+    // Shutting down the listener.
+    TcpListenerShutdown(Listener);
     return 0;
 }
