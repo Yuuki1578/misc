@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-void PollEventBegin(PollEvent *pe, OnReady callback, void *any)
+void PollEventBegin(PollEvent *pe, OnReady callback,
+                    void *any)
 {
     nfds_t done_io = 0;
 
@@ -13,17 +14,22 @@ void PollEventBegin(PollEvent *pe, OnReady callback, void *any)
         return;
 
     while (done_io != pe->count) {
-        int status_poll = poll(pe->polls, pe->count, pe->timeout);
+        int status_poll =
+            poll(pe->polls, pe->count, pe->timeout);
 
         if (status_poll == -1 || status_poll == 0)
             break;
 
-        for (register nfds_t ind = 0; ind < pe->count; ind++) {
+        for (register nfds_t ind = 0; ind < pe->count;
+             ind++) {
             if (pe->polls[ind].fd == -1)
                 goto next_fd;
 
-            if (pe->polls[ind].revents & pe->polls[ind].events) {
-                switch (callback(pe->polls[ind].fd, pe->polls[ind].revents, any)) {
+            if (pe->polls[ind].revents &
+                pe->polls[ind].events) {
+                switch (callback(pe->polls[ind].fd,
+                                 pe->polls[ind].revents,
+                                 any)) {
                 case EVTRIG_EVENT_DONE:
                     pe->polls[ind].fd = -1;
                     done_io++;
@@ -36,7 +42,8 @@ void PollEventBegin(PollEvent *pe, OnReady callback, void *any)
     }
 }
 
-static ssize_t __ionb(int nbfd, void *buf, size_t count, int event, Milisecond timeout)
+static ssize_t __ionb(int nbfd, void *buf, size_t count,
+                      int event, Milisecond timeout)
 {
     struct pollfd poller = {
         .fd     = nbfd,
@@ -79,7 +86,8 @@ endpoll:
     return status;
 }
 
-ssize_t ReadNb(int nbfd, void *buf, size_t count, Milisecond timeout)
+ssize_t ReadNb(int nbfd, void *buf, size_t count,
+               Milisecond timeout)
 {
     return __ionb(nbfd, buf, count, POLLIN, timeout);
 }
@@ -104,7 +112,9 @@ void *ReadNbAll(int nbfd, Milisecond timeout)
             buffer = tmp;
         }
 
-        if ((from_readcall = ReadNb(nbfd, buffer + readed, MISCNB_PARTIAL, timeout)) <= 0)
+        if ((from_readcall =
+                 ReadNb(nbfd, buffer + readed,
+                        MISCNB_PARTIAL, timeout)) <= 0)
             break;
 
         readed += from_readcall;
@@ -121,7 +131,8 @@ void *ReadNbAll(int nbfd, Milisecond timeout)
     return buffer;
 }
 
-ssize_t WriteNb(int nbfd, void *buf, size_t count, Milisecond timeout)
+ssize_t WriteNb(int nbfd, void *buf, size_t count,
+                Milisecond timeout)
 {
     return __ionb(nbfd, buf, count, POLLOUT, timeout);
 }

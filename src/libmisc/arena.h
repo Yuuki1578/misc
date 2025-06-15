@@ -1,12 +1,13 @@
 // April 2025, [https://github.com/Yuuki1578/misc.git]
 // This is a part of the libmisc library.
-// Any damage caused by this software is not my responsibility at all.
+// Any damage caused by this software is not my
+// responsibility at all.
 //
 // @file arena.h
 // @brief linear allocator with segmented region (arena)
 
-// I don't know if bits/size.h exist on all UNIX like system so yeah.
-// This device is using __ANDROID_API__ 24.
+// I don't know if bits/size.h exist on all UNIX like system
+// so yeah. This device is using __ANDROID_API__ 24.
 
 #pragma once
 
@@ -31,26 +32,31 @@ enum {
 // Arena data types.
 // The arena is responsible for managing its inner buffer.
 //
-// Task like segmenting pointer, allocating it to another, growing its size
-// things like that.
+// Task like segmenting pointer, allocating it to another,
+// growing its size things like that.
 //
-// You can initialize the arena once, use it everywhere, and have to free it
-// only once.
+// You can initialize the arena once, use it everywhere, and
+// have to free it only once.
 typedef struct {
     void *rawptr;    // pointer to allocated memory.
     size_t capacity; // total memory that arena can hold.
-    size_t offset;   // an offset from the left of the pointer.
-    size_t step;     // how much bytes per allocation.
+    size_t
+        offset;  // an offset from the left of the pointer.
+    size_t step; // how much bytes per allocation.
 } Arena;
 
-// Create a new Arena, can be allocated early if should_allocated is true.
-int ArenaInit(Arena *arena, size_t step, bool should_allocate);
+// Create a new Arena, can be allocated early if
+// should_allocated is true.
+int ArenaInit(Arena *arena, size_t step,
+              bool should_allocate);
 
-// Return an allocated chunk of memory from arena to the caller.
+// Return an allocated chunk of memory from arena to the
+// caller.
 void *ArenaAlloc(Arena *arena, size_t size);
 
 // Change the size of the allocated memory.
-void *ArenaRealloc(Arena *arena, void *dst, size_t old_size, size_t new_size);
+void *ArenaRealloc(Arena *arena, void *dst, size_t old_size,
+                   size_t new_size);
 
 // Freeing the memory hold by arena.
 void ArenaDealloc(Arena *arena);
@@ -67,8 +73,10 @@ void *ArenaLastPtr(Arena *arena);
 // Return the last memory address from arena.
 void *ArenaBreakPtr(Arena *arena);
 
-// Check whether the arena offset is equal to arena capacity - 1.
+// Check whether the arena offset is equal to arena capacity
+// - 1.
 bool ArenaIsFull(Arena *arena);
 
-// Return the inner buffer as new allocated pointer and freeing the arena.
+// Return the inner buffer as new allocated pointer and
+// freeing the arena.
 void *ArenaPopOut(Arena *arena);

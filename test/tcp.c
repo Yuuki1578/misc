@@ -40,7 +40,8 @@ int main(void)
     }
 
     // Accepting connection for 65ms.
-    while ((stream = TcpListenerAcceptFor(Listener, 65)) != NULL) {
+    while ((stream = TcpListenerAcceptFor(Listener, 65)) !=
+           NULL) {
         if (stream == STREAM_TIMED_OUT)
             continue;
 
@@ -48,7 +49,8 @@ int main(void)
         TcpStreamSetTimeout(stream, 120);
 
         // Send the bytes.
-        if (TcpStreamSend(stream, Buffer, sizeof Buffer, 0) == -1) {
+        if (TcpStreamSend(stream, Buffer, sizeof Buffer,
+                          0) == -1) {
             TcpStreamShutdown(stream);
             continue;
         }

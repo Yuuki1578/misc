@@ -1,6 +1,7 @@
 // April 2025, [https://github.com/Yuuki1578/misc.git]
 // This is a part of the libmisc library.
-// Any damage caused by this software is not my responsibility at all.
+// Any damage caused by this software is not my
+// responsibility at all.
 //
 // @file tcp.c
 // @brief TCP/IPv4 API around UNIX socket
@@ -32,11 +33,13 @@ struct TcpStream {
 
 TcpListener *TcpListenerNew(const char *addr, uint16_t port)
 {
-    TcpListener *listener = calloc(1, sizeof(struct TcpListener));
+    TcpListener *listener =
+        calloc(1, sizeof(struct TcpListener));
     if (listener == NULL)
         return NULL;
 
-    if ((listener->sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+    if ((listener->sockfd = socket(AF_INET, SOCK_STREAM,
+                                   IPPROTO_TCP)) == -1)
         return NULL;
 
     listener->addrlen = sizeof(listener->addr);
@@ -49,14 +52,16 @@ TcpListener *TcpListenerNew(const char *addr, uint16_t port)
     if (addr == NULL)
         addr = "127.0.0.1"; // loopback address
 
-    if (!inet_pton(AF_INET, addr, &listener->addr.sin_addr)) {
+    if (!inet_pton(AF_INET, addr,
+                   &listener->addr.sin_addr)) {
         close(listener->sockfd);
         free(listener);
         return NULL;
     }
 
     struct sockaddr *sockaddr = (void *)&listener->addr;
-    if (bind(listener->sockfd, sockaddr, listener->addrlen) != 0) {
+    if (bind(listener->sockfd, sockaddr,
+             listener->addrlen) != 0) {
         close(listener->sockfd);
         free(listener);
         return NULL;
@@ -78,7 +83,8 @@ TcpStream *TcpListenerAccept(TcpListener *listener)
     if (listener == NULL)
         return NULL;
 
-    if (listener->sockfd == -1 || listener->addrlen != sizeof(struct sockaddr_in))
+    if (listener->sockfd == -1 ||
+        listener->addrlen != sizeof(struct sockaddr_in))
         return NULL;
 
     TcpStream *stream = calloc(1, sizeof(struct TcpStream));
@@ -89,7 +95,8 @@ TcpStream *TcpListenerAccept(TcpListener *listener)
     stream->timeout       = 0;
     stream->addrlen       = listener->addrlen;
 
-    if ((stream->sockfd = accept(listener->sockfd, addr, &stream->addrlen)) == -1) {
+    if ((stream->sockfd = accept(listener->sockfd, addr,
+                                 &stream->addrlen)) == -1) {
         free(stream);
         return NULL;
     }
@@ -97,12 +104,14 @@ TcpStream *TcpListenerAccept(TcpListener *listener)
     return stream;
 }
 
-TcpStream *TcpListenerAcceptFor(TcpListener *listener, int timeout_ms)
+TcpStream *TcpListenerAcceptFor(TcpListener *listener,
+                                int timeout_ms)
 {
     if (listener == NULL)
         return NULL;
 
-    if (listener->sockfd == -1 || listener->addrlen != sizeof(struct sockaddr_in))
+    if (listener->sockfd == -1 ||
+        listener->addrlen != sizeof(struct sockaddr_in))
         return NULL;
 
     TcpStream *stream = calloc(1, sizeof(struct TcpStream));
@@ -126,7 +135,9 @@ TcpStream *TcpListenerAcceptFor(TcpListener *listener, int timeout_ms)
         }
 
         if (pfd.events & POLLIN) {
-            if ((stream->sockfd = accept(listener->sockfd, addr, &stream->addrlen)) == -1) {
+            if ((stream->sockfd =
+                     accept(listener->sockfd, addr,
+                            &stream->addrlen)) == -1) {
                 free(stream);
                 return NULL;
             }
@@ -156,7 +167,8 @@ TcpStream *TcpStreamConnect(const char *addr, uint16_t port)
     if (addr == NULL)
         addr = "127.0.0.1";
 
-    if ((stream->sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+    if ((stream->sockfd = socket(AF_INET, SOCK_STREAM,
+                                 IPPROTO_TCP)) == -1) {
         free(stream);
         return NULL;
     }
@@ -176,7 +188,8 @@ TcpStream *TcpStreamConnect(const char *addr, uint16_t port)
     }
 
     struct sockaddr *sockaddr = (void *)&stream->addr;
-    if (connect(stream->sockfd, sockaddr, stream->addrlen) != 0) {
+    if (connect(stream->sockfd, sockaddr,
+                stream->addrlen) != 0) {
         close(stream->sockfd);
         free(stream);
         return NULL;
@@ -202,7 +215,8 @@ int TcpStreamSetTimeout(TcpStream *stream, int timeout_ms)
     return 0;
 }
 
-ssize_t TcpStreamSend(TcpStream *stream, const void *buf, size_t count, int flags)
+ssize_t TcpStreamSend(TcpStream *stream, const void *buf,
+                      size_t count, int flags)
 {
     // bytes sended
     ssize_t sended = 0;
@@ -217,7 +231,8 @@ ssize_t TcpStreamSend(TcpStream *stream, const void *buf, size_t count, int flag
 
     struct pollfd pfd = {
         .fd     = stream->sockfd, // socket fd
-        .events = POLLOUT,        // event for send(), sendto(), sendmsg()
+        .events = POLLOUT, // event for send(), sendto(),
+                           // sendmsg()
     };
 
     for (; remain != 0;) {
@@ -232,8 +247,11 @@ ssize_t TcpStreamSend(TcpStream *stream, const void *buf, size_t count, int flag
             if (count < BUFFER_FRAGMENT_SIZE)
                 return send(pfd.fd, buf, count, flags);
 
-            size_t chunk       = remain > BUFFER_FRAGMENT_SIZE ? BUFFER_FRAGMENT_SIZE : remain;
-            ssize_t chunk_send = send(pfd.fd, buf + sended, chunk, flags);
+            size_t chunk = remain > BUFFER_FRAGMENT_SIZE
+                               ? BUFFER_FRAGMENT_SIZE
+                               : remain;
+            ssize_t chunk_send =
+                send(pfd.fd, buf + sended, chunk, flags);
 
             if (chunk_send == -1)
                 return -1;
@@ -248,7 +266,8 @@ ssize_t TcpStreamSend(TcpStream *stream, const void *buf, size_t count, int flag
     return sended;
 }
 
-ssize_t TcpStreamRecv(TcpStream *stream, void *buf, size_t count, int flags)
+ssize_t TcpStreamRecv(TcpStream *stream, void *buf,
+                      size_t count, int flags)
 {
     // bytes sended
     ssize_t recieved = 0;
@@ -263,7 +282,8 @@ ssize_t TcpStreamRecv(TcpStream *stream, void *buf, size_t count, int flags)
 
     struct pollfd pfd = {
         .fd     = stream->sockfd, // socket fd
-        .events = POLLIN,         // event for recv(), recvfrom(), recvmsg()
+        .events = POLLIN, // event for recv(), recvfrom(),
+                          // recvmsg()
     };
 
     for (; remain != 0;) {
@@ -278,8 +298,11 @@ ssize_t TcpStreamRecv(TcpStream *stream, void *buf, size_t count, int flags)
             if (count < BUFFER_FRAGMENT_SIZE)
                 return recv(pfd.fd, buf, count, flags);
 
-            size_t chunk       = remain > BUFFER_FRAGMENT_SIZE ? BUFFER_FRAGMENT_SIZE : remain;
-            ssize_t chunk_recv = recv(pfd.fd, buf + recieved, chunk, flags);
+            size_t chunk = remain > BUFFER_FRAGMENT_SIZE
+                               ? BUFFER_FRAGMENT_SIZE
+                               : remain;
+            ssize_t chunk_recv =
+                recv(pfd.fd, buf + recieved, chunk, flags);
 
             if (chunk_recv == -1)
                 return -1;

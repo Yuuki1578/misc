@@ -1,6 +1,7 @@
 // April 2025, [https://github.com/Yuuki1578/misc.git]
 // This is a part of the libmisc library.
-// Any damage caused by this software is not my responsibility at all.
+// Any damage caused by this software is not my
+// responsibility at all.
 //
 // @file arena.c
 // @brief linear allocator with segmented region (arena)
@@ -10,13 +11,28 @@
 #include <stdlib.h>
 #include <string.h>
 
-size_t ArenaRemaining(Arena *arena) { return arena != NULL ? arena->capacity - arena->offset : 0; }
+size_t ArenaRemaining(Arena *arena)
+{
+    return arena != NULL ? arena->capacity - arena->offset
+                         : 0;
+}
 
-void *ArenaFirstPtr(Arena *arena) { return arena != NULL ? arena : NULL; }
+void *ArenaFirstPtr(Arena *arena)
+{
+    return arena != NULL ? arena : NULL;
+}
 
-void *ArenaLastPtr(Arena *arena) { return arena != NULL ? arena->rawptr + arena->offset : NULL; }
+void *ArenaLastPtr(Arena *arena)
+{
+    return arena != NULL ? arena->rawptr + arena->offset
+                         : NULL;
+}
 
-void *ArenaBreakPtr(Arena *arena) { return arena != NULL ? arena->rawptr + arena->capacity : NULL; }
+void *ArenaBreakPtr(Arena *arena)
+{
+    return arena != NULL ? arena->rawptr + arena->capacity
+                         : NULL;
+}
 
 bool ArenaIsFull(Arena *arena)
 {
@@ -29,7 +45,8 @@ bool ArenaIsFull(Arena *arena)
     return false;
 }
 
-int ArenaInit(Arena *arena, size_t step, bool should_allocate)
+int ArenaInit(Arena *arena, size_t step,
+              bool should_allocate)
 {
     if (arena == NULL)
         return ARENA_NOAVAIL;
@@ -68,9 +85,11 @@ void *ArenaAlloc(Arena *arena, size_t size)
 
     // FIXME
     if (size >= arena->capacity || size >= remains) {
-        size_t size_addition = size > arena->step ? size : arena->step;
-        size_t half_remains  = (arena->capacity - remains) + size_addition;
-        void *tmp            = realloc(arena->rawptr, half_remains);
+        size_t size_addition =
+            size > arena->step ? size : arena->step;
+        size_t half_remains =
+            (arena->capacity - remains) + size_addition;
+        void *tmp = realloc(arena->rawptr, half_remains);
 
         if (tmp == NULL)
             return NULL;
@@ -86,7 +105,8 @@ void *ArenaAlloc(Arena *arena, size_t size)
     return ready;
 }
 
-void *ArenaRealloc(Arena *arena, void *dst, size_t old_size, size_t new_size)
+void *ArenaRealloc(Arena *arena, void *dst, size_t old_size,
+                   size_t new_size)
 {
     void *ready;
 
