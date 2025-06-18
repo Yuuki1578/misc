@@ -1,4 +1,4 @@
-# libmisc: dumb C library
+# libmisc: dumb C99 library
 
 ## Compatibility
 Only the `arena.h` and `vector.h` that are platform agnostic,

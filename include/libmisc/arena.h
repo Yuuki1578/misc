@@ -24,9 +24,9 @@
 #include <stddef.h>
 
 enum {
-    ARENA_READY      = 0,
-    ARENA_NOAVAIL    = -1,
-    ARENA_ALLOC_STEP = PAGE_SIZE,
+  ARENA_READY      = 0,
+  ARENA_NOAVAIL    = -1,
+  ARENA_ALLOC_STEP = PAGE_SIZE,
 };
 
 // Arena data types.
@@ -38,25 +38,22 @@ enum {
 // You can initialize the arena once, use it everywhere, and
 // have to free it only once.
 typedef struct {
-    void *rawptr;    // pointer to allocated memory.
-    size_t capacity; // total memory that arena can hold.
-    size_t
-        offset;  // an offset from the left of the pointer.
-    size_t step; // how much bytes per allocation.
+  void  *rawptr;   // pointer to allocated memory.
+  size_t capacity; // total memory that arena can hold.
+  size_t offset;   // an offset from the left of the pointer.
+  size_t step;     // how much bytes per allocation.
 } Arena;
 
 // Create a new Arena, can be allocated early if
 // should_allocated is true.
-int ArenaInit(Arena *arena, size_t step,
-              bool should_allocate);
+int ArenaInit(Arena *arena, size_t step, bool should_allocate);
 
 // Return an allocated chunk of memory from arena to the
 // caller.
 void *ArenaAlloc(Arena *arena, size_t size);
 
 // Change the size of the allocated memory.
-void *ArenaRealloc(Arena *arena, void *dst, size_t old_size,
-                   size_t new_size);
+void *ArenaRealloc(Arena *arena, void *dst, size_t old_size, size_t new_size);
 
 // Freeing the memory hold by arena.
 void ArenaDealloc(Arena *arena);

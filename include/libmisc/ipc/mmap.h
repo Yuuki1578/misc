@@ -43,12 +43,14 @@
 #endif
 
 // MASK:
-#define SETMAP_FLAGS 0b00000000
-#define SETMAP_PROT 0b00000001
-#define SETMAP_OFFSET 0b00000010
-#define SETMAP_FD 0b00000011
-#define SETMAP_SIZE 0b00000100
-#define SETMAP_BUFFER 0b00000101
+enum SetMappingFlags {
+  SETMAP_FLAGS  = 0x001,
+  SETMAP_PROT   = 0x010,
+  SETMAP_OFFSET = 0x011,
+  SETMAP_FD     = 0x100,
+  SETMAP_SIZE   = 0x101,
+  SETMAP_BUFFER = 0x111,
+};
 
 // OPAQUE:
 typedef struct SetMapping SetMapping;
@@ -77,7 +79,7 @@ SetMapping *SetMappingFrom(const void *buf, size_t n);
 // open("./foo", O_RDONLY));
 // 5. SETMAP_SIZE:   SetMappingConf(map, SETMAP_SIZE, 1 <<
 // 11);
-bool SetMappingConf(SetMapping *map, int which, ...);
+bool SetMappingConf(SetMapping *map, enum SetMappingFlags which, ...);
 
 // Getting a pointer to a @which instance member of
 // @SetMapping.
@@ -95,18 +97,15 @@ bool SetMappingConf(SetMapping *map, int which, ...);
 // size_t*
 // 6. SETMAP_BUFFER: SetMappingGet(map, SETMAP_BUFFER); ->
 // void*
-void *SetMappingGet(SetMapping *map, int which);
+void *SetMappingGet(SetMapping *map, enum SetMappingFlags which);
 
 // Write data to a shared buffer.
-ssize_t SetMappingWrite(SetMapping *map, const void *buf,
-                        size_t n);
+ssize_t SetMappingWrite(SetMapping *map, const void *buf, size_t n);
 
 // Read data from a buffer.
-ssize_t SetMappingRead(SetMapping *map, void *buf,
-                       size_t n);
+ssize_t SetMappingRead(SetMapping *map, void *buf, size_t n);
 
-off64_t SetMappingSeek(SetMapping *map, int whench,
-                       off64_t offset);
+off64_t SetMappingSeek(SetMapping *map, int whench, off64_t offset);
 
 // Reset an offset ahead of time.
 bool SetMappingRewind(SetMapping *map);

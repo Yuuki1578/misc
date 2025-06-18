@@ -40,8 +40,7 @@ typedef struct TcpStream TcpStream;
 // RETURN:
 // return an allocated @TcpListener on success, return NULL
 // on failed and set @errno to corresponding error.
-TcpListener *TcpListenerNew(const char *addr,
-                            uint16_t port);
+TcpListener *TcpListenerNew(const char *addr, uint16_t port);
 
 // Listening to incoming connections, with the maximum of
 // @backlog's connections.
@@ -67,8 +66,7 @@ TcpStream *TcpListenerAccept(TcpListener *listener);
 // @timeout_ms miliseconds.
 // 2. NULL: @accept call somehow fail.
 // 3. A pointer to @TcpStream instance on success.
-TcpStream *TcpListenerAcceptFor(TcpListener *listener,
-                                int timeout_ms);
+TcpStream *TcpListenerAcceptFor(TcpListener *listener, int timeout_ms);
 
 // Shutting down the server, freeing it's memory.
 //
@@ -83,8 +81,7 @@ void TcpListenerShutdown(TcpListener *listener);
 // return a pointer to @TcpStream on success, return NULL on
 // error and set
 // @errno.
-TcpStream *TcpStreamConnect(const char *addr,
-                            uint16_t port);
+TcpStream *TcpStreamConnect(const char *addr, uint16_t port);
 
 // Return the underlying file descriptor for socket.
 // The @listener can be a @TcpListener or a @TcpStream,
@@ -111,8 +108,8 @@ int TcpStreamSetTimeout(TcpStream *stream, int timeout_ms);
 // RETURN:
 // return the total bytes sended to @stream on success,
 // return -1 on error, return 0 on timeout.
-ssize_t TcpStreamSend(TcpStream *stream, const void *buf,
-                      size_t count, int flags);
+ssize_t TcpStreamSend(TcpStream *stream, const void *buf, size_t count,
+                      int flags);
 
 // Recieving a @count bytes of data from @stream and save
 // the data into @buf. The behavior is same as
@@ -122,8 +119,7 @@ ssize_t TcpStreamSend(TcpStream *stream, const void *buf,
 // RETURN:
 // return the total bytes recieved from @stream on success,
 // return -1 on error, return 0 on timeout.
-ssize_t TcpStreamRecv(TcpStream *stream, void *buf,
-                      size_t count, int flags);
+ssize_t TcpStreamRecv(TcpStream *stream, void *buf, size_t count, int flags);
 
 // Shutting down the @stream, both for READ and WRITE.
 //
