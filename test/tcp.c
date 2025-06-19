@@ -7,7 +7,7 @@
 // C23 only.
 #if __STDC_VERSION__ >= 202300L
 char Buffer[] = {
-#embed "../src/tcp.c"
+#  embed "../src/tcp.c"
 };
 #else
 char Buffer[] = "Hello, world\n";

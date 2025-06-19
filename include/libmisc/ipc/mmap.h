@@ -9,37 +9,44 @@
 #pragma once
 
 #if defined(_WIN32) || defined(_WIN64)
-#error Windows is not supported
+#  error Windows is not supported
+#endif
+
+#ifndef __USE_FILE_OFFSET64
+#  define __USE_FILE_OFFSET64
+#endif
+
+#ifndef __LP64__
+#  define __LP64__ 1
 #endif
 
 #include <sys/mman.h>
 #include <sys/types.h>
 
 #ifdef __ANDROID__
-#include <bits/seek_constants.h>
+#  include <bits/seek_constants.h>
 #else
-#ifndef SEEK_SET
-#define SEEK_SET 0
-#endif
-#ifndef SEEK_CUR
-#define SEEK_CUR 1
-#endif
-#ifndef SEEK_END
-#define SEEK_END 2
-#endif
-#if defined(__USE_GNU)
-#ifndef SEEK_DATA
-#define SEEK_DATA 3
-#endif
-#ifndef SEEK_HOLE
-#define SEEK_HOLE 4
-#endif
-#endif
-#define
+#  ifndef SEEK_SET
+#    define SEEK_SET 0
+#  endif
+#  ifndef SEEK_CUR
+#    define SEEK_CUR 1
+#  endif
+#  ifndef SEEK_END
+#    define SEEK_END 2
+#  endif
+#  if defined(__USE_GNU)
+#    ifndef SEEK_DATA
+#      define SEEK_DATA 3
+#    endif
+#    ifndef SEEK_HOLE
+#      define SEEK_HOLE 4
+#    endif
+#  endif
 #endif
 
 #if __STDC_VERSION__ < 202300L || !defined(__cplusplus)
-#include <stdbool.h>
+#  include <stdbool.h>
 #endif
 
 // MASK:

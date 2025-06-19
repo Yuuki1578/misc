@@ -16,18 +16,44 @@
 #pragma once
 
 #if __STDC_VERSION__ < 201710L
-#ifndef MISC_VECTOR_UNAVAIL
-#define MISC_VECTOR_UNAVAIL
+#  ifndef MISC_VECTOR_UNAVAIL
+#    define MISC_VECTOR_UNAVAIL
+#  endif
 #endif
+
+#include <stdbool.h>
+#include <stddef.h>
+
+#define VECTOR_EACH_HARDCODED 8
+#define Item(Type, ...) (&(Type){__VA_ARGS__})
+
+typedef struct {
+  void  *items;
+  size_t item_size;
+  size_t len;
+  size_t cap;
+} Vector;
+
+Vector VectorWith(size_t len, size_t item_size);
+Vector VectorNew(size_t item_size);
+bool   VectorReserve(Vector *v, size_t how_much);
+size_t VectorRemaining(Vector *v);
+void  *VectorAt(Vector *v, size_t index);
+bool   VectorPush(Vector *v, void *any);
+void   VectorFree(Vector *v);
+
+#ifdef VECTOR_UPCOMING
+// @alignment must be a power of two (2^n)
+bool VectorAlign(Vector *v, size_t alignment);
 #endif
 
 #ifndef MISC_VECTOR_UNAVAIL
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <wchar.h>
+#  include <stdbool.h>
+#  include <stddef.h>
+#  include <stdint.h>
+#  include <stdlib.h>
+#  include <string.h>
+#  include <wchar.h>
 
 // The size for each allocation can be modified through this
 // macro. example:
@@ -36,18 +62,18 @@
 // #include <libmisc/vector.h>  // include later
 // ...
 
-#ifndef VECTOR_STEP
-#define VECTOR_STEP 8
-#endif
+#  ifndef VECTOR_STEP
+#    define VECTOR_STEP 8
+#  endif
 
 // Vector initialization value.
 // Put simply, i don't want the user had a garbage value.
-#define VECTOR_NEW                                                             \
-  {                                                                            \
-      .elems = NULL,                                                           \
-      .cap   = 0,                                                              \
-      .len   = 0,                                                              \
-  }
+#  define VECTOR_NEW                                                           \
+    {                                                                          \
+        .elems = NULL,                                                         \
+        .cap   = 0,                                                            \
+        .len   = 0,                                                            \
+    }
 
 // Vector types.
 // You might be dissapointed, but the type of this is just
@@ -80,12 +106,12 @@
 //
 // WARN
 // ALL VECTOR MUST BE INITIALIZE WITH VECTOR_NEW.
-#define vector(Type)                                                           \
-  struct {                                                                     \
-    Type  *elems;                                                              \
-    size_t cap;                                                                \
-    size_t len;                                                                \
-  }
+#  define vector(Type)                                                         \
+    struct {                                                                   \
+      Type  *elems;                                                            \
+      size_t cap;                                                              \
+      size_t len;                                                              \
+    }
 
 // Create a vector instance and initialize it.
 // i've always get sanitizer error on test if the vector
@@ -94,7 +120,7 @@
 // Example:
 // vector_new(va_list, va_args);
 // ...
-#define vector_new(Type, Name) vector(Type) Name = VECTOR_NEW
+#  define vector_new(Type, Name) vector(Type) Name = VECTOR_NEW
 
 // Reserve some capacity for later use.
 // The behavior is as follow:
@@ -105,23 +131,23 @@
 // reallocated to string.cap + <count>.
 // 3. If the specified <count> is less than or equal to the
 // current capacity, it'll break immediately.
-#define vector_reserve(vector, count)                                          \
-  do {                                                                         \
-    if ((vector).cap >= count)                                                 \
-      break;                                                                   \
-    if ((vector).cap == 0) {                                                   \
-      (vector).elems = calloc(count, sizeof(*vector.elems));                   \
-      if ((vector).elems == NULL)                                              \
+#  define vector_reserve(vector, count)                                        \
+    do {                                                                       \
+      if ((vector).cap >= count)                                               \
         break;                                                                 \
-    } else {                                                                   \
-      void *backup = realloc((vector).elems, ((vector).cap + count) *          \
-                                                 sizeof(*(vector).elems));     \
-      if (backup == NULL)                                                      \
-        break;                                                                 \
-      (vector).elems = backup;                                                 \
-    }                                                                          \
-    (vector).cap += count;                                                     \
-  } while (false)
+      if ((vector).cap == 0) {                                                 \
+        (vector).elems = calloc(count, sizeof(*vector.elems));                 \
+        if ((vector).elems == NULL)                                            \
+          break;                                                               \
+      } else {                                                                 \
+        void *backup = realloc((vector).elems, ((vector).cap + count) *        \
+                                                   sizeof(*(vector).elems));   \
+        if (backup == NULL)                                                    \
+          break;                                                               \
+        (vector).elems = backup;                                               \
+      }                                                                        \
+      (vector).cap += count;                                                   \
+    } while (false)
 
 // Shrinking vector to it's length, plus additional room.
 // It's important to know that the sanitizer is very mad
@@ -137,22 +163,22 @@
 // shrink_to_fit(pfds, 0);
 // // Truncate it's cap to it's len
 // ...
-#define shrink_to_fit(vector, additional)                                      \
-  do {                                                                         \
-    if ((vector).elems == NULL)                                                \
-      break;                                                                   \
-    if ((vector).cap == (vector).len)                                          \
-      break;                                                                   \
-    void *tmp = realloc((vector).elems, (((vector).len + (additional)) *       \
-                                         sizeof(*(vector).elems)));            \
-    if (tmp == NULL)                                                           \
-      break;                                                                   \
-    (vector).elems = tmp;                                                      \
-    (vector).cap   = (vector).len + additional;                                \
-  } while (false)
+#  define shrink_to_fit(vector, additional)                                    \
+    do {                                                                       \
+      if ((vector).elems == NULL)                                              \
+        break;                                                                 \
+      if ((vector).cap == (vector).len)                                        \
+        break;                                                                 \
+      void *tmp = realloc((vector).elems, (((vector).len + (additional)) *     \
+                                           sizeof(*(vector).elems)));          \
+      if (tmp == NULL)                                                         \
+        break;                                                                 \
+      (vector).elems = tmp;                                                    \
+      (vector).cap   = (vector).len + additional;                              \
+    } while (false)
 
 // Shrinking vector cap to it's len without additional room.
-#define vector_shrink_to_fit(vector) shrink_to_fit(vector, 0)
+#  define vector_shrink_to_fit(vector) shrink_to_fit(vector, 0)
 
 // Appending element into vector.
 // The element MUST be the same type with the vector(<Type>)
@@ -165,36 +191,36 @@
 // If your vector is full, or vector.cap == vector.len.
 // the vector is then reallocated into vector.cap +=
 // VECTOR_STEP.
-#define vector_push(vector, elem)                                              \
-  do {                                                                         \
-    if ((vector).elems == NULL) {                                              \
-      (vector).elems = calloc((VECTOR_STEP), sizeof(*(vector).elems));         \
-      if ((vector).elems == NULL)                                              \
-        break;                                                                 \
-      (vector).cap += (VECTOR_STEP);                                           \
-    } else if ((vector).cap == (vector).len - 1) {                             \
-      void *tmp = realloc((vector).elems, (vector.cap + (VECTOR_STEP)) *       \
-                                              sizeof(*(vector).elems));        \
-      if (tmp == NULL)                                                         \
-        break;                                                                 \
-      (vector).elems = tmp;                                                    \
-      (vector).cap += (VECTOR_STEP);                                           \
-    }                                                                          \
-    (vector).elems[(vector).len++] = (typeof(*(vector).elems))elem;            \
-  } while (false)
+#  define vector_push(vector, elem)                                            \
+    do {                                                                       \
+      if ((vector).elems == NULL) {                                            \
+        (vector).elems = calloc((VECTOR_STEP), sizeof(*(vector).elems));       \
+        if ((vector).elems == NULL)                                            \
+          break;                                                               \
+        (vector).cap += (VECTOR_STEP);                                         \
+      } else if ((vector).cap == (vector).len - 1) {                           \
+        void *tmp = realloc((vector).elems, (vector.cap + (VECTOR_STEP)) *     \
+                                                sizeof(*(vector).elems));      \
+        if (tmp == NULL)                                                       \
+          break;                                                               \
+        (vector).elems = tmp;                                                  \
+        (vector).cap += (VECTOR_STEP);                                         \
+      }                                                                        \
+      (vector).elems[(vector).len++] = (typeof(*(vector).elems))elem;          \
+    } while (false)
 
 // Return the pointer to vector.elems[index].
 // If the index >= vector.len, then NULL is returned.
-#define vector_at(vector, index)                                               \
-  ((vector).len <= (size_t)(index) ? NULL : &(vector).elems[(index)])
+#  define vector_at(vector, index)                                             \
+    ((vector).len <= (size_t)(index) ? NULL : &(vector).elems[(index)])
 
 // Freeing the vector.
 // Set it back to VECTOR_NEW.
-#define vector_free(vector)                                                    \
-  do {                                                                         \
-    free((vector).elems);                                                      \
-    vector = (typeof(vector))VECTOR_NEW;                                       \
-  } while (false)
+#  define vector_free(vector)                                                  \
+    do {                                                                       \
+      free((vector).elems);                                                    \
+      vector = (typeof(vector))VECTOR_NEW;                                     \
+    } while (false)
 
 // Dynamic string, alias for vector(char).
 //
@@ -211,47 +237,47 @@ typedef vector(char) String;
 // #define STRING_STEP 1024
 // #include <libmisc/vector.h>
 // ...
-#ifndef STRING_STEP
-#define STRING_STEP 32
-#endif
+#  ifndef STRING_STEP
+#    define STRING_STEP 32
+#  endif
 
 // Default value for string.
-#define STRING_NEW VECTOR_NEW
+#  define STRING_NEW VECTOR_NEW
 
 // Alias for vector_reserve().
-#define string_reserve(string, count) vector_reserve(string, count)
+#  define string_reserve(string, count) vector_reserve(string, count)
 
 // Shrinking string to it's len, plus additional room for
 // null terminator byte.
-#define string_shrink_to_fit(string) shrink_to_fit(string, 1)
+#  define string_shrink_to_fit(string) shrink_to_fit(string, 1)
 
 // Alias for vector_push().
-#define string_push(string, ch) vector_push(string, ch)
+#  define string_push(string, ch) vector_push(string, ch)
 
 // Alias for vector_at().
-#define string_at(string, index) vector_at(string, index)
+#  define string_at(string, index) vector_at(string, index)
 
 // Alias for vector_free().
-#define string_free(string) vector_free(string)
+#  define string_free(string) vector_free(string)
 
 // Appending C-string to string.
 // If the string is empty ("\0"), it just skipped.
 //
 // The resulting length is string.len + strlen(str).
-#define string_pushstr(string, str)                                            \
-  do {                                                                         \
-    size_t len = strlen((str));                                                \
-    if (len == 0)                                                              \
-      break;                                                                   \
-    if ((string).cap == 0)                                                     \
-      string_reserve((string), len + (STRING_STEP));                           \
-    else if (len >= (string).cap - (string).len)                               \
-      string_reserve((string), (string).cap + len + (STRING_STEP));            \
-    if ((string).elems == NULL)                                                \
-      break;                                                                   \
-    strncat((string).elems, (str), len);                                       \
-    (string).len += len;                                                       \
-  } while (false)
+#  define string_pushstr(string, str)                                          \
+    do {                                                                       \
+      size_t len = strlen((str));                                              \
+      if (len == 0)                                                            \
+        break;                                                                 \
+      if ((string).cap == 0)                                                   \
+        string_reserve((string), len + (STRING_STEP));                         \
+      else if (len >= (string).cap - (string).len)                             \
+        string_reserve((string), (string).cap + len + (STRING_STEP));          \
+      if ((string).elems == NULL)                                              \
+        break;                                                                 \
+      strncat((string).elems, (str), len);                                     \
+      (string).len += len;                                                     \
+    } while (false)
 
 // 32-bit wide character string.
 
@@ -259,20 +285,20 @@ typedef vector(char) String;
 // unsigned integer. I intended to use only wchar_t, but in
 // windows, it size is only 16-bit (What a joke!).
 typedef
-#if UINT32_MAX == WCHAR_MAX
+#  if UINT32_MAX == WCHAR_MAX
     vector(wchar_t)
-#else
+#  else
     vector(uint32_t)
-#endif
+#  endif
         String_32;
 
-#define string32_reserve(string32, count) vector_reserve(string32, count)
-#define string32_shrink_to_fit(string32) shrink_to_fit(string32, 1)
-#define string32_push(string32, elem) vector_push(string32, elem)
-#define string32_at(string32, index) vector_at(string32, index)
-#define string32_free(string32, index) vector_free(string32)
+#  define string32_reserve(string32, count) vector_reserve(string32, count)
+#  define string32_shrink_to_fit(string32) shrink_to_fit(string32, 1)
+#  define string32_push(string32, elem) vector_push(string32, elem)
+#  define string32_at(string32, index) vector_at(string32, index)
+#  define string32_free(string32, index) vector_free(string32)
 
 // @PR
-#define string32_pushstr(string32, str)
-#define string32_pushwstr(string32, wstr)
+#  define string32_pushstr(string32, str)
+#  define string32_pushwstr(string32, wstr)
 #endif

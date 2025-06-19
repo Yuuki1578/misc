@@ -12,13 +12,13 @@
 #pragma once
 
 #ifdef __ANDROID__
-#include <bits/page_size.h>
+#  include <bits/page_size.h>
 #else
-#define PAGE_SIZE 4096
+#  define PAGE_SIZE 4096
 #endif
 
 #if __STDC_VERSION__ < 202311L
-#include <stdbool.h>
+#  include <stdbool.h>
 #endif
 
 #include <stddef.h>

@@ -12,7 +12,10 @@
 #include <string.h>
 
 size_t ArenaRemaining(Arena *arena) {
-  return arena != NULL ? arena->capacity - arena->offset : 0;
+  if (arena == NULL || arena->capacity == 0)
+    return 0;
+
+  return (arena->capacity - 1) - arena->offset;
 }
 
 void *ArenaFirstPtr(Arena *arena) {
@@ -57,6 +60,13 @@ int ArenaInit(Arena *arena, size_t step, bool should_allocate) {
   return ARENA_READY;
 }
 
+// static inline size_t ExclusiveAdd(size_t rhs, size_t lhs) {
+//   if (rhs >= lhs)
+//     return rhs + lhs;
+
+//   return rhs + (lhs / rhs) * rhs + (lhs % rhs != 0 ? rhs : 0);
+// }
+
 void *ArenaAlloc(Arena *arena, size_t size) {
   void  *ready;
   size_t remains;
@@ -73,7 +83,7 @@ void *ArenaAlloc(Arena *arena, size_t size) {
   }
 
   // FIXME
-  if (size >= arena->capacity || size >= remains) {
+  if (size > arena->capacity || size > remains) {
     size_t size_addition = size > arena->step ? size : arena->step;
     size_t half_remains  = (arena->capacity - remains) + size_addition;
     void  *tmp           = realloc(arena->rawptr, half_remains);
@@ -83,6 +93,13 @@ void *ArenaAlloc(Arena *arena, size_t size) {
 
     arena->rawptr = tmp;
     arena->capacity += remains;
+  } else if (remains == 0) {
+    void *tmp = realloc(arena->rawptr, arena->capacity + arena->step);
+    if (tmp == NULL)
+      return NULL;
+
+    arena->rawptr = tmp;
+    arena->capacity += arena->step;
   }
   // FIXME
 
