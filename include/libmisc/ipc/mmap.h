@@ -8,7 +8,7 @@
 
 #pragma once
 
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(_WIN32) || defined(_WIN64) || !defined(__linux__)
 #  error Windows is not supported
 #endif
 
@@ -20,6 +20,7 @@
 #  define __LP64__ 1
 #endif
 
+#define _GNU_SOURCE
 #include <sys/mman.h>
 #include <sys/types.h>
 
@@ -67,7 +68,7 @@ typedef struct SetMapping SetMapping;
 SetMapping *SetMappingNew(size_t size);
 
 // Create a new @SetMapping instance with a mapped file.
-SetMapping *SetMappingWith(int fd, off64_t offset);
+SetMapping *SetMappingWith(int fd, off_t offset);
 
 // Create a new @SetMapping intance with a copy from @buf up
 // to @n bytes
@@ -97,7 +98,7 @@ bool SetMappingConf(SetMapping *map, enum SetMappingFlags which, ...);
 // 2. SETMAP_PROT:   SetMappingGet(map, SETMAP_PROT);   ->
 // int*
 // 3. SETMAP_OFFSET: SetMappingGet(map, SETMAP_OFFSET); ->
-// off64_t*
+// off_t*
 // 4. SETMAP_FD:     SetMappingGet(map, SETMAP_FD);     ->
 // int*
 // 5. SETMAP_SIZE:   SetMappingGet(map, SETMAP_SIZE);   ->
@@ -112,7 +113,7 @@ ssize_t SetMappingWrite(SetMapping *map, const void *buf, size_t n);
 // Read data from a buffer.
 ssize_t SetMappingRead(SetMapping *map, void *buf, size_t n);
 
-off64_t SetMappingSeek(SetMapping *map, int whench, off64_t offset);
+off_t SetMappingSeek(SetMapping *map, int whench, off_t offset);
 
 // Reset an offset ahead of time.
 bool SetMappingRewind(SetMapping *map);

@@ -15,18 +15,18 @@
 #define SETMAP_ADDITIONAL_SIZE (2 << 3)
 
 struct SetMapping {
-  void   *buffer;
-  off64_t offset;
-  size_t  size;
-  int     prot;
-  int     flags;
-  int     fd;
+  void  *buffer;
+  off_t  offset;
+  size_t size;
+  int    prot;
+  int    flags;
+  int    fd;
 };
 
 bool SetMappingConf(SetMapping *map, enum SetMappingFlags which, ...) {
   va_list va;
   int     whench;
-  off64_t offset;
+  off_t   offset;
   size_t  new_size, try_end;
   void   *tmp;
 
@@ -46,7 +46,7 @@ bool SetMappingConf(SetMapping *map, enum SetMappingFlags which, ...) {
 
   case SETMAP_OFFSET:
     whench = va_arg(va, int);
-    offset = va_arg(va, off64_t);
+    offset = va_arg(va, off_t);
 
     if (map->offset < 0)
       map->offset = 0;
@@ -146,7 +146,7 @@ SetMapping *SetMappingNew(size_t size) {
   return map;
 }
 
-SetMapping *SetMappingWith(int fd, off64_t offset) {
+SetMapping *SetMappingWith(int fd, off_t offset) {
   SetMapping *map;
   struct stat file_stat = {0};
 
@@ -265,11 +265,11 @@ ssize_t SetMappingRead(SetMapping *map, void *buf, size_t n) {
   return n;
 }
 
-off64_t SetMappingSeek(SetMapping *map, int whench, off64_t offset) {
+off_t SetMappingSeek(SetMapping *map, int whench, off_t offset) {
   if (!SetMappingConf(map, SETMAP_OFFSET, whench, offset))
     return -1;
 
-  return *(off64_t *)SetMappingGet(map, SETMAP_OFFSET);
+  return *(off_t *)SetMappingGet(map, SETMAP_OFFSET);
 }
 
 bool SetMappingRewind(SetMapping *map) {
