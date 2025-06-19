@@ -20,7 +20,10 @@
 #  define __LP64__ 1
 #endif
 
-#define _GNU_SOURCE
+#ifndef _GNU_SOURCE
+#  define _GNU_SOURCE
+#endif
+
 #include <sys/mman.h>
 #include <sys/types.h>
 
@@ -48,6 +51,11 @@
 
 #if __STDC_VERSION__ < 202300L || !defined(__cplusplus)
 #  include <stdbool.h>
+#endif
+
+#ifdef __cplusplus
+namespace misc {
+extern "C" {
 #endif
 
 // MASK:
@@ -120,3 +128,8 @@ bool SetMappingRewind(SetMapping *map);
 
 // Close a mapping.
 bool SetMappingClose(SetMapping *map);
+
+#ifdef __cplusplus
+}
+}
+#endif

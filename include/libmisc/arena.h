@@ -23,6 +23,11 @@
 
 #include <stddef.h>
 
+#ifdef __cplusplus
+namespace misc {
+extern "C" {
+#endif
+
 enum {
   ARENA_READY      = 0,
   ARENA_NOAVAIL    = -1,
@@ -80,3 +85,8 @@ bool ArenaIsFull(Arena *arena);
 
 // Return the inner buffer as new allocated pointer.
 void *ArenaPopOut(Arena *arena);
+
+#ifdef __cplusplus
+}
+}
+#endif

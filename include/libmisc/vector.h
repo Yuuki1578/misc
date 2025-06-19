@@ -27,6 +27,11 @@
 #define VECTOR_EACH_HARDCODED 8
 #define Item(Type, ...) (&(Type){__VA_ARGS__})
 
+#ifdef __cplusplus
+namespace misc {
+extern "C" {
+#endif
+
 typedef struct {
   void  *items;
   size_t item_size;
@@ -50,6 +55,11 @@ bool VectorAlign(Vector *v, size_t alignment);
 #ifdef VECTOR_BUILTIN_ARENA
 #  include <libmisc/arena.h>
 /* PR */
+#endif
+
+#ifdef __cplusplus
+}
+}
 #endif
 
 #ifndef MISC_VECTOR_UNAVAIL

@@ -8,6 +8,10 @@
 
 #pragma once
 
+#if defined(_WIN32) || defined(_WIN64)
+#  error Windows is not supported
+#endif
+
 #include <netinet/in.h>
 #include <stdint.h>
 #include <sys/socket.h>
@@ -19,6 +23,11 @@
 // a way for setting up the timeout
 #define BUFFER_FRAGMENT_SIZE (1024)
 #define STREAM_TIMED_OUT ((void *)-1)
+
+#ifdef __cplusplus
+namespace misc {
+extern "C" {
+#endif
 
 // TCP/IPv4 Listener server.
 // The @TcpListener struct is an opaque type for interacting
@@ -126,3 +135,8 @@ ssize_t TcpStreamRecv(TcpStream *stream, void *buf, size_t count, int flags);
 // RETURN:
 // return 0 on success, return -1 on error.
 int TcpStreamShutdown(TcpStream *stream);
+
+#ifdef __cplusplus
+}
+}
+#endif
