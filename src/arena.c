@@ -11,23 +11,32 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct Arena {
+  void  *rawptr;   // pointer to allocated memory.
+  size_t capacity; // total memory that arena can hold.
+  size_t offset;   // an offset from the left of the pointer.
+  size_t step;     // how much bytes per allocation.
+};
+
 size_t ArenaRemaining(Arena *arena) {
   if (arena == NULL || arena->capacity == 0)
     return 0;
 
-  return (arena->capacity - 1) - arena->offset;
+  return arena->capacity - arena->offset;
 }
 
-void *ArenaFirstPtr(Arena *arena) {
-  return arena != NULL ? arena->rawptr : NULL;
+size_t ArenaOffset(Arena *arena) {
+  if (arena == NULL)
+    return 0;
+
+  return arena->offset;
 }
 
-void *ArenaLastPtr(Arena *arena) {
-  return arena != NULL ? arena->rawptr + arena->offset : NULL;
-}
+size_t ArenaCapacity(Arena *arena) {
+  if (arena == NULL)
+    return 0;
 
-void *ArenaBreakPtr(Arena *arena) {
-  return arena != NULL ? arena->rawptr + arena->capacity : NULL;
+  return arena->capacity;
 }
 
 bool ArenaIsFull(Arena *arena) {
@@ -40,32 +49,45 @@ bool ArenaIsFull(Arena *arena) {
   return false;
 }
 
-int ArenaInit(Arena *arena, size_t step, bool should_allocate) {
+bool ArenaInit(Arena **arena, size_t step, bool should_allocate) {
   if (arena == NULL)
-    return ARENA_NOAVAIL;
+    return false;
 
   if (step == 0)
-    return ARENA_NOAVAIL;
+    return false;
+
+  *arena = calloc(1, sizeof(Arena));
+  if (*arena == NULL)
+    return false;
 
   if (should_allocate) {
-    arena->rawptr = calloc(step, 1);
+    (*arena)->rawptr = calloc(step, 1);
 
-    if (arena->rawptr == NULL)
-      return ARENA_NOAVAIL;
+    if ((*arena)->rawptr == NULL)
+      return false;
   }
 
-  arena->capacity = step;
-  arena->step     = step;
-  arena->offset   = 0;
-  return ARENA_READY;
+  (*arena)->capacity = step;
+  (*arena)->step     = step;
+  (*arena)->offset   = 0;
+  return true;
 }
 
-// static inline size_t ExclusiveAdd(size_t rhs, size_t lhs) {
-//   if (rhs >= lhs)
-//     return rhs + lhs;
+Arena *ArenaNew(size_t step, bool should_allocate) {
+  Arena *arena;
+  if (!ArenaInit(&arena, step, should_allocate))
+    return NULL;
 
-//   return rhs + (lhs / rhs) * rhs + (lhs % rhs != 0 ? rhs : 0);
-// }
+  return arena;
+}
+
+static inline size_t ExclusiveAdd(size_t rhs, size_t lhs) {
+  if (rhs >= lhs)
+    return rhs + lhs;
+
+  // WARN: I DON'T KNOW ANY OF THIS
+  return rhs + (lhs / rhs) * rhs + (lhs % rhs != 0 ? rhs : 0);
+}
 
 void *ArenaAlloc(Arena *arena, size_t size) {
   void  *ready;
@@ -77,31 +99,22 @@ void *ArenaAlloc(Arena *arena, size_t size) {
   remains = ArenaRemaining(arena);
 
   if (arena->capacity == 0) {
-    int status = ArenaInit(arena, arena->step, true);
-    if (status != ARENA_READY)
+    if (!ArenaInit(&arena, arena->step, true))
       return NULL;
   }
 
-  // FIXME
-  if (size > arena->capacity || size > remains) {
-    size_t size_addition = size > arena->step ? size : arena->step;
-    size_t half_remains  = (arena->capacity - remains) + size_addition;
-    void  *tmp           = realloc(arena->rawptr, half_remains);
+  if (size >= remains) {
+    if (size < arena->step)
+      size = arena->step;
 
+    size_t new_size = ExclusiveAdd(arena->capacity, size);
+    void  *tmp      = realloc(arena->rawptr, new_size);
     if (tmp == NULL)
       return NULL;
 
-    arena->rawptr = tmp;
-    arena->capacity += remains;
-  } else if (remains == 0) {
-    void *tmp = realloc(arena->rawptr, arena->capacity + arena->step);
-    if (tmp == NULL)
-      return NULL;
-
-    arena->rawptr = tmp;
-    arena->capacity += arena->step;
+    arena->rawptr   = tmp;
+    arena->capacity = new_size;
   }
-  // FIXME
 
   ready = arena->rawptr + arena->offset;
   arena->offset += size;
@@ -130,21 +143,12 @@ void ArenaDealloc(Arena *arena) {
     return;
 
   free(arena->rawptr);
-  arena->capacity = 0;
-  arena->offset   = 0;
+  free(arena);
 }
 
 void *ArenaPopOut(Arena *arena) {
-  void *mem;
-
   if (arena == NULL)
     return NULL;
 
-  mem             = arena->rawptr;
-  arena->rawptr   = NULL;
-  arena->capacity = 0;
-  arena->offset   = 0;
-  arena->step     = 0;
-
-  return mem;
+  return arena->rawptr;
 }

@@ -91,8 +91,7 @@ bool VectorPush(Vector *v, void *any) {
     v->cap += VECTOR_EACH_HARDCODED;
   }
 
-  memcpy(v->items + (v->item_size * v->len), any, v->item_size);
-  v->len++;
+  memcpy(v->items + (v->item_size * v->len++), any, v->item_size);
   return true;
 }
 

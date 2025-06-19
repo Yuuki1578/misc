@@ -47,6 +47,11 @@ void   VectorFree(Vector *v);
 bool VectorAlign(Vector *v, size_t alignment);
 #endif
 
+#ifdef VECTOR_BUILTIN_ARENA
+#  include <libmisc/arena.h>
+/* PR */
+#endif
+
 #ifndef MISC_VECTOR_UNAVAIL
 #  include <stdbool.h>
 #  include <stddef.h>

@@ -37,16 +37,29 @@ enum {
 //
 // You can initialize the arena once, use it everywhere, and
 // have to free it only once.
-typedef struct {
-  void  *rawptr;   // pointer to allocated memory.
-  size_t capacity; // total memory that arena can hold.
-  size_t offset;   // an offset from the left of the pointer.
-  size_t step;     // how much bytes per allocation.
-} Arena;
+// typedef struct {
+//   void  *rawptr;   // pointer to allocated memory.
+//   size_t capacity; // total memory that arena can hold.
+//   size_t offset;   // an offset from the left of the pointer.
+//   size_t step;     // how much bytes per allocation.
+// } Arena;
 
-// Create a new Arena, can be allocated early if
+// OPAQUE:
+typedef struct Arena Arena;
+
+// Initialize an empty Arena, can be allocated early if
 // should_allocated is true.
-int ArenaInit(Arena *arena, size_t step, bool should_allocate);
+bool ArenaInit(Arena **arena, size_t step, bool should_allocate);
+
+// Create a new opaque type @Arena, can be allocated if @should_allocate
+// is @true.
+Arena *ArenaNew(size_t step, bool should_allocate);
+
+// Return total capacity of the @arena.
+size_t ArenaCapacity(Arena *arena);
+
+// Return the offset from left of the @arena.
+size_t ArenaOffset(Arena *arena);
 
 // Return an allocated chunk of memory from arena to the
 // caller.
@@ -61,19 +74,9 @@ void ArenaDealloc(Arena *arena);
 // Return the remaining arena capacity.
 size_t ArenaRemaining(Arena *arena);
 
-// Return the first memory address from arena.
-void *ArenaFirstPtr(Arena *arena);
-
-// Return the last memory address used from arena.
-void *ArenaLastPtr(Arena *arena);
-
-// Return the last memory address from arena.
-void *ArenaBreakPtr(Arena *arena);
-
 // Check whether the arena offset is equal to arena capacity
 // - 1.
 bool ArenaIsFull(Arena *arena);
 
-// Return the inner buffer as new allocated pointer and
-// freeing the arena.
+// Return the inner buffer as new allocated pointer.
 void *ArenaPopOut(Arena *arena);

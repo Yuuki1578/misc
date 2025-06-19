@@ -1,22 +1,17 @@
 #include <libmisc/arena.h>
 #include <stdio.h>
 
-Arena *arena = &(Arena){0};
-
 int main(void) {
-  void *buf;
+  Arena *arena = ArenaNew(32, true);
+  if (arena == NULL)
+    return 1;
 
-  ArenaInit(arena, PAGE_SIZE, true);
+  (void)ArenaAlloc(arena, 32);
+  (void)ArenaRealloc(arena, NULL, 10, 1762);
 
-  buf = ArenaAlloc(arena, PAGE_SIZE);
-  buf = ArenaAlloc(arena, PAGE_SIZE);
-  buf = ArenaAlloc(arena, PAGE_SIZE);
-  buf = ArenaAlloc(arena, PAGE_SIZE);
-  buf = ArenaAlloc(arena, PAGE_SIZE);
-  buf = ArenaAlloc(arena, PAGE_SIZE);
-  (void)buf;
-
-  printf("%zu\n", arena->capacity);
+  printf("%zu\n", ArenaCapacity(arena));
+  printf("%zu\n", ArenaOffset(arena));
+  printf("%zu\n", ArenaRemaining(arena));
 
   ArenaDealloc(arena);
 }
