@@ -26,8 +26,8 @@ struct SetMapping {
 bool SetMappingConf(SetMapping *map, enum SetMappingFlags which, ...) {
   va_list va;
   int     whench;
-  off_t   offset;
-  size_t  new_size, try_end;
+  off_t   offset, try_end;
+  size_t  new_size;
   void   *tmp;
 
   if (map == NULL)
