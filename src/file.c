@@ -9,79 +9,83 @@ enum Allocator {
   ALLOC_ARENA,
 };
 
-static bool GetFileSize(FILE *file, MiscOffset64 *offset) {
-  if (MiscFseek(file, 0, SEEK_END) != -1)
-    if ((*offset = MiscFtell(file)) != -1)
-      return MiscFseek(file, 0, SEEK_SET) != -1 ? true : false;
+static void *FileReadCompact(int fd, const char *path, enum Allocator allocator,
+                             Arena *arena, iarch *bytes_readed) {
+  void    *buffer;
+  MiscStat file_stat;
+  iarch    readed;
 
-  return false;
-}
+  if (fd == -1)
+    if ((fd = MiscOpen(path, MISC_O_RDONLY)) == -1)
+      return NULL;
 
-static void *FileReadFromStreamCompact(FILE *file, enum Allocator allocator,
-                                       Arena *arena) {
-  void        *buffer;
-  MiscOffset64 seek;
+  if (MiscFstat(fd, &file_stat) != 0) {
+    if (path != NULL)
+      MiscClose(fd);
 
-  if (file == NULL)
     return NULL;
-
-  if (ferror(file) != 0)
-    clearerr(file);
-
-  if (!GetFileSize(file, &seek))
-    return NULL;
+  }
 
   switch (allocator) {
   case ALLOC_STDLIB:
-    buffer = calloc(seek, 1);
+    buffer = calloc(file_stat.st_size + 1, 1);
     break;
 
   case ALLOC_ARENA:
-    buffer = ArenaAlloc(arena, seek);
+    buffer = ArenaAlloc(arena, file_stat.st_size + 1);
     break;
   }
 
-  if (buffer == NULL)
-    return NULL;
+  if (buffer == NULL) {
+    if (path != NULL)
+      MiscClose(fd);
 
-  if (fread(buffer, 1, seek - 1, file) == 0) {
-    free(buffer);
     return NULL;
   }
+
+  if ((readed = MiscRead(fd, buffer, file_stat.st_size)) < 0) {
+    if (path != NULL)
+      MiscClose(fd);
+
+    if (allocator == ALLOC_STDLIB)
+      free(buffer);
+
+    return NULL;
+  }
+
+  if (path != NULL)
+    MiscClose(fd);
+
+  if (bytes_readed != NULL)
+    *bytes_readed = readed;
 
   return buffer;
 }
 
-void *FILEReadFromStream(FILE *file) {
-  return FileReadFromStreamCompact(file, ALLOC_STDLIB, NULL);
+void *FileRead(const char *path, iarch *bytes_readed) {
+  return FileReadCompact(-1, path, ALLOC_STDLIB, NULL, bytes_readed);
 }
 
-static void *FileReadCompact(const char *path, enum Allocator allocator,
-                             Arena *arena) {
-  FILE *file = fopen(path, "rb");
-  void *buffer;
-
-  if (file == NULL)
-    return NULL;
-
-  switch (allocator) {
-  case ALLOC_STDLIB:
-    buffer = FileReadFromStreamCompact(file, allocator, NULL);
-    break;
-
-  case ALLOC_ARENA:
-    buffer = FileReadFromStreamCompact(file, allocator, arena);
-    break;
-  }
-
-  fclose(file);
-  return buffer != NULL ? buffer : NULL;
+void *FileReadOnly(const char *path) {
+  return FileReadCompact(-1, path, ALLOC_STDLIB, NULL, NULL);
 }
 
-void *FILERead(const char *path) {
-  return FileReadCompact(path, ALLOC_STDLIB, NULL);
+void *FileReadOnlyWith(const char *path, Arena *arena) {
+  return FileReadCompact(-1, path, ALLOC_ARENA, arena, NULL);
 }
 
-void *FILEReadUsing(const char *path, Arena *arena) {
-  return FileReadCompact(path, ALLOC_ARENA, arena);
+void *FileReadFromFd(int fd, iarch *bytes_readed) {
+  return FileReadCompact(fd, NULL, ALLOC_STDLIB, NULL, bytes_readed);
+}
+
+void *FileReadFromFdWith(int fd, iarch *bytes_readed, Arena *arena) {
+  return FileReadCompact(fd, NULL, ALLOC_ARENA, arena, bytes_readed);
+}
+
+void *FileReadFromStream(FILE *file, iarch *bytes_readed) {
+  return FileReadCompact(fileno(file), NULL, ALLOC_STDLIB, NULL, bytes_readed);
+}
+
+void *FileReadFromStreamWith(FILE *file, iarch *byted_readed, Arena *arena) {
+  return FileReadCompact(fileno(file), NULL, ALLOC_ARENA, arena, byted_readed);
 }

@@ -108,10 +108,13 @@ void *ArenaAlloc(Arena *arena, size_t size) {
       size = arena->step;
 
     size_t new_size = ExclusiveAdd(arena->capacity, size);
-    void  *tmp      = realloc(arena->rawptr, new_size);
+    void  *tmp      = calloc(new_size, 1);
+
     if (tmp == NULL)
       return NULL;
 
+    memcpy(tmp, arena->rawptr, arena->capacity);
+    free(arena->rawptr);
     arena->rawptr   = tmp;
     arena->capacity = new_size;
   }

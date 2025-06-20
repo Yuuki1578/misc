@@ -11,11 +11,7 @@
 
 #pragma once
 
-#ifdef __ANDROID__
-#  include <bits/page_size.h>
-#else
-#  define PAGE_SIZE 4096
-#endif
+#define FIXED_PAGING_SIZE 4096
 
 #if __STDC_VERSION__ < 202311L
 #  include <stdbool.h>
@@ -31,7 +27,7 @@ extern "C" {
 enum {
   ARENA_READY      = 0,
   ARENA_NOAVAIL    = -1,
-  ARENA_ALLOC_STEP = PAGE_SIZE,
+  ARENA_ALLOC_STEP = FIXED_PAGING_SIZE,
 };
 
 // Arena data types.
