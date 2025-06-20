@@ -22,7 +22,7 @@
 // it might blocking the thread, so the IO API provide
 // a way for setting up the timeout
 #define BUFFER_FRAGMENT_SIZE (1024)
-#define STREAM_TIMED_OUT ((void *)-1)
+#define STREAM_TIMED_OUT     ((void *)-1)
 
 #ifdef __cplusplus
 namespace misc {

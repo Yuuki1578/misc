@@ -1,25 +1,24 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.18)
+cmake_minimum_required(VERSION 3.18)
 
-PROJECT(misc
+project(misc
   DESCRIPTION "Miscellanous library for C"
   HOMEPAGE_URL "https://github.com/Yuuki1578/misc"
   VERSION 0.1.0
   LANGUAGES C
 )
 
-SET(MISC_SOURCE_DIR "./src")
-SET(MISC_INCLUDE_DIR "./include")
+set(MISC_SOURCE_DIR "src")
+set(MISC_INCLUDE_DIR "include")
 
-ADD_SUBDIRECTORY("./test")
+add_subdirectory("test")
 
-SET(CMAKE_C_STANDARD 99)
-SET(CMAKE_C_STANDARD_REQUIRED TRUE)
-SET(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED TRUE)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-FILE(GLOB MISC_SOURCE_FILES "${MISC_SOURCE_DIR}/*.c")
-INCLUDE_DIRECTORIES(${MISC_INCLUDE_DIR})
+include_directories(${MISC_INCLUDE_DIR})
 
-ADD_COMPILE_OPTIONS(
+add_compile_options(
   -O3
   -march=native
   -mtune=native
@@ -33,11 +32,15 @@ ADD_COMPILE_OPTIONS(
   -pedantic
 )
 
-ADD_LINK_OPTIONS(
+add_link_options(
   -s
 )
 
-ADD_LIBRARY(${PROJECT_NAME}
+add_library(${PROJECT_NAME}
   STATIC
-  ${MISC_SOURCE_FILES}
+  ${MISC_SOURCE_DIR}/arena.c
+  ${MISC_SOURCE_DIR}/vector.c
+  ${MISC_SOURCE_DIR}/tcp.c
+  ${MISC_SOURCE_DIR}/mmap.c
+  ${MISC_SOURCE_DIR}/file.c
 )

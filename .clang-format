@@ -1,3 +1,4 @@
+AlignConsecutiveMacros: true
 AlignConsecutiveDeclarations: true
 AlignConsecutiveAssignments: Consecutive
 ColumnLimit: 80

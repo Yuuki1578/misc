@@ -25,7 +25,7 @@
 #include <stddef.h>
 
 #define VECTOR_EACH_HARDCODED 8
-#define Item(Type, ...) (&(Type){__VA_ARGS__})
+#define Item(Type, ...)       (&(Type){__VA_ARGS__})
 
 #ifdef __cplusplus
 namespace misc {
@@ -308,10 +308,10 @@ typedef
         String_32;
 
 #  define string32_reserve(string32, count) vector_reserve(string32, count)
-#  define string32_shrink_to_fit(string32) shrink_to_fit(string32, 1)
-#  define string32_push(string32, elem) vector_push(string32, elem)
-#  define string32_at(string32, index) vector_at(string32, index)
-#  define string32_free(string32, index) vector_free(string32)
+#  define string32_shrink_to_fit(string32)  shrink_to_fit(string32, 1)
+#  define string32_push(string32, elem)     vector_push(string32, elem)
+#  define string32_at(string32, index)      vector_at(string32, index)
+#  define string32_free(string32, index)    vector_free(string32)
 
 // @PR
 #  define string32_pushstr(string32, str)
