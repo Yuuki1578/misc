@@ -18,6 +18,7 @@
 #endif
 
 #include <stddef.h>
+#include <stdlib.h>
 
 #ifdef __cplusplus
 namespace misc {
@@ -81,6 +82,33 @@ bool ArenaIsFull(Arena *arena);
 
 // Return the inner buffer as new allocated pointer.
 void *ArenaPopOut(Arena *arena);
+
+enum AllocMethod {
+  FROM_STDLIB,
+  FROM_ARENA,
+};
+
+inline void *SpecialAlloc(enum AllocMethod method, Arena *arena, size_t n,
+                          size_t item_size) {
+  switch (method) {
+  case FROM_STDLIB:
+    return calloc(n, item_size);
+
+  case FROM_ARENA:
+    return ArenaAlloc(arena, n * item_size);
+  }
+}
+
+inline void *SpecialRealloc(enum AllocMethod method, Arena *arena, void *dst,
+                            size_t old_size, size_t new_size) {
+  switch (method) {
+  case FROM_STDLIB:
+    return realloc(dst, new_size);
+
+  case FROM_ARENA:
+    return ArenaRealloc(arena, dst, old_size, new_size);
+  }
+}
 
 #ifdef __cplusplus
 }

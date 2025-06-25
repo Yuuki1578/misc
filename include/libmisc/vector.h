@@ -4,7 +4,7 @@
 // responsibility at all.
 //
 // @file vector.h
-// @brief header only dynamic vector
+// @brief Dynamic vector data structure and more
 
 // One thing to be concerned is that, if you use the macro
 // provided in this header file. Your program might have
@@ -21,11 +21,12 @@
 #  endif
 #endif
 
+#include <libmisc/arena.h>
 #include <stdbool.h>
 #include <stddef.h>
 
 #define VECTOR_EACH_HARDCODED 8
-#define Item(Type, ...)       (&(Type){__VA_ARGS__})
+#define pointerof(type, ...)  (&(type){__VA_ARGS__})
 
 #ifdef __cplusplus
 namespace misc {
@@ -46,6 +47,18 @@ size_t VectorRemaining(Vector *v);
 void  *VectorAt(Vector *v, size_t index);
 bool   VectorPush(Vector *v, void *any);
 void   VectorFree(Vector *v);
+
+typedef struct {
+  Vector *vector;
+  Arena  *arena;
+} Pool;
+
+Pool   PoolWith(Arena *arena, size_t len, size_t item_size);
+Pool   PoolNew(Arena *arena, size_t item_size);
+Pool   PoolReserve(Pool *p, size_t how_much);
+size_t PoolRemaining(Pool *p);
+void  *PoolAt(Pool *p, size_t index);
+bool   PoolPush(Pool *p, void *any);
 
 #ifdef VECTOR_UPCOMING
 // @alignment must be a power of two (2^n)

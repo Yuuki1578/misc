@@ -12,7 +12,7 @@ int main(void) {
     return 2;
 
   for (int i = 1; i <= 32; i++) {
-    VectorPush(&vec, Item(int, i * 100));
+    VectorPush(&vec, pointerof(int, i * 100));
   }
 
   for (size_t i = 0; i < vec.len; i++) {

@@ -6,43 +6,86 @@
 
 // C23 only.
 #if __STDC_VERSION__ >= 202300L
-char Buffer[] = {
+char buffer[] = {
 #  embed "../src/tcp.c"
 };
 #else
-char Buffer[] = "Hello, world\n";
+char buffer[] =
+    "[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n["
+    "RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n[RESPONSE]\n";
 #endif
 
 // Setting up a listener and port.
-TcpListener *Listener = NULL;
-uint16_t     Port     = 8000;
+TcpListener *listener = NULL;
+uint16_t     port     = 8000;
 
 // Interrupt handler to cleaning up resources.
-void sighandler(int signum) {
+static void SigHandler(int signum) {
   printf("Caught signal SIGINT, cleaning up...\n");
-  TcpListenerShutdown(Listener);
+  TcpListenerShutdown(listener);
   exit(signum);
 }
 
 int main(void) {
   // Create a listener with loopback address.
-  Listener          = TcpListenerNew(NULL, Port);
+  listener          = TcpListenerNew(NULL, port);
   TcpStream *stream = NULL;
 
   // Handling the signal.
-  signal(SIGINT, sighandler);
+  signal(SIGINT, SigHandler);
 
-  if (Listener == NULL)
+  if (listener == NULL)
     return 1;
 
   // Setup the backlog.
-  if (TcpListenerListen(Listener, 80) != 0) {
-    TcpListenerShutdown(Listener);
+  if (TcpListenerListen(listener, 1) != 0) {
+    TcpListenerShutdown(listener);
     return 2;
   }
 
   // Accepting connection for 65ms.
-  while ((stream = TcpListenerAcceptFor(Listener, 65)) != NULL) {
+  while ((stream = TcpListenerAcceptFor(listener, 65)) != NULL) {
     if (stream == STREAM_TIMED_OUT)
       continue;
 
@@ -50,7 +93,7 @@ int main(void) {
     TcpStreamSetTimeout(stream, 120);
 
     // Send the bytes.
-    if (TcpStreamSend(stream, Buffer, sizeof Buffer, 0) == -1) {
+    if (TcpStreamSend(stream, buffer, sizeof(buffer) - 1, 0) == -1) {
       TcpStreamShutdown(stream);
       continue;
     }
@@ -60,6 +103,6 @@ int main(void) {
   }
 
   // Shutting down the listener.
-  TcpListenerShutdown(Listener);
+  TcpListenerShutdown(listener);
   return 0;
 }

@@ -222,9 +222,9 @@ ssize_t TcpStreamSend(TcpStream *stream, const void *buf, size_t count,
     return send(stream->sockfd, buf, count, flags);
 
   pfd = (struct pollfd){
-      .fd     = stream->sockfd, // socket fd
-      .events = POLLOUT,        // event for send(), sendto(),
-                                // sendmsg()
+      .fd     = stream->sockfd,   // socket fd
+      .events = POLLOUT | POLLIN, // event for send(), sendto(),
+                                  // sendmsg()
   };
 
   for (int pollstat; remain != 0;) {
@@ -272,9 +272,9 @@ ssize_t TcpStreamRecv(TcpStream *stream, void *buf, size_t count, int flags) {
     return recv(stream->sockfd, buf, count, flags);
 
   pfd = (struct pollfd){
-      .fd     = stream->sockfd, // socket fd
-      .events = POLLIN,         // event for recv(), recvfrom(),
-                                // recvmsg()
+      .fd     = stream->sockfd,   // socket fd
+      .events = POLLOUT | POLLIN, // event for recv(), recvfrom(),
+                                  // recvmsg()
   };
 
   for (int pollstat; remain != 0;) {

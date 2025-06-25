@@ -1,9 +1,23 @@
+#include <libmisc/arena.h>
 #include <libmisc/vector.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-Vector VectorWith(size_t len, size_t item_size) {
+static inline void VectorFreeCompact(enum AllocMethod kind, Vector *v) {
+  if (kind != FROM_STDLIB || v == NULL)
+    return;
+
+  if (v->items != NULL)
+    free(v->items);
+
+  v->items = NULL;
+  v->cap   = 0;
+  v->len   = 0;
+}
+
+static Vector VectorWithCompact(enum AllocMethod kind, Arena *arena, size_t len,
+                                size_t item_size) {
   Vector v = {
       .items     = NULL,
       .item_size = item_size,
@@ -15,7 +29,7 @@ Vector VectorWith(size_t len, size_t item_size) {
     return (Vector){0};
 
   if (len != 0) {
-    v.items = calloc(len, item_size);
+    v.items = SpecialAlloc(kind, arena, len, item_size);
     if (v.items == NULL)
       return (Vector){0};
   }
@@ -23,12 +37,9 @@ Vector VectorWith(size_t len, size_t item_size) {
   return v;
 }
 
-Vector VectorNew(size_t item_size) {
-  // Zeroed
-  return VectorWith(0, item_size);
-}
+static bool VectorReserveCompact(enum AllocMethod kind, Arena *arena, Vector *v,
+                                 size_t how_much) {
 
-bool VectorReserve(Vector *v, size_t how_much) {
   if (v == NULL || how_much == 0)
     return false;
 
@@ -36,11 +47,13 @@ bool VectorReserve(Vector *v, size_t how_much) {
     return false;
 
   if (v->items == NULL || v->cap == 0) {
-    v->items = calloc(how_much, v->item_size * how_much);
+    v->items = SpecialAlloc(kind, arena, how_much, v->item_size);
     if (v->items == NULL)
       return false;
+
   } else {
-    void *tmp = realloc(v->items, (v->item_size * (v->cap + how_much)));
+    void *tmp = SpecialRealloc(kind, arena, v->items, v->item_size * v->cap,
+                               v->item_size * (v->cap + how_much));
     if (tmp == NULL)
       return false;
 
@@ -49,6 +62,19 @@ bool VectorReserve(Vector *v, size_t how_much) {
 
   v->cap += how_much;
   return true;
+}
+
+Vector VectorWith(size_t len, size_t item_size) {
+  return VectorWithCompact(FROM_STDLIB, NULL, len, item_size);
+}
+
+Vector VectorNew(size_t item_size) {
+  // Zeroed
+  return VectorWith(0, item_size);
+}
+
+bool VectorReserve(Vector *v, size_t how_much) {
+  return VectorReserveCompact(FROM_STDLIB, NULL, v, how_much);
 }
 
 size_t VectorRemaining(Vector *v) {
@@ -96,16 +122,8 @@ bool VectorPush(Vector *v, void *any) {
 }
 
 void VectorFree(Vector *v) {
-  if (v == NULL)
-    return;
-
-  if (v->items != NULL) {
-    free(v->items);
-  }
-
-  v->items = NULL;
-  v->len   = 0;
-  v->cap   = 0;
+  // FREE:
+  VectorFreeCompact(FROM_STDLIB, v);
 }
 
 bool VectorAlign(Vector *v, size_t alignment) {

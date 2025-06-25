@@ -4,12 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-enum Allocator {
-  ALLOC_STDLIB,
-  ALLOC_ARENA,
-};
-
-static void *FileReadCompact(int fd, const char *path, enum Allocator allocator,
+static void *FileReadCompact(int fd, const char *path, enum AllocMethod method,
                              Arena *arena, iarch *bytes_readed) {
   void    *buffer;
   MiscStat file_stat;
@@ -26,16 +21,7 @@ static void *FileReadCompact(int fd, const char *path, enum Allocator allocator,
     return NULL;
   }
 
-  switch (allocator) {
-  case ALLOC_STDLIB:
-    buffer = calloc(file_stat.st_size + 1, 1);
-    break;
-
-  case ALLOC_ARENA:
-    buffer = ArenaAlloc(arena, file_stat.st_size + 1);
-    break;
-  }
-
+  buffer = SpecialAlloc(method, arena, file_stat.st_size + 1, 1);
   if (buffer == NULL) {
     if (path != NULL)
       MiscClose(fd);
@@ -47,7 +33,7 @@ static void *FileReadCompact(int fd, const char *path, enum Allocator allocator,
     if (path != NULL)
       MiscClose(fd);
 
-    if (allocator == ALLOC_STDLIB)
+    if (method == FROM_STDLIB)
       free(buffer);
 
     return NULL;
@@ -63,29 +49,31 @@ static void *FileReadCompact(int fd, const char *path, enum Allocator allocator,
 }
 
 void *FileRead(const char *path, iarch *bytes_readed) {
-  return FileReadCompact(-1, path, ALLOC_STDLIB, NULL, bytes_readed);
+  return FileReadCompact(-1, path, FROM_STDLIB, NULL, bytes_readed);
 }
 
 void *FileReadOnly(const char *path) {
-  return FileReadCompact(-1, path, ALLOC_STDLIB, NULL, NULL);
+  return FileReadCompact(-1, path, FROM_STDLIB, NULL, NULL);
 }
 
 void *FileReadOnlyWith(const char *path, Arena *arena) {
-  return FileReadCompact(-1, path, ALLOC_ARENA, arena, NULL);
+  return FileReadCompact(-1, path, FROM_ARENA, arena, NULL);
 }
 
 void *FileReadFromFd(int fd, iarch *bytes_readed) {
-  return FileReadCompact(fd, NULL, ALLOC_STDLIB, NULL, bytes_readed);
+  return FileReadCompact(fd, NULL, FROM_STDLIB, NULL, bytes_readed);
 }
 
 void *FileReadFromFdWith(int fd, iarch *bytes_readed, Arena *arena) {
-  return FileReadCompact(fd, NULL, ALLOC_ARENA, arena, bytes_readed);
+  return FileReadCompact(fd, NULL, FROM_ARENA, arena, bytes_readed);
 }
 
 void *FileReadFromStream(FILE *file, iarch *bytes_readed) {
-  return FileReadCompact(fileno(file), NULL, ALLOC_STDLIB, NULL, bytes_readed);
+  return FileReadCompact(MiscFileno(file), NULL, FROM_STDLIB, NULL,
+                         bytes_readed);
 }
 
 void *FileReadFromStreamWith(FILE *file, iarch *byted_readed, Arena *arena) {
-  return FileReadCompact(fileno(file), NULL, ALLOC_ARENA, arena, byted_readed);
+  return FileReadCompact(MiscFileno(file), NULL, FROM_ARENA, arena,
+                         byted_readed);
 }
