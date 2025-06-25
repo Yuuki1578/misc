@@ -8,7 +8,6 @@
 
 #ifndef _GNU_SOURCE
 #  define _GNU_SOURCE
-#  include <asm-generic/fcntl.h>
 #endif
 
 #include <arpa/inet.h>
@@ -137,31 +136,6 @@ start_poll:
       }
   }
 
-  // for (int pollstat = poll(&pfd, 1, timeout_ms);;) {
-  //   if (pollstat == -1) {
-  //     free(stream);
-  //     return NULL;
-  //   }
-
-  //   if (pollstat == 0) {
-  //     free(stream);
-  //     return STREAM_TIMED_OUT;
-  //   }
-
-  //   if (pfd.events & POLLIN) {
-  //     if ((stream->sockfd = accept4(listener->sockfd, addr, &stream->addrlen,
-  //                                   SOCK_NONBLOCK)) == -1) {
-  //       if (errno == EAGAIN)
-  //         continue;
-
-  //       free(stream);
-  //       return NULL;
-  //     }
-
-  //     break;
-  //   }
-  // }
-
   if ((default_flags = fcntl(stream->sockfd, F_GETFL)) < 0)
     return stream;
 
@@ -178,8 +152,9 @@ void TcpListenerShutdown(TcpListener *listener) {
 }
 
 TcpStream *TcpStreamConnect(const char *addr, uint16_t port) {
-  TcpStream *stream = calloc(1, sizeof(struct TcpStream));
-  int        default_flags;
+  TcpStream       *stream = calloc(1, sizeof(struct TcpStream));
+  struct sockaddr *sockaddr;
+  int              default_flags;
 
   if (stream == NULL)
     return NULL;
@@ -191,9 +166,6 @@ TcpStream *TcpStreamConnect(const char *addr, uint16_t port) {
     free(stream);
     return NULL;
   }
-
-  if ((default_flags = fcntl(stream->sockfd, F_GETFL)) >= 0)
-    (void)fcntl(stream->sockfd, F_SETFL, default_flags | O_NONBLOCK);
 
   stream->timeout = 0;
   stream->addrlen = sizeof(struct sockaddr_in);
@@ -209,12 +181,15 @@ TcpStream *TcpStreamConnect(const char *addr, uint16_t port) {
     return NULL;
   }
 
-  struct sockaddr *sockaddr = (void *)&stream->addr;
+  sockaddr = (void *)&stream->addr;
   if (connect(stream->sockfd, sockaddr, stream->addrlen) != 0) {
     close(stream->sockfd);
     free(stream);
     return NULL;
   }
+
+  if ((default_flags = fcntl(stream->sockfd, F_GETFL)) >= 0)
+    (void)fcntl(stream->sockfd, F_SETFL, default_flags | O_NONBLOCK);
 
   return stream;
 }

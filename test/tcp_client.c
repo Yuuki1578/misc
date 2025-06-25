@@ -12,11 +12,15 @@ int Request(void *args) {
   // Setup a buffer.
   char buf[(1 << 12) * 2];
 
-  if (stream == NULL)
+  if (stream == NULL) {
+    printf("Nahh you don't\n");
     return 1;
+  }
+
+  thrd_yield();
 
   // Setting up a timeout for @recv().
-  TcpStreamSetTimeout(stream, 120);
+  TcpStreamSetTimeout(stream, -1);
   if (TcpStreamRecv(stream, buf, sizeof(buf) - 1, MSG_DONTWAIT) > 0)
     *result = 1;
 

@@ -60,6 +60,8 @@ int TcpListenerListen(TcpListener *listener, int backlog);
 
 // Accepting a connection from @listener, returning a
 // @TcpStream instance for @stream_send() or @stream_recv().
+// WARNING: This function will block indefinitely. use
+// @TcpStreamAcceptFor for nonblocking behavior without busy wait.
 //
 // RETURN:
 // return an allocated @TcpStream on success, return NULL on
