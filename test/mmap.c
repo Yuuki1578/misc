@@ -8,7 +8,7 @@ int main(void) {
   // The mapping is in sync between process because it
   // share the same virtual address.
   SetMapping *map   = SetMappingNew(512);
-  char        buf[] = "Hello, world!\n";
+  char        buf[] = "Hello parent process!\n";
 
   if (map == NULL) {
     return 1;
@@ -29,6 +29,7 @@ int main(void) {
     char msg[32] = {0};
 
     SetMappingRewind(map);
+    SetMappingSeek(map, SEEK_CUR, 6); // cut the "Hello "
     SetMappingRead(map, msg, sizeof msg);
     printf("%s", msg);
     SetMappingClose(map);

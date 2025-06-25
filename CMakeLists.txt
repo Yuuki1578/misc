@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 
 project(misc
-  DESCRIPTION "Miscellanous library for C"
+  DESCRIPTION "Miscellanous library for C99"
   HOMEPAGE_URL "https://github.com/Yuuki1578/misc"
   VERSION 0.1.0
   LANGUAGES C

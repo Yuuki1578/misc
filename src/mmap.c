@@ -1,3 +1,4 @@
+#include <libmisc/file.h>
 #include <libmisc/ipc/mmap.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -12,21 +13,24 @@
     .prot = PROT_WRITE | PROT_READ, .flags = MAP_ANON | MAP_SHARED, .fd = -1,  \
   }
 
-#define SETMAP_ADDITIONAL_SIZE (2 << 3)
-
 struct SetMapping {
   void  *buffer;
-  off_t  offset;
+  Offset offset;
   size_t size;
   int    prot;
   int    flags;
   int    fd;
 };
 
+enum SetMappingIOKind {
+  SETMAP_WRITE,
+  SETMAP_READ,
+};
+
 bool SetMappingConf(SetMapping *map, enum SetMappingFlags which, ...) {
   va_list va;
   int     whench;
-  off_t   offset, try_end;
+  Offset  offset, try_end;
   size_t  new_size;
   void   *tmp;
 
@@ -46,7 +50,7 @@ bool SetMappingConf(SetMapping *map, enum SetMappingFlags which, ...) {
 
   case SETMAP_OFFSET:
     whench = va_arg(va, int);
-    offset = va_arg(va, off_t);
+    offset = va_arg(va, Offset);
 
     if (map->offset < 0)
       map->offset = 0;
@@ -146,11 +150,11 @@ SetMapping *SetMappingNew(size_t size) {
   return map;
 }
 
-SetMapping *SetMappingWith(int fd, off_t offset) {
+SetMapping *SetMappingWith(int fd, Offset offset) {
   SetMapping *map;
-  struct stat file_stat = {0};
+  MiscStat    file_stat = {0};
 
-  if (fstat(fd, &file_stat) != 0)
+  if (MiscFstat(fd, &file_stat) != 0)
     return NULL;
 
   map = SetMappingNew(file_stat.st_size);
@@ -215,16 +219,14 @@ void *SetMappingGet(SetMapping *map, enum SetMappingFlags which) {
   }
 }
 
-ssize_t SetMappingWrite(SetMapping *map, const void *buf, size_t n) {
+static ssize_t SetMappingIO(SetMapping *map, void *buf, size_t n,
+                            enum SetMappingIOKind kind) {
   size_t remains;
 
-  if (map == NULL)
+  if (map == NULL || buf == NULL)
     return -1;
 
-  if (buf == NULL)
-    return -1;
-
-  if ((map->size - 1) - map->offset <= 0)
+  if ((map->size - 1) - map->offset <= 0 || n == 0)
     return 0;
 
   if (map->offset < 0)
@@ -233,43 +235,40 @@ ssize_t SetMappingWrite(SetMapping *map, const void *buf, size_t n) {
   if (n > (remains = (map->size - 1) - map->offset))
     n = remains;
 
-  if (map->buffer == MAP_FAILED)
-    if (!SetMappingConf(map, SETMAP_SIZE, n))
+  switch (kind) {
+  case SETMAP_WRITE:
+    if (map->buffer == MAP_FAILED)
+      if (!SetMappingConf(map, SETMAP_SIZE, n))
+        return -1;
+
+    memcpy(map->buffer + map->offset, buf, n);
+    break;
+
+  case SETMAP_READ:
+    if (map->buffer == MAP_FAILED)
       return -1;
 
-  memcpy(map->buffer + map->offset, buf, n);
+    memcpy(buf, map->buffer + map->offset, n);
+    break;
+  }
+
   map->offset += n;
   return n;
+}
+
+ssize_t SetMappingWrite(SetMapping *map, void *buf, size_t n) {
+  return SetMappingIO(map, buf, n, SETMAP_WRITE);
 }
 
 ssize_t SetMappingRead(SetMapping *map, void *buf, size_t n) {
-  size_t remains;
-
-  if (map == NULL || map->buffer == MAP_FAILED)
-    return -1;
-
-  if (buf == NULL)
-    return -1;
-
-  if ((map->size - 1) - map->offset <= 0)
-    return 0;
-
-  if (map->offset < 0)
-    map->offset = 0;
-
-  if (n > (remains = (map->size - 1) - map->offset))
-    n = remains;
-
-  memcpy(buf, map->buffer + map->offset, n);
-  map->offset += n;
-  return n;
+  return SetMappingIO(map, buf, n, SETMAP_READ);
 }
 
-off_t SetMappingSeek(SetMapping *map, int whench, off_t offset) {
+Offset SetMappingSeek(SetMapping *map, int whench, Offset offset) {
   if (!SetMappingConf(map, SETMAP_OFFSET, whench, offset))
     return -1;
 
-  return *(off_t *)SetMappingGet(map, SETMAP_OFFSET);
+  return map->offset;
 }
 
 bool SetMappingRewind(SetMapping *map) {

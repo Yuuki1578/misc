@@ -45,7 +45,7 @@ enum {
 //   size_t step;     // how much bytes per allocation.
 // } Arena;
 
-// OPAQUE:
+// Opaque type of struct @Arena.
 typedef struct Arena Arena;
 
 // Initialize an empty Arena, can be allocated early if

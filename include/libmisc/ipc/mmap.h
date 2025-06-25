@@ -16,10 +16,6 @@
 #  define __USE_FILE_OFFSET64
 #endif
 
-#ifndef __LP64__
-#  define __LP64__ 1
-#endif
-
 #ifndef _GNU_SOURCE
 #  define _GNU_SOURCE
 #endif
@@ -49,6 +45,14 @@
 #  endif
 #endif
 
+#ifdef __LP64__
+#  define MISC_FILE_OFFSET_BITS 64
+#else
+#  define MIMISC_FILE_OFFSET_BITS 32
+#endif
+
+#include <libmisc/types.h>
+
 #if __STDC_VERSION__ < 202300L || !defined(__cplusplus)
 #  include <stdbool.h>
 #endif
@@ -58,7 +62,7 @@ namespace misc {
 extern "C" {
 #endif
 
-// MASK:
+// @SetMappingConf mask.
 enum SetMappingFlags {
   SETMAP_FLAGS  = 0x001,
   SETMAP_PROT   = 0x010,
@@ -68,7 +72,7 @@ enum SetMappingFlags {
   SETMAP_BUFFER = 0x111,
 };
 
-// OPAQUE:
+// Opaque type of struct @SetMapping.
 typedef struct SetMapping SetMapping;
 
 // Create a new @SetMapping instance with default
@@ -76,7 +80,7 @@ typedef struct SetMapping SetMapping;
 SetMapping *SetMappingNew(size_t size);
 
 // Create a new @SetMapping instance with a mapped file.
-SetMapping *SetMappingWith(int fd, off_t offset);
+SetMapping *SetMappingWith(int fd, Offset offset);
 
 // Create a new @SetMapping intance with a copy from @buf up
 // to @n bytes
@@ -106,7 +110,7 @@ bool SetMappingConf(SetMapping *map, enum SetMappingFlags which, ...);
 // 2. SETMAP_PROT:   SetMappingGet(map, SETMAP_PROT);   ->
 // int*
 // 3. SETMAP_OFFSET: SetMappingGet(map, SETMAP_OFFSET); ->
-// off_t*
+// Offset*
 // 4. SETMAP_FD:     SetMappingGet(map, SETMAP_FD);     ->
 // int*
 // 5. SETMAP_SIZE:   SetMappingGet(map, SETMAP_SIZE);   ->
@@ -116,12 +120,12 @@ bool SetMappingConf(SetMapping *map, enum SetMappingFlags which, ...);
 void *SetMappingGet(SetMapping *map, enum SetMappingFlags which);
 
 // Write data to a shared buffer.
-ssize_t SetMappingWrite(SetMapping *map, const void *buf, size_t n);
+ssize_t SetMappingWrite(SetMapping *map, void *buf, size_t n);
 
 // Read data from a buffer.
 ssize_t SetMappingRead(SetMapping *map, void *buf, size_t n);
 
-off_t SetMappingSeek(SetMapping *map, int whench, off_t offset);
+Offset SetMappingSeek(SetMapping *map, int whench, Offset offset);
 
 // Reset an offset ahead of time.
 bool SetMappingRewind(SetMapping *map);
