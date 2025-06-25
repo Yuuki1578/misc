@@ -73,6 +73,10 @@ enum AllocMethod {
   FROM_ARENA,
 };
 
+/*** SPECIFIC ALLOCATOR ***/
+// METHOD:
+// 1. @FROM_STDLIB: @malloc, @realloc, @calloc, @posix_memalign
+// 2. @FROM_ARENA: @ArenaAlloc, @ArenaRealloc
 inline void *SpecialAlloc(enum AllocMethod method, Arena *arena, size_t n,
                           size_t item_size) {
   switch (method) {

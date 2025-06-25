@@ -94,7 +94,8 @@ void *VectorAt(Vector *v, size_t index) {
   return v->items + (v->item_size * index);
 }
 
-bool VectorPush(Vector *v, void *any) {
+static bool VectorPushCompact(enum AllocMethod method, Arena *arena, Vector *v,
+                              void *any) {
   void *tmp;
 
   if (v == NULL || any == NULL)
@@ -103,13 +104,15 @@ bool VectorPush(Vector *v, void *any) {
   if (v->item_size == 0)
     return false;
 
-  if (v->items == NULL) {
-    if ((v->items = calloc(VECTOR_EACH_HARDCODED, v->item_size)) == NULL)
+  if (v->items == NULL || v->cap == 0) {
+    if ((v->items = SpecialAlloc(method, arena, VECTOR_EACH_HARDCODED,
+                                 v->item_size)) == NULL)
       return false;
 
     v->cap += VECTOR_EACH_HARDCODED;
   } else if (VectorRemaining(v) == 0) {
-    tmp = realloc(v->items, (v->cap + VECTOR_EACH_HARDCODED) * v->item_size);
+    tmp = SpecialRealloc(method, arena, v->items, v->item_size * v->cap,
+                         v->item_size * (v->cap + VECTOR_EACH_HARDCODED));
     if (tmp == NULL)
       return false;
 
@@ -119,6 +122,10 @@ bool VectorPush(Vector *v, void *any) {
 
   memcpy(v->items + (v->item_size * v->len++), any, v->item_size);
   return true;
+}
+
+bool VectorPush(Vector *v, void *any) {
+  return VectorPushCompact(FROM_STDLIB, NULL, v, any);
 }
 
 void VectorFree(Vector *v) {

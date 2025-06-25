@@ -117,8 +117,7 @@ int TcpStreamSetTimeout(TcpStream *stream, int timeout_ms);
 // RETURN:
 // return the total bytes sended to @stream on success,
 // return -1 on error, return 0 on timeout.
-ssize_t TcpStreamSend(TcpStream *stream, const void *buf, size_t count,
-                      int flags);
+ssize_t TcpStreamSend(TcpStream *stream, void *buf, size_t count, int flags);
 
 // Recieving a @count bytes of data from @stream and save
 // the data into @buf. The behavior is same as

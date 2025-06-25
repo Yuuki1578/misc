@@ -5,13 +5,13 @@
 int main(void) {
   Vector vec = VectorNew(sizeof(int));
 
-  if (!VectorReserve(&vec, 32))
+  if (!VectorReserve(&vec, 16))
     return 1;
 
   if (!VectorAlign(&vec, sizeof(int)))
     return 2;
 
-  for (int i = 1; i <= 32; i++) {
+  for (int i = 1; i <= 512; i++) {
     VectorPush(&vec, pointerof(int, i * 100));
   }
 
@@ -22,6 +22,11 @@ int main(void) {
 
     printf("%d\n", *item);
   }
+
+  VectorPush(&vec, &(int){69});
+  printf("Vector capacity:  %zu\n", vec.cap);
+  printf("Vector len:       %zu\n", vec.len);
+  printf("Vector item size: %zu\n", vec.item_size);
 
   VectorFree(&vec);
   return 0;

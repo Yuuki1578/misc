@@ -6,7 +6,14 @@
 // @file tcp.c
 // @brief TCP/IPv4 API around UNIX socket
 
+#ifndef _GNU_SOURCE
+#  define _GNU_SOURCE
+#  include <asm-generic/fcntl.h>
+#endif
+
 #include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <libmisc/ipc/tcp.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -31,15 +38,24 @@ struct TcpStream {
   int                timeout;
 };
 
+enum TcpStreamIOKind {
+  TCP_GOING_OUT = POLLOUT,
+  TCP_GOING_IN  = POLLIN,
+};
+
 TcpListener *TcpListenerNew(const char *addr, uint16_t port) {
   TcpListener     *listener = calloc(1, sizeof(struct TcpListener));
   struct sockaddr *sockaddr;
+  int              default_flags;
 
   if (listener == NULL)
     return NULL;
 
   if ((listener->sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
     return NULL;
+
+  if ((default_flags = fcntl(listener->sockfd, F_GETFL)) >= 0)
+    (void)fcntl(listener->sockfd, F_SETFL, default_flags | O_NONBLOCK);
 
   listener->addrlen = sizeof(listener->addr);
   listener->addr    = (struct sockaddr_in){
@@ -75,36 +91,14 @@ int TcpListenerListen(TcpListener *listener, int backlog) {
 }
 
 TcpStream *TcpListenerAccept(TcpListener *listener) {
-  TcpStream       *stream;
-  struct sockaddr *addr;
-
-  if (listener == NULL)
-    return NULL;
-
-  if (listener->sockfd == -1 || listener->addrlen != sizeof(struct sockaddr_in))
-    return NULL;
-
-  stream = calloc(1, sizeof(struct TcpStream));
-  if (stream == NULL)
-    return NULL;
-
-  addr            = (void *)&stream->addr;
-  stream->timeout = 0;
-  stream->addrlen = listener->addrlen;
-
-  if ((stream->sockfd = accept(listener->sockfd, addr, &stream->addrlen)) ==
-      -1) {
-    free(stream);
-    return NULL;
-  }
-
-  return stream;
+  return TcpListenerAcceptFor(listener, -1);
 }
 
 TcpStream *TcpListenerAcceptFor(TcpListener *listener, int timeout_ms) {
   TcpStream       *stream;
   struct sockaddr *addr;
   struct pollfd    pfd;
+  int              default_flags;
 
   if (listener == NULL)
     return NULL;
@@ -121,28 +115,57 @@ TcpStream *TcpListenerAcceptFor(TcpListener *listener, int timeout_ms) {
   stream->timeout = 0;
   stream->addrlen = listener->addrlen;
 
-  for (int pollstat = poll(&pfd, 1, timeout_ms);;) {
-    if (pollstat == -1) {
-      free(stream);
-      return NULL;
-    }
+start_poll:
+  switch (poll(&pfd, 1, timeout_ms)) {
+  case -1:
+    return NULL;
 
-    if (pollstat == 0) {
-      free(stream);
-      return STREAM_TIMED_OUT;
-    }
+  case 0:
+    return STREAM_TIMED_OUT;
 
-    if (pfd.events & POLLIN) {
-      if ((stream->sockfd = accept(listener->sockfd, addr, &stream->addrlen)) ==
-          -1) {
+  default:
+    if (pfd.fd & POLLIN)
+      if ((stream->sockfd = accept4(listener->sockfd, addr, &stream->addrlen,
+                                    SOCK_NONBLOCK)) == -1) {
+        switch (errno) {
+        case EAGAIN:
+          goto start_poll;
+        }
+
         free(stream);
         return NULL;
       }
-
-      break;
-    }
   }
 
+  // for (int pollstat = poll(&pfd, 1, timeout_ms);;) {
+  //   if (pollstat == -1) {
+  //     free(stream);
+  //     return NULL;
+  //   }
+
+  //   if (pollstat == 0) {
+  //     free(stream);
+  //     return STREAM_TIMED_OUT;
+  //   }
+
+  //   if (pfd.events & POLLIN) {
+  //     if ((stream->sockfd = accept4(listener->sockfd, addr, &stream->addrlen,
+  //                                   SOCK_NONBLOCK)) == -1) {
+  //       if (errno == EAGAIN)
+  //         continue;
+
+  //       free(stream);
+  //       return NULL;
+  //     }
+
+  //     break;
+  //   }
+  // }
+
+  if ((default_flags = fcntl(stream->sockfd, F_GETFL)) < 0)
+    return stream;
+
+  (void)fcntl(stream->sockfd, F_SETFL, default_flags | O_NONBLOCK);
   return stream;
 }
 
@@ -156,6 +179,7 @@ void TcpListenerShutdown(TcpListener *listener) {
 
 TcpStream *TcpStreamConnect(const char *addr, uint16_t port) {
   TcpStream *stream = calloc(1, sizeof(struct TcpStream));
+  int        default_flags;
 
   if (stream == NULL)
     return NULL;
@@ -167,6 +191,9 @@ TcpStream *TcpStreamConnect(const char *addr, uint16_t port) {
     free(stream);
     return NULL;
   }
+
+  if ((default_flags = fcntl(stream->sockfd, F_GETFL)) >= 0)
+    (void)fcntl(stream->sockfd, F_SETFL, default_flags | O_NONBLOCK);
 
   stream->timeout = 0;
   stream->addrlen = sizeof(struct sockaddr_in);
@@ -207,105 +234,67 @@ int TcpStreamSetTimeout(TcpStream *stream, int timeout_ms) {
   return 0;
 }
 
-ssize_t TcpStreamSend(TcpStream *stream, const void *buf, size_t count,
-                      int flags) {
-  // bytes sended
-  ssize_t       sended = 0;
-  size_t        remain = count;
-  struct pollfd pfd;
+static ssize_t TcpStreamIO(enum TcpStreamIOKind kind, TcpStream *stream,
+                           void *buf, size_t count, int flags) {
+  ssize_t       result      = 0;
+  size_t        remain      = count;
+  struct pollfd stream_poll = {0};
 
   if (stream == NULL)
     return -1;
 
-  // don't poll() if timeout is 0
   if (stream->timeout == 0)
     return send(stream->sockfd, buf, count, flags);
 
-  pfd = (struct pollfd){
-      .fd     = stream->sockfd,   // socket fd
-      .events = POLLOUT | POLLIN, // event for send(), sendto(),
-                                  // sendmsg()
-  };
+  stream_poll.fd     = stream->sockfd;
+  stream_poll.events = POLLOUT | POLLIN;
 
-  for (int pollstat; remain != 0;) {
-    size_t  chunk;
-    ssize_t chunk_send;
+  for (; remain != 0;) {
+    int     pollstat = -1;
+    size_t  chunk    = 0;
+    ssize_t chunk_io = 0;
 
-    pollstat = poll(&pfd, 1, stream->timeout);
+    pollstat = poll(&stream_poll, 1, stream->timeout);
     if (pollstat == -1) // error
       return -1;
 
     if (pollstat == 0) // timeout before ready
       return 0;
 
-    if (pfd.revents & POLLOUT) { // socket fd is ready
-      if (count < BUFFER_FRAGMENT_SIZE)
-        return send(pfd.fd, buf, count, flags);
+    if (stream_poll.revents & kind) { // socket fd is ready
+      if (count < BUFFER_FRAGMENT_SIZE) {
+        if (kind == TCP_GOING_OUT)
+          return send(stream_poll.fd, buf, count, flags);
+        else
+          return recv(stream_poll.fd, buf, count, flags);
+      }
 
       chunk = remain > BUFFER_FRAGMENT_SIZE ? BUFFER_FRAGMENT_SIZE : remain;
-      chunk_send = send(pfd.fd, buf + sended, chunk, flags);
 
-      if (chunk_send == -1)
+      if (kind == TCP_GOING_OUT)
+        chunk_io = send(stream_poll.fd, buf + result, chunk, flags);
+      else
+        chunk_io = recv(stream_poll.fd, buf + result, count, flags);
+
+      if (chunk_io == -1)
         return -1;
-      else if (chunk_send == 0)
+      else if (chunk_io == 0)
         break;
 
-      sended += chunk_send;
-      remain -= chunk_send;
+      result += chunk_io;
+      remain -= chunk_io;
     }
   }
 
-  return sended;
+  return result;
+}
+
+ssize_t TcpStreamSend(TcpStream *stream, void *buf, size_t count, int flags) {
+  return TcpStreamIO(TCP_GOING_OUT, stream, buf, count, flags);
 }
 
 ssize_t TcpStreamRecv(TcpStream *stream, void *buf, size_t count, int flags) {
-  // bytes sended
-  ssize_t       recieved = 0;
-  size_t        remain   = count;
-  struct pollfd pfd;
-
-  if (stream == NULL)
-    return -1;
-
-  // don't poll() if timeout is 0
-  if (stream->timeout == 0)
-    return recv(stream->sockfd, buf, count, flags);
-
-  pfd = (struct pollfd){
-      .fd     = stream->sockfd,   // socket fd
-      .events = POLLOUT | POLLIN, // event for recv(), recvfrom(),
-                                  // recvmsg()
-  };
-
-  for (int pollstat; remain != 0;) {
-    size_t  chunk;
-    ssize_t chunk_recv;
-
-    pollstat = poll(&pfd, 1, stream->timeout);
-    if (pollstat == -1) // error
-      return -1;
-
-    if (pollstat == 0) // timeout before ready
-      return 0;
-
-    if (pfd.revents & POLLIN) { // socket fd is ready
-      if (count < BUFFER_FRAGMENT_SIZE)
-        return recv(pfd.fd, buf, count, flags);
-
-      chunk = remain > BUFFER_FRAGMENT_SIZE ? BUFFER_FRAGMENT_SIZE : remain;
-      chunk_recv = recv(pfd.fd, buf + recieved, chunk, flags);
-
-      if (chunk_recv == -1)
-        return -1;
-      else if (chunk_recv == 0)
-        break;
-
-      recieved += chunk_recv;
-      remain -= chunk_recv;
-    }
-  }
-
-  return recieved;
+  return TcpStreamIO(TCP_GOING_IN, stream, buf, count, flags);
 }
 
 int TcpStreamShutdown(TcpStream *stream) {

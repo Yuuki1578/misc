@@ -1,11 +1,13 @@
 #include <libmisc/ipc/tcp.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <sys/socket.h>
 #include <threads.h>
 
-int Request(void *_) {
+int Request(void *args) {
   // Create a connection to loopback address.
   TcpStream *stream = TcpStreamConnect(NULL, 8000);
+  int       *result = args;
 
   // Setup a buffer.
   char buf[(1 << 12) * 2];
@@ -15,20 +17,22 @@ int Request(void *_) {
 
   // Setting up a timeout for @recv().
   TcpStreamSetTimeout(stream, 120);
-  TcpStreamRecv(stream, buf, sizeof(buf) - 1, 0);
+  if (TcpStreamRecv(stream, buf, sizeof(buf) - 1, MSG_DONTWAIT) > 0)
+    *result = 1;
+
   TcpStreamShutdown(stream);
 
   printf("%s", buf);
-  return 1;
+  return 0;
 }
 
 int main(void) {
   int counter = 0;
 
-  for (int i = 0, result; i < 255; i++, counter += result) {
+  for (int i = 0, result = 0; i < 255; i++, counter += result) {
     thrd_t thread;
-    thrd_create(&thread, Request, NULL);
-    thrd_join(thread, &result);
+    thrd_create(&thread, Request, &result);
+    thrd_join(thread, NULL);
   }
 
   printf("Request count: %d\n", counter);
