@@ -31,21 +31,6 @@ enum {
   ARENA_ALLOC_STEP = FIXED_PAGING_SIZE,
 };
 
-// Arena data types.
-// The arena is responsible for managing its inner buffer.
-//
-// Task like segmenting pointer, allocating it to another,
-// growing its size things like that.
-//
-// You can initialize the arena once, use it everywhere, and
-// have to free it only once.
-// typedef struct {
-//   void  *rawptr;   // pointer to allocated memory.
-//   size_t capacity; // total memory that arena can hold.
-//   size_t offset;   // an offset from the left of the pointer.
-//   size_t step;     // how much bytes per allocation.
-// } Arena;
-
 // Opaque type of struct @Arena.
 typedef struct Arena Arena;
 
@@ -91,22 +76,22 @@ enum AllocMethod {
 inline void *SpecialAlloc(enum AllocMethod method, Arena *arena, size_t n,
                           size_t item_size) {
   switch (method) {
-  case FROM_STDLIB:
-    return calloc(n, item_size);
-
   case FROM_ARENA:
     return ArenaAlloc(arena, n * item_size);
+
+  default:
+    return calloc(n, item_size);
   }
 }
 
 inline void *SpecialRealloc(enum AllocMethod method, Arena *arena, void *dst,
                             size_t old_size, size_t new_size) {
   switch (method) {
-  case FROM_STDLIB:
-    return realloc(dst, new_size);
-
   case FROM_ARENA:
     return ArenaRealloc(arena, dst, old_size, new_size);
+
+  default:
+    return realloc(dst, new_size);
   }
 }
 
