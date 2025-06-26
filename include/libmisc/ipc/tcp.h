@@ -48,7 +48,7 @@ typedef struct TcpListener TcpListener;
 // The @TcpStream struct is also an opaque type for sending
 // / recieving bytes between process using TCP/IPv4. This
 // struct is returned from
-// @listener_accept() or @stream_connect()
+// @TcpListenerAcceptFor, @TcpListenerAccept or @TcpStreamConnect
 typedef struct TcpStream TcpStream;
 
 // Create a newly allocated @TcpListener struct with an
@@ -67,28 +67,28 @@ TcpListener *TcpListenerNew(const char *addr, uint16_t port);
 // return 0 on success, -1 on error and set @errno.
 int TcpListenerListen(TcpListener *listener, int backlog);
 
-// Accepting a connection from @listener, returning a
-// @TcpStream instance for @stream_send() or @stream_recv().
+// Accepting a connection from @TcpListener, returning a
+// @TcpStream instance for @TcpStreamSend or @TcpStreamRecv.
 // WARNING: This function will block indefinitely. use
 // @TcpStreamAcceptFor for nonblocking behavior without busy wait.
 //
 // RETURN:
 // return an allocated @TcpStream on success, return NULL on
-// error and set
-// @errno.
+// error and set @errno.
 TcpStream *TcpListenerAccept(TcpListener *listener);
 
-// Accept a connection from @listener for @timeout_ms
-// miliseconds, returning 3 possible values.
+// Accept a connection from @TcpListener for @timeout_ms
+// miliseconds, negative @timeout_ms means block forever.
+// This function returning 3 possible values.
 //
 // RETURN:
 // 1. STREAM_TIMED_OUT: @accept call timed out after
 // @timeout_ms miliseconds.
 // 2. NULL: @accept call somehow fail.
-// 3. A pointer to @TcpStream instance on success.
+// 3. A pointer to a @TcpStream instance on success.
 TcpStream *TcpListenerAcceptFor(TcpListener *listener, int timeout_ms);
 
-// Shutting down the server, freeing it's memory.
+// Shutting down the @TcpListener, freeing it's memory.
 //
 // RETURN:
 // NONE
@@ -99,17 +99,15 @@ void TcpListenerShutdown(TcpListener *listener);
 //
 // RETURN:
 // return a pointer to @TcpStream on success, return NULL on
-// error and set
-// @errno.
+// error and set @errno.
 TcpStream *TcpStreamConnect(const char *addr, uint16_t port);
 
 // Return the underlying file descriptor for socket.
-// The @listener can be a @TcpListener or a @TcpStream,
+// The @stream can be a @TcpListener or a @TcpStream,
 // (cast the type!).
 //
 // RETURN:
-// return the valid file descriptor on success, return -1 on
-// error.
+// return the valid file descriptor on success, return -1 on error.
 int TcpStreamGetSocket(TcpStream *stream);
 
 // Setting up a timeout for @stream, limiting it's operation
@@ -119,23 +117,28 @@ int TcpStreamGetSocket(TcpStream *stream);
 // return 0 on sucess, return -1 on error.
 int TcpStreamSetTimeout(TcpStream *stream, int timeout_ms);
 
-// Sending a @count bytes @buffer to @stream.
+// Sending a @count bytes @buf to a @stream.
 // If the timeout is not set, this function might blocking
-// the thread, if it's set, then the @send() operation is
+// the thread, if it set, then the @send operation is
 // done by partialy sending a chunk of byte when ONLY the
-// socket is ready to @send() or @POLLOUT.
+// socket is ready to @send.
 //
 // RETURN:
-// return the total bytes sended to @stream on success,
+// return the total bytes sended to a @stream on success,
 // return -1 on error, return 0 on timeout.
 ssize_t TcpStreamSendPartial(TcpStream *stream, void *buf, size_t count,
                              int flags);
 
+// Sending a @count bytes @buf to a @stream immediately.
+// Only @send the data whenever the socket is ready after @poll.
+//
+// RETURN:
+// return the total bytes sended, return 0 on timeout, -1 on error.
 ssize_t TcpStreamSend(TcpStream *stream, void *buf, size_t count, int flags);
 
 // Recieving a @count bytes of data from @stream and save
 // the data into @buf. The behavior is same as
-// @stream_send(), it might or might not blocking the thread
+// @TcpStreamSendPartial, it might or might not blocking the thread
 // if the timeout is set.
 //
 // RETURN:
@@ -144,45 +147,25 @@ ssize_t TcpStreamSend(TcpStream *stream, void *buf, size_t count, int flags);
 ssize_t TcpStreamRecvPartial(TcpStream *stream, void *buf, size_t count,
                              int flags);
 
+// Recieving a @count bytes from a @stream and store it on @buf immediately.
+// Only @recv the data whenever the socket is ready after @poll.
+//
+// RETURN:
+// return the total bytes recieved, return 0 on timeout, -1 on error.
 ssize_t TcpStreamRecv(TcpStream *stream, void *buf, size_t count, int flags);
 
-// Shutting down the @stream, both for READ and WRITE.
+// Shutting down the @stream using SHUT_RD, SHUT_WR or SHUT_RDWR.
 //
 // RETURN:
 // return 0 on success, return -1 on error.
-int TcpStreamShutdown(TcpStream *stream, int flags);
+int TcpStreamShutdown(TcpStream *stream, int how);
 
-// WARNING: Not implemented yet!
-#ifdef MISC_TCP_UPCOMING
-
-ssize_t TcpStreamSendSpawn(TcpStream *stream, void *buf, size_t count,
-                           int flags);
-
-ssize_t TcpStreamRecvSpawn(TcpStream *stream, void *buf, size_t count,
-                           int flags);
-
-typedef Vector TcpPool;
-typedef ssize_t (*AcceptHandler)(TcpStream *stream, void *buf, size_t count,
-                                 int flags);
-enum TcpStreamHandlerKind {
-  TCP_MULTI_THREADED  = 0xfeed,
-  TCP_SINGLE_THREADED = 0xface,
-};
-
-// Accept an unresolved connections and place it to a pool. ready to @poll().
+// Shutting down and freeing the @stream, both for READ and WRITE.
 //
 // RETURN:
-// Return the number of successfuly accepted connections on success, -1 on
-// error.
-ssize_t TcpStreamAcceptPool(TcpPool *pool, TcpListener *listener,
-                            int timeout_ms, size_t max_conn);
+// NONE.
+void TcpStreamDie(TcpStream *stream);
 
-ssize_t TcpStreamHandlePoolWith(enum TcpStreamHandlerKind kind, TcpPool *pool,
-                                AcceptHandler handler, ssize_t accumulator);
-
-ssize_t TcpStreamHandlePool(TcpPool *pool, AcceptHandler handler,
-                            ssize_t *accumulator);
-#endif
 #ifdef __cplusplus
 }
 }

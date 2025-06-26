@@ -11,35 +11,41 @@ int main(void) {
     return 1;
 
   // Setup the backlog.
-  if (TcpListenerListen(listener, 85) != 0) {
+  if (TcpListenerListen(listener, 69) != 0) {
     TcpListenerShutdown(listener);
     return 2;
   }
 
   // Accepting connection for 65ms.
-  while ((stream = TcpListenerAcceptFor(listener, 65)) != NULL) {
+  while ((stream = TcpListenerAcceptFor(listener, 50)) != NULL) {
     char buffer[1 << 12] = {0};
-    printf("Waiting\n");
 
+    // Continue if timed out.
     if (stream == STREAM_TIMED_OUT) {
       continue;
     }
 
-    // Set timeout for both, @send() and @recv().
-    TcpStreamSetTimeout(stream, 120);
+    printf("Connected\n");
 
-    // Send the bytes.
+    // Set timeout for both, @send and @recv.
+    TcpStreamSetTimeout(stream, -1);
+
+    // Recieve the bytes.
     if (RECV(stream, buffer, sizeof(buffer) - 1) <= 0) {
-      printf("Oh no\n");
-      TcpStreamShutdown(stream, SHUT_RDWR);
+
+      // Kill the stream if it's fail to @recv and continue.
+      TcpStreamDie(stream);
       continue;
     }
 
-    int sock = TcpStreamGetSocket(stream);
+    // Shutdown only the @read ability.
+    TcpStreamShutdown(stream, SHUT_RD);
 
-    shutdown(sock, SHUT_RD);
+    // Send back the recieved bytes to client.
     SEND(stream, buffer, strlen(buffer));
-    TcpStreamShutdown(stream, SHUT_WR);
+
+    // Kill the stream and we done, let's try again.
+    TcpStreamDie(stream);
   }
 
   // Shutting down the listener.

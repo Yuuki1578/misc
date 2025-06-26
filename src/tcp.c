@@ -10,10 +10,6 @@
 #  define _GNU_SOURCE
 #endif
 
-#ifndef MISC_TCP_UPCOMING
-#  define MISC_TCP_UPCOMING
-#endif
-
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -330,33 +326,13 @@ ssize_t TcpStreamRecv(TcpStream *stream, void *buf, size_t count, int flags) {
   return TcpStreamIO(TCP_GOING_IN, stream, buf, count, flags);
 }
 
-int TcpStreamShutdown(TcpStream *stream, int flags) {
+int TcpStreamShutdown(TcpStream *stream, int how) {
   if (stream == NULL)
     return -1;
 
-  int status = shutdown(stream->sockfd, flags);
-  free(stream);
-  return status;
+  return shutdown(stream->sockfd, how);
 }
 
-ssize_t TcpStreamAcceptPool(TcpPool *pool, TcpListener *listener,
-                            int timeout_ms, size_t max_conn) {
-  if (pool == NULL || listener == NULL)
-    return -1;
-
-  if (pool->item_size != sizeof(TcpStream))
-    return -1;
-
-  if (max_conn == 0)
-    return 0;
-
-  for (size_t i = 0; i < max_conn; i++) {
-    TcpStream *stream = TcpListenerAcceptFor(listener, timeout_ms);
-    if (stream != NULL)
-      VectorPush(pool, stream);
-
-    free(stream);
-  }
-
-  return max_conn;
+void TcpStreamDie(TcpStream *stream) {
+  (void)TcpStreamShutdown(stream, SHUT_RDWR);
 }
