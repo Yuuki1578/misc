@@ -21,10 +21,10 @@ int Request(void *args) {
 
   // Setting up a timeout for @recv().
   TcpStreamSetTimeout(stream, -1);
-  if (TcpStreamRecv(stream, buf, sizeof(buf) - 1, MSG_DONTWAIT) > 0)
+  if (TcpStreamRecvPartial(stream, buf, sizeof(buf) - 1, MSG_DONTWAIT) > 0)
     *result = 1;
 
-  TcpStreamShutdown(stream);
+  TcpStreamShutdown(stream, SHUT_RDWR);
 
   printf("%s", buf);
   return 0;

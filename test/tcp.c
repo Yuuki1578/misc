@@ -1,28 +1,12 @@
 #include <libmisc/ipc/tcp.h>
-#include <limits.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <sys/socket.h>
-
-// C23 only.
-#if __STDC_VERSION__ >= 202300L
-char buffer[] = {
-#  embed "../src/tcp.c"
-};
-#else
-char buffer[] = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello from "
-                "server, iyayyy!\n";
-#endif
-
-// Setting up a listener and port.
-TcpListener *listener = NULL;
-uint16_t     port     = 8000;
+#include <string.h>
 
 int main(void) {
-  // Create a listener with loopback address.
-  listener                   = TcpListenerNew(NULL, port);
-  TcpStream *stream          = NULL;
-  size_t     request_ignored = 0;
+  // Setting up a listener and port.
+  TcpListener *listener = TcpListenerNew("127.0.0.1", 8000);
+  TcpStream   *stream   = NULL;
+
   if (listener == NULL)
     return 1;
 
@@ -34,12 +18,10 @@ int main(void) {
 
   // Accepting connection for 65ms.
   while ((stream = TcpListenerAcceptFor(listener, 65)) != NULL) {
-    if (stream == STREAM_TIMED_OUT) {
-      if (request_ignored == SIZE_T_MAX)
-        request_ignored = 0;
+    char buffer[1 << 12] = {0};
+    printf("Waiting\n");
 
-      printf("\rRequest timeout: %zu                     ", ++request_ignored);
-      fflush(stdout);
+    if (stream == STREAM_TIMED_OUT) {
       continue;
     }
 
@@ -47,13 +29,17 @@ int main(void) {
     TcpStreamSetTimeout(stream, 120);
 
     // Send the bytes.
-    if (SEND(stream, buffer, sizeof(buffer) - 1) == -1) {
-      TcpStreamShutdown(stream);
+    if (RECV(stream, buffer, sizeof(buffer) - 1) <= 0) {
+      printf("Oh no\n");
+      TcpStreamShutdown(stream, SHUT_RDWR);
       continue;
     }
 
-    // Shutting down the stream.
-    TcpStreamShutdown(stream);
+    int sock = TcpStreamGetSocket(stream);
+
+    shutdown(sock, SHUT_RD);
+    SEND(stream, buffer, strlen(buffer));
+    TcpStreamShutdown(stream, SHUT_WR);
   }
 
   // Shutting down the listener.

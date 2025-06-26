@@ -128,6 +128,9 @@ int TcpStreamSetTimeout(TcpStream *stream, int timeout_ms);
 // RETURN:
 // return the total bytes sended to @stream on success,
 // return -1 on error, return 0 on timeout.
+ssize_t TcpStreamSendPartial(TcpStream *stream, void *buf, size_t count,
+                             int flags);
+
 ssize_t TcpStreamSend(TcpStream *stream, void *buf, size_t count, int flags);
 
 // Recieving a @count bytes of data from @stream and save
@@ -138,16 +141,26 @@ ssize_t TcpStreamSend(TcpStream *stream, void *buf, size_t count, int flags);
 // RETURN:
 // return the total bytes recieved from @stream on success,
 // return -1 on error, return 0 on timeout.
+ssize_t TcpStreamRecvPartial(TcpStream *stream, void *buf, size_t count,
+                             int flags);
+
 ssize_t TcpStreamRecv(TcpStream *stream, void *buf, size_t count, int flags);
 
 // Shutting down the @stream, both for READ and WRITE.
 //
 // RETURN:
 // return 0 on success, return -1 on error.
-int TcpStreamShutdown(TcpStream *stream);
+int TcpStreamShutdown(TcpStream *stream, int flags);
 
 // WARNING: Not implemented yet!
 #ifdef MISC_TCP_UPCOMING
+
+ssize_t TcpStreamSendSpawn(TcpStream *stream, void *buf, size_t count,
+                           int flags);
+
+ssize_t TcpStreamRecvSpawn(TcpStream *stream, void *buf, size_t count,
+                           int flags);
+
 typedef Vector TcpPool;
 typedef ssize_t (*AcceptHandler)(TcpStream *stream, void *buf, size_t count,
                                  int flags);

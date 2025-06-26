@@ -213,8 +213,8 @@ int TcpStreamSetTimeout(TcpStream *stream, int timeout_ms) {
   return 0;
 }
 
-static ssize_t TcpStreamIO(enum TcpStreamIOKind kind, TcpStream *stream,
-                           void *buf, size_t count, int flags) {
+static ssize_t TcpStreamPartialIO(enum TcpStreamIOKind kind, TcpStream *stream,
+                                  void *buf, size_t count, int flags) {
   ssize_t       result      = 0;
   size_t        remain      = count;
   struct pollfd stream_poll = {0};
@@ -268,6 +268,60 @@ static ssize_t TcpStreamIO(enum TcpStreamIOKind kind, TcpStream *stream,
   return result;
 }
 
+ssize_t TcpStreamSendPartial(TcpStream *stream, void *buf, size_t count,
+                             int flags) {
+  return TcpStreamPartialIO(TCP_GOING_OUT, stream, buf, count, flags);
+}
+
+ssize_t TcpStreamRecvPartial(TcpStream *stream, void *buf, size_t count,
+                             int flags) {
+  return TcpStreamPartialIO(TCP_GOING_IN, stream, buf, count, flags);
+}
+
+static ssize_t TcpStreamIO(enum TcpStreamIOKind kind, TcpStream *stream,
+                           void *buf, size_t count, int flags) {
+  struct pollfd stream_poll = {0};
+
+  if (stream == NULL)
+    return -1;
+
+  if (stream->timeout == 0) {
+    if (kind == TCP_GOING_OUT)
+      return send(stream->sockfd, buf, count, 0);
+
+    return recv(stream->sockfd, buf, count, 0);
+  }
+
+  stream_poll.fd     = stream->sockfd;
+  stream_poll.events = kind == TCP_GOING_OUT ? POLLOUT : POLLIN;
+
+  for (;;) {
+    int poll_result = poll(&stream_poll, 1, stream->timeout);
+
+    switch (poll_result) {
+    case -1:
+      return -1;
+
+    case 0:
+      return 0;
+    }
+
+    switch (kind) {
+    case TCP_GOING_OUT:
+      if (stream_poll.revents & stream_poll.events)
+        return send(stream_poll.fd, buf, count, flags);
+      else
+        return -1;
+
+    case TCP_GOING_IN:
+      if (stream_poll.revents & stream_poll.events)
+        return recv(stream_poll.fd, buf, count, flags);
+      else
+        return -1;
+    }
+  }
+}
+
 ssize_t TcpStreamSend(TcpStream *stream, void *buf, size_t count, int flags) {
   return TcpStreamIO(TCP_GOING_OUT, stream, buf, count, flags);
 }
@@ -276,11 +330,11 @@ ssize_t TcpStreamRecv(TcpStream *stream, void *buf, size_t count, int flags) {
   return TcpStreamIO(TCP_GOING_IN, stream, buf, count, flags);
 }
 
-int TcpStreamShutdown(TcpStream *stream) {
+int TcpStreamShutdown(TcpStream *stream, int flags) {
   if (stream == NULL)
     return -1;
 
-  int status = shutdown(stream->sockfd, SHUT_RDWR);
+  int status = shutdown(stream->sockfd, flags);
   free(stream);
   return status;
 }
