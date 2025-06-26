@@ -12,6 +12,7 @@
 #  error Windows is not supported
 #endif
 
+#include <libmisc/vector.h>
 #include <netinet/in.h>
 #include <stdint.h>
 #include <sys/socket.h>
@@ -23,6 +24,14 @@
 // a way for setting up the timeout
 #define BUFFER_FRAGMENT_SIZE (1024)
 #define STREAM_TIMED_OUT     ((void *)-1)
+
+// Wrapper for @TcpStreamSend and @TcpStreamRecv with @MSG_DONTWAIT flag.
+#if !defined(SEND) && !defined(RECV)
+#  define SEND(stream, msg, msglen)                                            \
+    TcpStreamSend(stream, msg, msglen, MSG_DONTWAIT)
+#  define RECV(stream, buf, buflen)                                            \
+    TcpStreamRecv(stream, buf, buflen, MSG_DONTWAIT)
+#endif
 
 #ifdef __cplusplus
 namespace misc {
@@ -137,6 +146,30 @@ ssize_t TcpStreamRecv(TcpStream *stream, void *buf, size_t count, int flags);
 // return 0 on success, return -1 on error.
 int TcpStreamShutdown(TcpStream *stream);
 
+// WARNING: Not implemented yet!
+#ifdef MISC_TCP_UPCOMING
+typedef Vector TcpPool;
+typedef ssize_t (*AcceptHandler)(TcpStream *stream, void *buf, size_t count,
+                                 int flags);
+enum TcpStreamHandlerKind {
+  TCP_MULTI_THREADED  = 0xfeed,
+  TCP_SINGLE_THREADED = 0xface,
+};
+
+// Accept an unresolved connections and place it to a pool. ready to @poll().
+//
+// RETURN:
+// Return the number of successfuly accepted connections on success, -1 on
+// error.
+ssize_t TcpStreamAcceptPool(TcpPool *pool, TcpListener *listener,
+                            int timeout_ms, size_t max_conn);
+
+ssize_t TcpStreamHandlePoolWith(enum TcpStreamHandlerKind kind, TcpPool *pool,
+                                AcceptHandler handler, ssize_t accumulator);
+
+ssize_t TcpStreamHandlePool(TcpPool *pool, AcceptHandler handler,
+                            ssize_t *accumulator);
+#endif
 #ifdef __cplusplus
 }
 }

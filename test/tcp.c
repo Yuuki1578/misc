@@ -1,4 +1,5 @@
 #include <libmisc/ipc/tcp.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/socket.h>
@@ -9,7 +10,8 @@ char buffer[] = {
 #  embed "../src/tcp.c"
 };
 #else
-char buffer[] = "Hello from server! Iyayyy!!!\n";
+char buffer[] = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello from "
+                "server, iyayyy!\n";
 #endif
 
 // Setting up a listener and port.
@@ -18,9 +20,9 @@ uint16_t     port     = 8000;
 
 int main(void) {
   // Create a listener with loopback address.
-  listener          = TcpListenerNew(NULL, port);
-  TcpStream *stream = NULL;
-
+  listener                   = TcpListenerNew(NULL, port);
+  TcpStream *stream          = NULL;
+  size_t     request_ignored = 0;
   if (listener == NULL)
     return 1;
 
@@ -33,19 +35,19 @@ int main(void) {
   // Accepting connection for 65ms.
   while ((stream = TcpListenerAcceptFor(listener, 65)) != NULL) {
     if (stream == STREAM_TIMED_OUT) {
-      printf("\rNo Request, continue lalala... ");
+      if (request_ignored == SIZE_T_MAX)
+        request_ignored = 0;
+
+      printf("\rRequest timeout: %zu                     ", ++request_ignored);
       fflush(stdout);
       continue;
     }
-
-    printf("\rCaught external request, yay!    ");
-    fflush(stdout);
 
     // Set timeout for both, @send() and @recv().
     TcpStreamSetTimeout(stream, 120);
 
     // Send the bytes.
-    if (TcpStreamSend(stream, buffer, sizeof(buffer) - 1, MSG_DONTWAIT) == -1) {
+    if (SEND(stream, buffer, sizeof(buffer) - 1) == -1) {
       TcpStreamShutdown(stream);
       continue;
     }
