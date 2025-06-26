@@ -28,7 +28,7 @@
 #  define MiscFstat(fd, buf)                _fstat64(fd, buf)
 typedef struct _stat64 MiscStat;
 
-#elif defined(__unix__)
+#elif defined(__unix__) || defined(__linux__)
 #  include <unistd.h>
 #  ifdef __LP64__
 #    define MISC_FILE_OFFSET_BITS 64
