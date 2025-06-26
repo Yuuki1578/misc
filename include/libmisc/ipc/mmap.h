@@ -48,7 +48,7 @@
 #ifdef __LP64__
 #  define MISC_FILE_OFFSET_BITS 64
 #else
-#  define MIMISC_FILE_OFFSET_BITS 32
+#  define MISC_FILE_OFFSET_BITS 32
 #endif
 
 #include <libmisc/types.h>
