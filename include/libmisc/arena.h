@@ -1,105 +1,22 @@
-// April 2025, [https://github.com/Yuuki1578/misc.git]
-// This is a part of the libmisc library.
-// Any damage caused by this software is not my
-// responsibility at all.
-//
-// @file arena.h
-// @brief linear allocator with segmented region (arena)
+#ifndef MISC_ARENA_H
+#define MISC_ARENA_H
 
-// I don't know if bits/size.h exist on all UNIX like system
-// so yeah. This device is using __ANDROID_API__ 24.
-
-#pragma once
-
-#define FIXED_PAGING_SIZE 4096
-
-#if __STDC_VERSION__ < 202311L
-#  include <stdbool.h>
-#endif
-
+#include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
+#include <stdbool.h>
 
-#ifdef __cplusplus
-namespace misc {
-extern "C" {
-#endif
+#define ARENA_BUFFER_TRESHOLD (1 << 12)ULL
 
-enum {
-  ARENA_READY      = 0,
-  ARENA_NOAVAIL    = -1,
-  ARENA_ALLOC_STEP = FIXED_PAGING_SIZE,
-};
+typedef struct Arena {
+    struct Arena *child_node;
+    uintptr_t buffer;
+    size_t size;
+    size_t offset;
+} Arena;
 
-// Opaque type of struct @Arena.
-typedef struct Arena Arena;
+bool arena_create(Arena *arena, size_t init_size);
+void *arena_alloc(Arena *arena, size_t size);
+void *arena_realloc(Arena *arana, size_t old_size, size_t new_size);
+void arena_free(Arena *arena);
 
-// Initialize an empty Arena, can be allocated early if
-// should_allocated is true.
-bool ArenaInit(Arena **arena, size_t step, bool should_allocate);
-
-// Create a new opaque type @Arena, can be allocated if @should_allocate
-// is @true.
-Arena *ArenaNew(size_t step, bool should_allocate);
-
-// Return total capacity of the @arena.
-size_t ArenaCapacity(Arena *arena);
-
-// Return the offset from left of the @arena.
-size_t ArenaOffset(Arena *arena);
-
-// Return an allocated chunk of memory from arena to the
-// caller.
-void *ArenaAlloc(Arena *arena, size_t size);
-
-// Change the size of the allocated memory.
-void *ArenaRealloc(Arena *arena, void *dst, size_t old_size, size_t new_size);
-
-// Freeing the memory hold by arena.
-void ArenaDealloc(Arena *arena);
-
-// Return the remaining arena capacity.
-size_t ArenaRemaining(Arena *arena);
-
-// Check whether the arena offset is equal to arena capacity
-// - 1.
-bool ArenaIsFull(Arena *arena);
-
-// Return the inner buffer as new allocated pointer.
-void *ArenaPopOut(Arena *arena);
-
-enum AllocMethod {
-  FROM_STDLIB,
-  FROM_ARENA,
-};
-
-/*** SPECIFIC ALLOCATOR ***/
-// METHOD:
-// 1. @FROM_STDLIB: @malloc, @realloc, @calloc, @posix_memalign
-// 2. @FROM_ARENA: @ArenaAlloc, @ArenaRealloc
-inline void *SpecialAlloc(enum AllocMethod method, Arena *arena, size_t n,
-                          size_t item_size) {
-  switch (method) {
-  case FROM_ARENA:
-    return ArenaAlloc(arena, n * item_size);
-
-  default:
-    return calloc(n, item_size);
-  }
-}
-
-inline void *SpecialRealloc(enum AllocMethod method, Arena *arena, void *dst,
-                            size_t old_size, size_t new_size) {
-  switch (method) {
-  case FROM_ARENA:
-    return ArenaRealloc(arena, dst, old_size, new_size);
-
-  default:
-    return realloc(dst, new_size);
-  }
-}
-
-#ifdef __cplusplus
-}
-}
 #endif

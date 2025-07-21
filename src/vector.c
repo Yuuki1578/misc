@@ -1,152 +1,143 @@
-#include <libmisc/arena.h>
 #include <libmisc/vector.h>
-#include <stdint.h>
-#include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
+#include <stdlib.h>
 
-static inline void VectorFreeCompact(enum AllocMethod kind, Vector *v) {
-  if (kind != FROM_STDLIB || v == NULL)
-    return;
+Vector vector_with(size_t init_capacity,
+                   size_t item_size)
+{
+    Vector v = {
+        .items = 0,
+        .item_size = item_size,
+        .capacity = 0,
+        .length = 0,
+    };
 
-  if (v->items != NULL)
-    free(v->items);
+    if (item_size == 0)
+        return (Vector){0};
+    else if (init_capacity == 0)
+        return v;
 
-  v->items = NULL;
-  v->cap   = 0;
-  v->len   = 0;
+    v.items = (uintptr_t) calloc(init_capacity, item_size);
+    if (v.items == 0)
+        return v;
+    else
+        v.capacity = init_capacity;
+
+    return v;
 }
 
-static Vector VectorWithCompact(enum AllocMethod kind, Arena *arena, size_t len,
-                                size_t item_size) {
-  Vector v = {
-      .items     = NULL,
-      .item_size = item_size,
-      .len       = len,
-      .cap       = len,
-  };
-
-  if (item_size == 0)
-    return (Vector){0};
-
-  if (len != 0) {
-    v.items = SpecialAlloc(kind, arena, len, item_size);
-    if (v.items == NULL)
-      return (Vector){0};
-  }
-
-  return v;
+Vector vector_new(size_t item_size)
+{
+    return vector_with(0, item_size);
 }
 
-static bool VectorReserveCompact(enum AllocMethod kind, Arena *arena, Vector *v,
-                                 size_t how_much) {
+bool vector_add_capacity(Vector *v,
+                         size_t how_much)
+{
+    if (v == NULL || v->item_size == 0)
+        return false;
 
-  if (v == NULL || how_much == 0)
-    return false;
+    if (v->capacity >= how_much || how_much == 0)
+        return false;
 
-  if (v->item_size == 0 || v->cap >= how_much)
-    return false;
-
-  if (v->items == NULL || v->cap == 0) {
-    v->items = SpecialAlloc(kind, arena, how_much, v->item_size);
-    if (v->items == NULL)
-      return false;
-
-  } else {
-    void *tmp = SpecialRealloc(kind, arena, v->items, v->item_size * v->cap,
-                               v->item_size * (v->cap + how_much));
-    if (tmp == NULL)
-      return false;
-
-    v->items = tmp;
-  }
-
-  v->cap += how_much;
-  return true;
+    if (v->capacity == 0) {
+        v->items = (uintptr_t) calloc(how_much, v->item_size);
+        if (v->items == 0)
+            return false;
+        v->capacity = how_much;
+    } else {
+        uintptr_t tmp = (uintptr_t) realloc((void *) v->items, v->item_size * (v->capacity + how_much));
+        if (tmp == 0)
+            return false;
+        v->items = tmp;
+        v->capacity += how_much;
+    }
+    return true;
 }
 
-Vector VectorWith(size_t len, size_t item_size) {
-  return VectorWithCompact(FROM_STDLIB, NULL, len, item_size);
+bool vector_resize(Vector *v, size_t into)
+{
+    if (v == NULL || into == v->capacity)
+        return false;
+    if (v->capacity == 0)
+        return vector_add_capacity(v, into);
+
+    uintptr_t tmp = (uintptr_t) realloc((void *) v->items, v->item_size * into);
+    if (tmp == 0)
+        return false;
+    if (into < v->length)
+        v->length = into;
+
+    v->capacity = into;
+    return true;
 }
 
-Vector VectorNew(size_t item_size) {
-  // Zeroed
-  return VectorWith(0, item_size);
+size_t vector_remaining(Vector *v)
+{
+    if (v != NULL)
+        return v->capacity - v->length;
+    else
+        return 0;
 }
 
-bool VectorReserve(Vector *v, size_t how_much) {
-  return VectorReserveCompact(FROM_STDLIB, NULL, v, how_much);
-}
-
-size_t VectorRemaining(Vector *v) {
-  if (v == NULL)
-    return 0;
-
-  return v->cap - v->len;
-}
-
-void *VectorAt(Vector *v, size_t index) {
-  if (v == NULL || index >= v->len)
+void *vector_at(Vector *v, size_t index)
+{
+    if (v != NULL && index < v->length) {
+        if (v->capacity > 0)
+            return (void *)(v->items + (v->item_size * index));
+    }
     return NULL;
-
-  if (v->items == NULL)
-    return NULL;
-
-  return v->items + (v->item_size * index);
 }
 
-static bool VectorPushCompact(enum AllocMethod method, Arena *arena, Vector *v,
-                              void *any) {
-  void *tmp;
-
-  if (v == NULL || any == NULL)
-    return false;
-
-  if (v->item_size == 0)
-    return false;
-
-  if (v->items == NULL || v->cap == 0) {
-    if ((v->items = SpecialAlloc(method, arena, VECTOR_EACH_HARDCODED,
-                                 v->item_size)) == NULL)
-      return false;
-
-    v->cap += VECTOR_EACH_HARDCODED;
-  } else if (VectorRemaining(v) == 0) {
-    tmp = SpecialRealloc(method, arena, v->items, v->item_size * v->cap,
-                         v->item_size * (v->cap + VECTOR_EACH_HARDCODED));
-    if (tmp == NULL)
-      return false;
-
-    v->items = tmp;
-    v->cap += VECTOR_EACH_HARDCODED;
-  }
-
-  memcpy(v->items + (v->item_size * v->len++), any, v->item_size);
-  return true;
+void vector_make_fit(Vector *v)
+{
+    vector_resize(v, v->length);
 }
 
-bool VectorPush(Vector *v, void *any) {
-  return VectorPushCompact(FROM_STDLIB, NULL, v, any);
+void vector_push(Vector *v, void *any)
+{
+    if (v == NULL || any == NULL)
+        return;
+    
+    if (vector_remaining(v) <= 1) {
+        size_t needed = 0;
+        if (v->capacity == 0)
+            needed = VECTOR_ALLOC_FREQ;
+        else
+            needed *= 2;
+        
+        if (!vector_add_capacity(v, needed))
+            return;
+    } else {
+        uintptr_t target = v->items + (v->item_size * v->length++);
+        memcpy((void *) target, any, v->item_size);
+    }
 }
 
-void VectorFree(Vector *v) {
-  // FREE:
-  VectorFreeCompact(FROM_STDLIB, v);
+void vector_push_many(Vector *v, ...)
+{
+    va_list va;
+    void *args;
+
+    if (v == NULL)
+        return;
+
+    va_start(va, v);
+
+    while ((args = va_arg(va, void *)) != NULL)
+        vector_push(v, args);
+
+    va_end(va);
 }
 
-bool VectorAlign(Vector *v, size_t alignment) {
-  uintptr_t aligned;
-
-  if (v == NULL || v->items == NULL || v->cap == 0)
-    return false;
-
-  if (alignment == 0)
-    return false;
-
-  if ((alignment & (alignment - 1)) != 0)
-    return false;
-
-  aligned  = (uintptr_t)v->items;
-  aligned  = (aligned + (alignment - 1)) & ~(alignment - 1);
-  v->items = (void *)aligned;
-  return true;
+void vector_free(Vector *v)
+{
+    if (v != NULL) {
+        if (v->items != 0)
+            free((void *) v->items);
+        v->items = 0;
+        v->capacity = 0;
+        v->length = 0;
+    }
 }
