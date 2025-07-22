@@ -1,44 +1,83 @@
+/* The Fuck Around and Find Out License v0.1
+Copyright (C) 2025 Awang Destu Pradhana
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "software"), to deal
+in the software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the software, and to permit persons to whom the software is
+furnished to do so, subject to the following conditions:
+
+1. The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the software.
+
+2. The software shall be used for Good, not Evil. The original author of the
+software retains the sole and exclusive right to determine which uses are
+Good and which uses are Evil.
+
+3. The software is provided "as is", without warranty of any kind, express or
+implied, including but not limited to the warranties of merchantability,
+fitness for a particular purpose and noninfringement. In no event shall the
+authors or copyright holders be liable for any claim, damages or other
+liability, whether in an action of contract, tort or otherwise, arising from,
+out of or in connection with the software or the use or other dealings in the
+software. */
+
 #include "libmisc/arena.h"
 #include <assert.h>
 #include <stdio.h>
-#include <string.h>
 
 int main(void) {
-  Arena arena = {0};
-  assert(arena_create(&arena, 10, false));
+  Arena arena;
+  assert(arena_create(&arena, 32, false));
 
-  char *a = arena_alloc(&arena, 2);
-  assert(a);
-  strcpy(a, "a");
+  assert(arena_alloc(&arena, 8));
+  printf("Size: %zu\n"
+         "Offset: %zu\n"
+         "Remains: %zu\n\n",
+         arena.size, arena.offset, arena.size - arena.offset);
 
-  printf("String = %s\n", a);
-  printf("Size = %zu\n", arena.size);
-  printf("Offset = %zu\n", arena.offset);
-  printf("Remains = %zu\n\n", arena.size - arena.offset);
+  assert(arena_alloc(&arena, 8));
+  printf("Size: %zu\n"
+         "Offset: %zu\n"
+         "Remains: %zu\n\n",
+         arena.size, arena.offset, arena.size - arena.offset);
 
-  a = arena_realloc(&arena, a, 1, 2);
-  assert(a);
+  assert(arena_alloc(&arena, 8));
+  printf("Size: %zu\n"
+         "Offset: %zu\n"
+         "Remains: %zu\n\n",
+         arena.size, arena.offset, arena.size - arena.offset);
 
-  printf("String = %s\n", a);
-  printf("Size = %zu\n", arena.size);
-  printf("Offset = %zu\n", arena.offset);
-  printf("Remains = %zu\n\n", arena.size - arena.offset);
+  assert(arena_alloc(&arena, 8));
+  printf("Size: %zu\n"
+         "Offset: %zu\n"
+         "Remains: %zu\n\n",
+         arena.size, arena.offset, arena.size - arena.offset);
 
-  a = arena_realloc(&arena, a, 2, 6);
-  assert(a);
+  assert(arena_alloc(&arena, 8));
+  printf("Size: %zu\n"
+         "Offset: %zu\n"
+         "Remains: %zu\n\n",
+         arena.size, arena.offset, arena.size - arena.offset);
 
-  printf("String = %s\n", a);
-  printf("Size = %zu\n", arena.size);
-  printf("Offset = %zu\n", arena.offset);
-  printf("Remains = %zu\n\n", arena.size - arena.offset);
+  assert(arena_alloc(&arena, 16));
+  printf("Size: %zu\n"
+         "Offset: %zu\n"
+         "Remains: %zu\n\n",
+         arena.size, arena.offset, arena.size - arena.offset);
 
-  a = arena_realloc(&arena, a, 6, 2);
-  assert(a);
+  assert(arena_alloc(&arena, 16));
+  printf("Size: %zu\n"
+         "Offset: %zu\n"
+         "Remains: %zu\n\n",
+         arena.size, arena.offset, arena.size - arena.offset);
 
-  printf("String = %s\n", a);
-  printf("Size = %zu\n", arena.size);
-  printf("Offset = %zu\n", arena.offset);
-  printf("Remains = %zu\n\n", arena.size - arena.offset);
+  assert(arena_alloc(&arena, 16));
+  printf("Size: %zu\n"
+         "Offset: %zu\n"
+         "Remains: %zu\n\n",
+         arena.size, arena.offset, arena.size - arena.offset);
 
   arena_free(&arena);
 }
