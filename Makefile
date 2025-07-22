@@ -12,7 +12,8 @@ ARFLAGS = rcs
 CFILES = src/vector.c \
 		src/arena.c \
 
-EXAMPLES = examples/vector.c
+EXAMPLES = examples/vector.c \
+			examples/arena.c \
 
 BUILD-DIR = build
 
@@ -27,7 +28,7 @@ endif
 OBJS = $(patsubst src/%.c, $(BUILD-DIR)/%.o, $(CFILES))
 EXAMPLES-BIN = $(patsubst examples/%.c, $(BUILD-DIR)/examples/%.bin, $(EXAMPLES))
 
-.PHONY: clean all examples
+.PHONY: clean all
 all: $(BUILD-DIR)/$(LIB) $(BUILD-DIR)/$(DYLIB) $(EXAMPLES-BIN)
 
 $(BUILD-DIR)/$(DYLIB): $(OBJS)
