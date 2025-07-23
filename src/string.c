@@ -23,21 +23,72 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#ifndef MISC_STRING_H
-#define MISC_STRING_H
+#include <libmisc/string.h>
+#include <limits.h>
+#include <stdarg.h>
+#include <string.h>
 
-#include "./vector.h"
+String string_with(const size_t init_capacity) {
+  return (String){vector_with(init_capacity, 1)};
+}
 
-typedef struct {
-  Vector vector;
-} String;
+String string_new(void) {
+  /* Inherit */
+  return string_with(0);
+}
 
-String string_with(const size_t init_capacity);
-String string_new(void);
-void   string_push(String *s, const char ch);
-void   string_push_many(String *s, ...) /* NULL TERMINATED */;
-void   string_push_cstr(String *s, const char *cstr);
-void   string_push_cstr_many(String *s, ...) __attribute__((sentinel));
-void   string_free(String *s);
+String string_from(const char *cstr, size_t len) {
+  String string;
 
-#endif
+  if (cstr == NULL || len < 1)
+    return string_new();
+
+  string = string_with(len + 1);
+  string_push_cstr(&string, cstr);
+  return string;
+}
+
+void string_push(String *s, const char ch) {
+  /* Inherit */
+  vector_push((Vector *)s, &ch);
+}
+
+void string_push_many(String *s, ...) {
+  va_list va;
+  int     ch;
+
+  va_start(va, s);
+  while ((ch = va_arg(va, int)) != '\0') {
+    if (ch > CHAR_MIN || ch < CHAR_MAX)
+      string_push(s, ch);
+  }
+
+  va_end(va);
+}
+
+void string_push_cstr(String *s, const char *cstr) {
+  register size_t len;
+
+  if (cstr == NULL)
+    return;
+
+  len = strlen(cstr);
+  while (len--)
+    string_push(s, *cstr++);
+}
+
+void string_push_cstr_many(String *s, ...) {
+  va_list va;
+  char   *cstr;
+
+  va_start(va, s);
+  while ((cstr = va_arg(va, char *)) != NULL)
+    string_push_cstr(s, cstr);
+
+  va_end(va);
+}
+
+void string_free(String *s) {
+  /* Inherit */
+  vector_free((Vector *)s);
+}

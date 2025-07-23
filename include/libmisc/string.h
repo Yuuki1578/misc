@@ -23,23 +23,26 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#ifndef MISC_ARENA_H
-#define MISC_ARENA_H
+#ifndef MISC_STRING_H
+#define MISC_STRING_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <libmisc/vector.h>
 
-typedef struct Arena {
-  struct Arena *child_node;
-  uintptr_t     buffer;
-  size_t        size;
-  size_t        offset;
-} Arena;
+#ifndef CSTR
+#  define CSTR(string) ((char *)(string.vector.items))
+#endif
 
-bool  arena_create(Arena *arena, size_t init_size, bool create_child);
-void *arena_alloc(Arena *arena, size_t size);
-void *arena_realloc(Arena *arana, void *dst, size_t old_size, size_t new_size);
-void  arena_free(Arena *arena);
+typedef struct {
+  Vector vector;
+} String;
+
+String string_with(const size_t init_capacity);
+String string_new(void);
+String string_from(const char *cstr, size_t len);
+void   string_push(String *s, const char ch);
+void   string_push_many(String *s, ...);
+void   string_push_cstr(String *s, const char *cstr);
+void   string_push_cstr_many(String *s, ...) __attribute__((sentinel));
+void   string_free(String *s);
 
 #endif

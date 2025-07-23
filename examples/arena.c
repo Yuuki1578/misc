@@ -23,61 +23,32 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#include "libmisc/arena.h"
 #include <assert.h>
+#include <libmisc/arena.h>
+#include <stdint.h>
 #include <stdio.h>
 
 int main(void) {
-  Arena arena;
-  assert(arena_create(&arena, 32, false));
+  Arena    arena;
+  int64_t *big_chunk;
 
-  assert(arena_alloc(&arena, 8));
-  printf("Size: %zu\n"
-         "Offset: %zu\n"
-         "Remains: %zu\n\n",
-         arena.size, arena.offset, arena.size - arena.offset);
+  assert(arena_create(&arena, 4096, true));
+  big_chunk = arena_alloc(&arena, 64 * sizeof *big_chunk);
+  assert(big_chunk);
 
-  assert(arena_alloc(&arena, 8));
-  printf("Size: %zu\n"
-         "Offset: %zu\n"
-         "Remains: %zu\n\n",
-         arena.size, arena.offset, arena.size - arena.offset);
+  int64_t i;
+  for (i = 0; i < 64; i++) {
+    big_chunk[i] = i * 2;
+    printf("Chunk: %li\n", big_chunk[i]);
+  }
 
-  assert(arena_alloc(&arena, 8));
-  printf("Size: %zu\n"
-         "Offset: %zu\n"
-         "Remains: %zu\n\n",
-         arena.size, arena.offset, arena.size - arena.offset);
+  big_chunk = arena_realloc(&arena, big_chunk, 64 * sizeof *big_chunk,
+                            128 * sizeof *big_chunk);
 
-  assert(arena_alloc(&arena, 8));
-  printf("Size: %zu\n"
-         "Offset: %zu\n"
-         "Remains: %zu\n\n",
-         arena.size, arena.offset, arena.size - arena.offset);
-
-  assert(arena_alloc(&arena, 8));
-  printf("Size: %zu\n"
-         "Offset: %zu\n"
-         "Remains: %zu\n\n",
-         arena.size, arena.offset, arena.size - arena.offset);
-
-  assert(arena_alloc(&arena, 16));
-  printf("Size: %zu\n"
-         "Offset: %zu\n"
-         "Remains: %zu\n\n",
-         arena.size, arena.offset, arena.size - arena.offset);
-
-  assert(arena_alloc(&arena, 16));
-  printf("Size: %zu\n"
-         "Offset: %zu\n"
-         "Remains: %zu\n\n",
-         arena.size, arena.offset, arena.size - arena.offset);
-
-  assert(arena_alloc(&arena, 16));
-  printf("Size: %zu\n"
-         "Offset: %zu\n"
-         "Remains: %zu\n\n",
-         arena.size, arena.offset, arena.size - arena.offset);
+  assert(big_chunk);
+  for (i = 0; i < 128; i++) {
+    printf("Chunk: %li\n", big_chunk[i]);
+  }
 
   arena_free(&arena);
 }

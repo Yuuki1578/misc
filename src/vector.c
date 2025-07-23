@@ -23,19 +23,18 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#include "./libmisc/vector.h"
+#include <libmisc/vector.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 Vector vector_with(const size_t init_capacity, const size_t item_size) {
-  Vector v = {
-      .items     = 0,
-      .item_size = item_size,
-      .capacity  = 0,
-      .length    = 0,
-  };
+  Vector v;
+  v.items     = 0;
+  v.item_size = item_size;
+  v.capacity  = 0;
+  v.length    = 0;
 
   if (item_size == 0)
     return (Vector){0};
@@ -52,15 +51,17 @@ Vector vector_with(const size_t init_capacity, const size_t item_size) {
 }
 
 Vector vector_new(const size_t item_size) {
-  // Inherit
+  /* Inherit */
   return vector_with(0, item_size);
 }
 
 bool vector_resize(Vector *v, const size_t into) {
+  uintptr_t tmp;
+
   if (v == NULL || v->capacity == into || v->item_size == 0)
     return false;
 
-  uintptr_t tmp = (uintptr_t)realloc((void *)v->items, v->item_size * into);
+  tmp = (uintptr_t)realloc((void *)v->items, v->item_size * into);
   if (tmp == 0)
     return false;
 
@@ -91,6 +92,8 @@ void *vector_at(const Vector *v, const size_t index) {
 }
 
 void vector_push(Vector *v, const void *any) {
+  uintptr_t increment;
+
   if (v == NULL || any == NULL)
     return;
 
@@ -103,7 +106,7 @@ void vector_push(Vector *v, const void *any) {
       return;
   }
 
-  uintptr_t increment = v->items + (v->item_size * v->length++);
+  increment = v->items + (v->item_size * v->length++);
   memcpy((void *)increment, any, v->item_size);
 }
 

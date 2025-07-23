@@ -23,7 +23,8 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#include "libmisc/arena.h"
+#include <libmisc/arena.h>
+#include <stddef.h>
 #include <stdlib.h>
 
 bool arena_create(Arena *arena, size_t init_size, bool create_child) {
@@ -38,7 +39,9 @@ bool arena_create(Arena *arena, size_t init_size, bool create_child) {
   }
 
   if ((arena->buffer = (uintptr_t)calloc(init_size, 1)) == 0) {
-    free(arena->child_node);
+    if (create_child)
+      free(arena->child_node);
+
     return false;
   }
 
@@ -48,7 +51,9 @@ bool arena_create(Arena *arena, size_t init_size, bool create_child) {
 }
 
 static Arena *arena_pull_last(Arena *base) {
-  register Arena *last = base;
+  register Arena *last;
+  last = base;
+
   if (last == NULL)
     return NULL;
 
@@ -63,10 +68,12 @@ static Arena *arena_pull_last(Arena *base) {
 }
 
 void *arena_alloc(Arena *arena, size_t size) {
-  Arena *last   = arena_pull_last(arena);
-  void  *result = NULL;
+  Arena *last;
+  void  *result;
+  last   = arena_pull_last(arena);
+  result = NULL;
 
-  if (last == NULL)
+  if (last == NULL || size < 1)
     return NULL;
 
   if (last->size == 0) {
@@ -74,7 +81,8 @@ void *arena_alloc(Arena *arena, size_t size) {
       return NULL;
 
   } else if (last->size - last->offset < size) {
-    size_t base_value = size >= last->size ? size : last->size;
+    size_t base_value;
+    base_value = size >= last->size ? size : last->size;
 
     if ((last = arena_pull_last(last)) == NULL)
       return NULL;
@@ -89,8 +97,10 @@ void *arena_alloc(Arena *arena, size_t size) {
 }
 
 void *arena_realloc(Arena *arena, void *dst, size_t old_size, size_t new_size) {
-  void  *result       = NULL;
-  size_t bytes_copied = 0;
+  void  *result;
+  size_t bytes_copied;
+  result       = NULL;
+  bytes_copied = 0;
 
   if (arena == NULL)
     return NULL;
@@ -110,7 +120,9 @@ void *arena_realloc(Arena *arena, void *dst, size_t old_size, size_t new_size) {
 }
 
 void arena_free(Arena *arena) {
-  for (Arena *current = arena; current != NULL;) {
+  Arena *current;
+
+  for (current = arena; current != NULL;) {
     if (current->size > 0)
       free((void *)current->buffer);
 
