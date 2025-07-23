@@ -42,7 +42,12 @@ String string_from(const char *cstr, size_t len);
 void   string_push(String *s, const char ch);
 void   string_push_many(String *s, ...);
 void   string_push_cstr(String *s, const char *cstr);
-void   string_push_cstr_many(String *s, ...) __attribute__((sentinel));
 void   string_free(String *s);
+
+void string_push_cstr_many(String *s, ...)
+#if !defined(_WIN32) || !defined(_WIN64)
+    __attribute__((sentinel))
+#endif
+    ;
 
 #endif

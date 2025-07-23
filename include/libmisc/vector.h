@@ -46,7 +46,12 @@ bool   vector_make_fit(Vector *v);
 size_t vector_remaining(const Vector *v);
 void  *vector_at(const Vector *v, const size_t index);
 void   vector_push(Vector *v, const void *any);
-void   vector_push_many(Vector *v, ...) __attribute__((sentinel));
 void   vector_free(Vector *v);
+
+void vector_push_many(Vector *v, ...)
+#if !defined(_WIN32) || !defined(_WIN64)
+    __attribute__((sentinel))
+#endif
+    ;
 
 #endif
