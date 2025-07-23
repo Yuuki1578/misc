@@ -26,6 +26,7 @@ software. */
 #include <libmisc/arena.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 
 bool arena_create(Arena *arena, size_t init_size, bool create_child) {
   if (arena == NULL || init_size == 0)
