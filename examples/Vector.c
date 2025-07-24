@@ -29,12 +29,11 @@ software. */
 
 int main(void) {
   Vector vector = VectorWith(1, sizeof(size_t));
-  size_t i, *current;
 
-  for (i = 1 << 14; i > 0; i--)
+  for (size_t i = 1 << 14; i > 0; i--)
     VectorPush(&vector, &i);
 
-  for (i = 0; i < vector.length; i++) {
+  for (size_t i = 0, *current; i < vector.length; i++) {
     current = VectorAt(&vector, i);
     printf("%zu\n", *current);
   }

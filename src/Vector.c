@@ -30,11 +30,12 @@ software. */
 #include <string.h>
 
 Vector VectorWith(const size_t initCapacity, const size_t itemSize) {
-  Vector vector;
-  vector.items    = 0;
-  vector.itemSize = itemSize;
-  vector.capacity = 0;
-  vector.length   = 0;
+  Vector vector = {
+      .items    = 0,
+      .itemSize = itemSize,
+      .capacity = 0,
+      .length   = 0,
+  };
 
   if (itemSize == 0)
     return (Vector){0};

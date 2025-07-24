@@ -52,8 +52,7 @@ bool ArenaInit(Arena *arena, size_t initSize, bool preAllocate) {
 }
 
 static Arena *ArenaPullLast(Arena *base) {
-  register Arena *last;
-  last = base;
+  register Arena *last = base;
 
   if (last == NULL)
     return NULL;
@@ -69,10 +68,8 @@ static Arena *ArenaPullLast(Arena *base) {
 }
 
 void *ArenaAlloc(Arena *arena, size_t size) {
-  Arena *last;
-  void  *result;
-  last   = ArenaPullLast(arena);
-  result = NULL;
+  Arena *last   = ArenaPullLast(arena);
+  void  *result = NULL;
 
   if (last == NULL || size < 1)
     return NULL;
@@ -82,8 +79,7 @@ void *ArenaAlloc(Arena *arena, size_t size) {
       return NULL;
 
   } else if (last->size - last->offset < size) {
-    size_t baseValue;
-    baseValue = size >= last->size ? size : last->size;
+    size_t baseValue = size >= last->size ? size : last->size;
 
     if ((last = ArenaPullLast(last)) == NULL)
       return NULL;
@@ -98,10 +94,8 @@ void *ArenaAlloc(Arena *arena, size_t size) {
 }
 
 void *ArenaRealloc(Arena *arena, void *dst, size_t old_size, size_t new_size) {
-  void  *result;
-  size_t bytesCopied;
-  result      = NULL;
-  bytesCopied = 0;
+  void  *result      = NULL;
+  size_t bytesCopied = 0;
 
   if (arena == NULL)
     return NULL;
@@ -121,9 +115,7 @@ void *ArenaRealloc(Arena *arena, void *dst, size_t old_size, size_t new_size) {
 }
 
 void ArenaFree(Arena *arena) {
-  Arena *current;
-
-  for (current = arena; current != NULL;) {
+  for (Arena *current = arena; current != NULL;) {
     if (current->size > 0)
       free((void *)current->buffer);
 

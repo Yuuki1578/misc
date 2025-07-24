@@ -11,10 +11,9 @@ int ThreadRoutine(void *args) {
 }
 
 int main(void) {
-  int *data, inc;
-  data = RefCountAlloc(sizeof *data);
+  int *data = RefCountAlloc(sizeof(int));
 
-  for (inc = 0; inc < 10; inc++) {
+  for (int i = 0; i < 10; i++) {
     thrd_t handle;
     thrd_create(&handle, ThreadRoutine, data);
     printf("%d\n", *data);

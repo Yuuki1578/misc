@@ -20,8 +20,7 @@ static inline bool MutexLock(mtx_t *mutex) {
 }
 
 static void *GetCounterAddress(void *object) {
-  uint8_t *counter;
-  counter = object;
+  uint8_t *counter = object;
   return (void *)(counter - sizeof(Ref_Count));
 }
 
@@ -51,7 +50,6 @@ bool RefCountStrong(void *object) {
     return false;
 
   counter = GetCounterAddress(object);
-
   if (MutexLock(&counter->mutex)) {
     counter->count++;
     mtx_unlock(&counter->mutex);

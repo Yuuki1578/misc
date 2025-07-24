@@ -27,10 +27,9 @@ software. */
 #include <stdio.h>
 
 int main(void) {
-  String       string;
+  String       string = StringNew();
   extern char *staticString;
 
-  string = StringNew();
   StringPushCstr(&string, staticString);
   StringPush(&string, '\n');
 
