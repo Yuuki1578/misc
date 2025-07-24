@@ -23,72 +23,25 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#include <libmisc/string.h>
-#include <limits.h>
-#include <stdarg.h>
-#include <string.h>
+#include <libmisc/Vector.h>
+#include <stddef.h>
+#include <stdio.h>
 
-String StringWith(const size_t initCapacity) {
-  return (String){VectorWith(initCapacity, 1)};
-}
+int main(void) {
+  Vector vector = VectorWith(1, sizeof(size_t));
+  size_t i, *current;
 
-String StringNew(void) {
-  /* Inherit */
-  return StringWith(0);
-}
+  for (i = 1 << 14; i > 0; i--)
+    VectorPush(&vector, &i);
 
-String StringFrom(const char *cstr, size_t len) {
-  String string;
-
-  if (cstr == NULL || len < 1)
-    return StringNew();
-
-  string = StringWith(len + 1);
-  StringPushCstr(&string, cstr);
-  return string;
-}
-
-void StringPush(String *s, const char ch) {
-  /* Inherit */
-  VectorPush((Vector *)s, &ch);
-}
-
-void StringPushMany(String *s, ...) {
-  va_list va;
-  int     ch;
-
-  va_start(va, s);
-  while ((ch = va_arg(va, int)) != '\0') {
-    if (ch >= CHAR_MIN && ch <= CHAR_MAX)
-      StringPush(s, ch);
+  for (i = 0; i < vector.length; i++) {
+    current = VectorAt(&vector, i);
+    printf("%zu\n", *current);
   }
 
-  va_end(va);
-}
-
-void StringPushCstr(String *s, const char *cstr) {
-  register size_t len;
-
-  if (cstr == NULL)
-    return;
-
-  len = strlen(cstr);
-  while (len--)
-    StringPush(s, *cstr++);
-}
-
-void StringPushCstrMany(String *s, ...) {
-  va_list va;
-  char   *cstr;
-
-  va_start(va, s);
-  while ((cstr = va_arg(va, char *)) != NULL)
-    StringPushCstr(s, cstr);
-
-  va_end(va);
-}
-
-void StringFree(String *s) {
-  /* Inherit */
-  VectorFree((Vector *)s);
+  printf("Capacity:  %zu\n", vector.capacity);
+  printf("Length:    %zu\n", vector.length);
+  printf("Remaining: %zu\n", VectorRemaining(&vector));
+  VectorFree(&vector);
+  return 0;
 }

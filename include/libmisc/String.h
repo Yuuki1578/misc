@@ -23,32 +23,31 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#include <assert.h>
-#include <libmisc/arena.h>
-#include <stdint.h>
-#include <stdio.h>
+#ifndef MISC_STRING_H
+#define MISC_STRING_H
 
-int main(void) {
-  Arena    arena;
-  int64_t *bigChunk;
+#include <libmisc/Vector.h>
 
-  assert(arena_create(&arena, 4096, true));
-  bigChunk = ArenaAlloc(&arena, 64 * sizeof *bigChunk);
-  assert(big_chunk);
+#ifndef CSTR
+#  define CSTR(string) ((char *)(string.vector.items))
+#endif
 
-  int64_t i;
-  for (i = 0; i < 64; i++) {
-    bigChunk[i] = i * 2;
-    printf("Chunk: %li\n", bigChunk[i]);
-  }
+typedef struct {
+  Vector vector;
+} String;
 
-  bigChunk = ArenaRealloc(&arena, bigChunk, 64 * sizeof *bigChunk,
-                          128 * sizeof *bigChunk);
+String StringWith(const size_t initCapacity);
+String StringNew(void);
+String StringFrom(const char *cstr, size_t len);
+void   StringPush(String *s, const char ch);
+void   StringPushMany(String *s, ...);
+void   StringPushCstr(String *s, const char *cstr);
+void   StringFree(String *s);
 
-  assert(big_chunk);
-  for (i = 0; i < 128; i++) {
-    printf("Chunk: %li\n", bigChunk[i]);
-  }
+void StringPushCstrMany(String *s, ...)
+#if !defined(_WIN32) || !defined(_WIN64)
+    __attribute__((sentinel))
+#endif
+    ;
 
-  ArenaFree(&arena);
-}
+#endif

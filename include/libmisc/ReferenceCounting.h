@@ -23,31 +23,23 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#ifndef MISC_STRING_H
-#define MISC_STRING_H
+#ifndef MISC_REFERENCE_COUNTING_H
+#define MISC_REFERENCE_COUNTING_H
 
-#include <libmisc/vector.h>
-
-#ifndef CSTR
-#  define CSTR(string) ((char *)(string.vector.items))
-#endif
+#include <stdbool.h>
+#include <stddef.h>
+#include <threads.h>
 
 typedef struct {
-  Vector vector;
-} String;
+  mtx_t  mutex;
+  void  *rawData;
+  size_t count;
+} Ref_Count;
 
-String StringWith(const size_t initCapacity);
-String StringNew(void);
-String StringFrom(const char *cstr, size_t len);
-void   StringPush(String *s, const char ch);
-void   StringPushMany(String *s, ...);
-void   StringPushCstr(String *s, const char *cstr);
-void   StringFree(String *s);
-
-void StringPushCstrMany(String *s, ...)
-#if !defined(_WIN32) || !defined(_WIN64)
-    __attribute__((sentinel))
-#endif
-    ;
+void  *RefCountAlloc(size_t size);
+bool   RefCountStrong(void *object);
+bool   RefCountWeak(void *object);
+void   RefCountDrop(void *object);
+size_t RefCountLifetime(void *object);
 
 #endif

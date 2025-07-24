@@ -23,7 +23,7 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#include <libmisc/vector.h>
+#include <libmisc/Vector.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
