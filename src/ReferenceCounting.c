@@ -1,4 +1,3 @@
-#include <bits/threads_inlines.h>
 #include <libmisc/ReferenceCounting.h>
 #include <stdint.h>
 #include <stdlib.h>
