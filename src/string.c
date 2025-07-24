@@ -28,45 +28,45 @@ software. */
 #include <stdarg.h>
 #include <string.h>
 
-String string_with(const size_t init_capacity) {
-  return (String){vector_with(init_capacity, 1)};
+String StringWith(const size_t initCapacity) {
+  return (String){VectorWith(initCapacity, 1)};
 }
 
-String string_new(void) {
+String StringNew(void) {
   /* Inherit */
-  return string_with(0);
+  return StringWith(0);
 }
 
-String string_from(const char *cstr, size_t len) {
+String StringFrom(const char *cstr, size_t len) {
   String string;
 
   if (cstr == NULL || len < 1)
-    return string_new();
+    return StringNew();
 
-  string = string_with(len + 1);
-  string_push_cstr(&string, cstr);
+  string = StringWith(len + 1);
+  StringPushCstr(&string, cstr);
   return string;
 }
 
-void string_push(String *s, const char ch) {
+void StringPush(String *s, const char ch) {
   /* Inherit */
-  vector_push((Vector *)s, &ch);
+  VectorPush((Vector *)s, &ch);
 }
 
-void string_push_many(String *s, ...) {
+void StringPushMany(String *s, ...) {
   va_list va;
   int     ch;
 
   va_start(va, s);
   while ((ch = va_arg(va, int)) != '\0') {
-    if (ch > CHAR_MIN || ch < CHAR_MAX)
-      string_push(s, ch);
+    if (ch >= CHAR_MIN && ch <= CHAR_MAX)
+      StringPush(s, ch);
   }
 
   va_end(va);
 }
 
-void string_push_cstr(String *s, const char *cstr) {
+void StringPushCstr(String *s, const char *cstr) {
   register size_t len;
 
   if (cstr == NULL)
@@ -74,21 +74,21 @@ void string_push_cstr(String *s, const char *cstr) {
 
   len = strlen(cstr);
   while (len--)
-    string_push(s, *cstr++);
+    StringPush(s, *cstr++);
 }
 
-void string_push_cstr_many(String *s, ...) {
+void StringPushCstrMany(String *s, ...) {
   va_list va;
   char   *cstr;
 
   va_start(va, s);
   while ((cstr = va_arg(va, char *)) != NULL)
-    string_push_cstr(s, cstr);
+    StringPushCstr(s, cstr);
 
   va_end(va);
 }
 
-void string_free(String *s) {
+void StringFree(String *s) {
   /* Inherit */
-  vector_free((Vector *)s);
+  VectorFree((Vector *)s);
 }

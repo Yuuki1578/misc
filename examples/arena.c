@@ -30,25 +30,25 @@ software. */
 
 int main(void) {
   Arena    arena;
-  int64_t *big_chunk;
+  int64_t *bigChunk;
 
   assert(arena_create(&arena, 4096, true));
-  big_chunk = arena_alloc(&arena, 64 * sizeof *big_chunk);
+  bigChunk = ArenaAlloc(&arena, 64 * sizeof *bigChunk);
   assert(big_chunk);
 
   int64_t i;
   for (i = 0; i < 64; i++) {
-    big_chunk[i] = i * 2;
-    printf("Chunk: %li\n", big_chunk[i]);
+    bigChunk[i] = i * 2;
+    printf("Chunk: %li\n", bigChunk[i]);
   }
 
-  big_chunk = arena_realloc(&arena, big_chunk, 64 * sizeof *big_chunk,
-                            128 * sizeof *big_chunk);
+  bigChunk = ArenaRealloc(&arena, bigChunk, 64 * sizeof *bigChunk,
+                          128 * sizeof *bigChunk);
 
   assert(big_chunk);
   for (i = 0; i < 128; i++) {
-    printf("Chunk: %li\n", big_chunk[i]);
+    printf("Chunk: %li\n", bigChunk[i]);
   }
 
-  arena_free(&arena);
+  ArenaFree(&arena);
 }

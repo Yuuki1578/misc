@@ -24,25 +24,24 @@ out of or in connection with the software or the use or other dealings in the
 software. */
 
 #include <libmisc/vector.h>
+#include <stddef.h>
 #include <stdio.h>
 
 int main(void) {
-  Vector vector = vector_with(1, sizeof(int));
+  Vector vector = VectorWith(1, sizeof(size_t));
+  size_t i, *current;
 
-  size_t i;
-  for (i = 0; i < 1 << 12; i++) {
-    int item = (i + 1) * 10;
-    vector_push(&vector, &item);
-    printf("Capacity: %zu\n", vector.capacity);
+  for (i = 1 << 14; i > 0; i--)
+    VectorPush(&vector, &i);
+
+  for (i = 0; i < vector.length; i++) {
+    current = VectorAt(&vector, i);
+    printf("%zu\n", *current);
   }
 
-  vector_resize(&vector, 32);
-  vector_push(&vector, &(int){0});
-
-  printf("Capacity: %zu\n", vector.capacity);
-  printf("Length: %zu\n", vector.length);
-  printf("Remaining: %zu\n", vector_remaining(&vector));
-
-  vector_free(&vector);
+  printf("Capacity:  %zu\n", vector.capacity);
+  printf("Length:    %zu\n", vector.length);
+  printf("Remaining: %zu\n", VectorRemaining(&vector));
+  VectorFree(&vector);
   return 0;
 }

@@ -46,10 +46,10 @@ The linked list is made of 4 members, described as follow:
 2. buffer, is a raw pointer from a libc allocator casted to uintptr_t.
 3. size, is the total size of memory region this allocator hold.
 4. offset, is the difference between base address and current address.
-   This member is always incremented on a call of arena_alloc() or
-   arena_realloc()
+   This member is always incremented on a call of ArenaAlloc() or
+   ArenaRealloc()
 
-When you call arena_alloc(), it'll check if the current allocator have memory
+When you call ArenaAlloc(), it'll check if the current allocator have memory
 as large as "size". If it is, it return the current memory region as a chunk of
 memory
 
@@ -84,15 +84,15 @@ Now if you look at our allocator again, things would change
 Ok cool, now we have 3 bytes left, starting at address 0x2.
 Now, say, you want more than 2 bytes, what if 5 bytes? can you?
 
-Remember that arena_alloc() will check if the current allocator have enough
+Remember that ArenaAlloc() will check if the current allocator have enough
 chunk for us to take? When the remaining bytes (buffer - offset) is not enough,
-arena_alloc() will create a new allocator, pointed by child_node with the
+ArenaAlloc() will create a new allocator, pointed by child_node with the
 following rules:
 1. If the requested size is larger than the size of the past allocator, the size
    of the new allocator would be (size * 2).
 2. If it's not, the size will be (past_allocator->size * 2).
 
-The chunk returned by arena_alloc() or arena_realloc() may be NULL, so you must
+The chunk returned by ArenaAlloc() or ArenaRealloc() may be NULL, so you must
 check it before using it.
 
 Now for the best part is that we only need to free our arena's once and we're
@@ -101,15 +101,15 @@ to a bunch of function, so that you know that those section of your program need
 to allocate some memory. */
 
 typedef struct Arena {
-  struct Arena *child_node;
+  struct Arena *nextNode;
   uintptr_t     buffer;
   size_t        size;
   size_t        offset;
 } Arena;
 
-bool  arena_create(Arena *arena, size_t init_size, bool create_child);
-void *arena_alloc(Arena *arena, size_t size);
-void *arena_realloc(Arena *arena, void *dst, size_t old_size, size_t new_size);
-void  arena_free(Arena *arena);
+bool  ArenaInit(Arena *arena, size_t initSize, bool preAllocate);
+void *ArenaAlloc(Arena *arena, size_t size);
+void *ArenaRealloc(Arena *arena, void *dst, size_t oldSize, size_t newSize);
+void  ArenaFree(Arena *arena);
 
 #endif

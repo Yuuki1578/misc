@@ -36,15 +36,15 @@ typedef struct {
   Vector vector;
 } String;
 
-String string_with(const size_t init_capacity);
-String string_new(void);
-String string_from(const char *cstr, size_t len);
-void   string_push(String *s, const char ch);
-void   string_push_many(String *s, ...);
-void   string_push_cstr(String *s, const char *cstr);
-void   string_free(String *s);
+String StringWith(const size_t initCapacity);
+String StringNew(void);
+String StringFrom(const char *cstr, size_t len);
+void   StringPush(String *s, const char ch);
+void   StringPushMany(String *s, ...);
+void   StringPushCstr(String *s, const char *cstr);
+void   StringFree(String *s);
 
-void string_push_cstr_many(String *s, ...)
+void StringPushCstrMany(String *s, ...)
 #if !defined(_WIN32) || !defined(_WIN64)
     __attribute__((sentinel))
 #endif

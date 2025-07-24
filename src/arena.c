@@ -28,30 +28,30 @@ software. */
 #include <stdlib.h>
 #include <string.h>
 
-bool arena_create(Arena *arena, size_t init_size, bool create_child) {
-  if (arena == NULL || init_size == 0)
+bool ArenaInit(Arena *arena, size_t initSize, bool preAllocate) {
+  if (arena == NULL || initSize == 0)
     return false;
 
-  if (create_child) {
-    if ((arena->child_node = calloc(1, sizeof *arena)) == NULL)
+  if (preAllocate) {
+    if ((arena->nextNode = calloc(1, sizeof *arena)) == NULL)
       return false;
   } else {
-    arena->child_node = NULL;
+    arena->nextNode = NULL;
   }
 
-  if ((arena->buffer = (uintptr_t)calloc(init_size, 1)) == 0) {
-    if (create_child)
-      free(arena->child_node);
+  if ((arena->buffer = (uintptr_t)calloc(initSize, 1)) == 0) {
+    if (preAllocate)
+      free(arena->nextNode);
 
     return false;
   }
 
-  arena->size   = init_size;
+  arena->size   = initSize;
   arena->offset = 0;
   return true;
 }
 
-static Arena *arena_pull_last(Arena *base) {
+static Arena *ArenaPullLast(Arena *base) {
   register Arena *last;
   last = base;
 
@@ -59,8 +59,8 @@ static Arena *arena_pull_last(Arena *base) {
     return NULL;
 
   while (true) {
-    if (last->child_node != NULL)
-      last = last->child_node;
+    if (last->nextNode != NULL)
+      last = last->nextNode;
     else
       break;
   }
@@ -68,27 +68,27 @@ static Arena *arena_pull_last(Arena *base) {
   return last;
 }
 
-void *arena_alloc(Arena *arena, size_t size) {
+void *ArenaAlloc(Arena *arena, size_t size) {
   Arena *last;
   void  *result;
-  last   = arena_pull_last(arena);
+  last   = ArenaPullLast(arena);
   result = NULL;
 
   if (last == NULL || size < 1)
     return NULL;
 
   if (last->size == 0) {
-    if (!arena_create(last, size, false))
+    if (!ArenaInit(last, size, false))
       return NULL;
 
   } else if (last->size - last->offset < size) {
-    size_t base_value;
-    base_value = size >= last->size ? size : last->size;
+    size_t baseValue;
+    baseValue = size >= last->size ? size : last->size;
 
-    if ((last = arena_pull_last(last)) == NULL)
+    if ((last = ArenaPullLast(last)) == NULL)
       return NULL;
 
-    if (!arena_create(last, base_value * 2, true))
+    if (!ArenaInit(last, baseValue * 2, true))
       return NULL;
   }
 
@@ -97,11 +97,11 @@ void *arena_alloc(Arena *arena, size_t size) {
   return result;
 }
 
-void *arena_realloc(Arena *arena, void *dst, size_t old_size, size_t new_size) {
+void *ArenaRealloc(Arena *arena, void *dst, size_t old_size, size_t new_size) {
   void  *result;
-  size_t bytes_copied;
-  result       = NULL;
-  bytes_copied = 0;
+  size_t bytesCopied;
+  result      = NULL;
+  bytesCopied = 0;
 
   if (arena == NULL)
     return NULL;
@@ -110,25 +110,25 @@ void *arena_realloc(Arena *arena, void *dst, size_t old_size, size_t new_size) {
     return dst;
 
   if (dst == NULL)
-    return arena_alloc(arena, new_size);
+    return ArenaAlloc(arena, new_size);
 
-  if ((result = arena_alloc(arena, new_size)) == NULL)
+  if ((result = ArenaAlloc(arena, new_size)) == NULL)
     return NULL;
 
-  bytes_copied = old_size > new_size ? new_size : old_size;
-  memcpy(result, dst, bytes_copied);
+  bytesCopied = old_size > new_size ? new_size : old_size;
+  memcpy(result, dst, bytesCopied);
   return result;
 }
 
-void arena_free(Arena *arena) {
+void ArenaFree(Arena *arena) {
   Arena *current;
 
   for (current = arena; current != NULL;) {
     if (current->size > 0)
       free((void *)current->buffer);
 
-    if (current->child_node != NULL)
-      current = current->child_node;
+    if (current->nextNode != NULL)
+      current = current->nextNode;
     else
       break;
   }

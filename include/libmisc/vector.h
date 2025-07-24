@@ -34,21 +34,21 @@ software. */
 
 typedef struct {
   uintptr_t items;
-  size_t    item_size;
+  size_t    itemSize;
   size_t    length;
   size_t    capacity;
 } Vector;
 
-Vector vector_with(const size_t init_capacity, const size_t item_size);
-Vector vector_new(const size_t item_size);
-bool   vector_resize(Vector *v, const size_t into);
-bool   vector_make_fit(Vector *v);
-size_t vector_remaining(const Vector *v);
-void  *vector_at(const Vector *v, const size_t index);
-void   vector_push(Vector *v, const void *any);
-void   vector_free(Vector *v);
+Vector VectorWith(const size_t initCapacity, const size_t itemSize);
+Vector VectorNew(const size_t itemSize);
+bool   VectorResize(Vector *v, const size_t into);
+bool   VectorMakeFit(Vector *v);
+size_t VectorRemaining(const Vector *v);
+void  *VectorAt(const Vector *v, const size_t index);
+void   VectorPush(Vector *v, const void *any);
+void   VectorFree(Vector *v);
 
-void vector_push_many(Vector *v, ...)
+void VectorPushMany(Vector *v, ...)
 #if !defined(_WIN32) || !defined(_WIN64)
     __attribute__((sentinel))
 #endif
