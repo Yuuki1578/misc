@@ -23,8 +23,8 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#ifndef LIBMISC_VECTOR
-#define LIBMISC_VECTOR
+#ifndef MISC_VECTOR_H
+#define MISC_VECTOR_H
 
 #include <stdbool.h>
 #include <stddef.h>

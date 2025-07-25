@@ -30,16 +30,50 @@ software. */
 #include <stddef.h>
 #include <threads.h>
 
+/* Ref_Count, a reference counting type.
+By default, when you allocate something using malloc() or realloc(), the object
+is gone by the time you call free(), but in reference counting, that's not the case.
+
+You see, if you use reference counting, you can increase it's lifetime count (Strong),
+or make it dying (Weak). If the object's lifetime count is zero, the object is released,
+however if the object count is still strong, the routine to make it weak, which is RefCountWeak(),
+is only decrease the object's lifetime count by 1. 
+
+When you make the object strong/weak, there is a guard to make the count only change in one thread,
+so that the count doesn't get messed up when you use the object on a multi-threaded environment,
+and that guard is called a mutex.
+
+Before you increase/decrease the count, the routine will check if its possible to obtain a lock of a mutex.
+If it is, the mutex is locked and the current thread on which this routine is being called will wait until
+the mutex is unlocked. This way you don't encounter data race.
+
+Synopsis:
+
+-- Create an object and it's guard
+void  *RefCountAlloc(const size_t size);
+
+-- Increase the object's lifetime 
+bool   RefCountStrong(void *object);
+
+-- Decrease the object's lifetime, 0 lifetime is marked as free
+bool   RefCountWeak(void *object);
+
+-- Decrease the object's lifetime until it reach 0, effectively freeing it's object
+void   RefCountDrop(void *object);
+
+-- Get the lifetime of an object by locking the mutex
+size_t RefCountLifetime(const void *object); */
+
 typedef struct {
   mtx_t  mutex;
   void  *rawData;
   size_t count;
 } Ref_Count;
 
-void  *RefCountAlloc(size_t size);
+void  *RefCountAlloc(const size_t size);
 bool   RefCountStrong(void *object);
 bool   RefCountWeak(void *object);
 void   RefCountDrop(void *object);
-size_t RefCountLifetime(void *object);
+size_t RefCountLifetime(const void *object);
 
 #endif

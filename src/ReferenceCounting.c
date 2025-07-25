@@ -13,18 +13,17 @@ static inline bool MutexLock(mtx_t *mutex) {
 
     if (mtx_trylock(mutex) != thrd_success)
       return false;
-
-  default:
-    return true;
   }
+
+  return true;
 }
 
-static void *GetCounterAddress(void *object) {
-  uint8_t *counter = object;
+static void *GetCounterAddress(const void *object) {
+  const uint8_t *counter = object;
   return (void *)(counter - sizeof(Ref_Count));
 }
 
-void *RefCountAlloc(size_t size) {
+void *RefCountAlloc(const size_t size) {
   Ref_Count *hugePage;
   uint8_t   *slice;
 
@@ -94,7 +93,7 @@ void RefCountDrop(void *object) {
     RefCountWeak(object);
 }
 
-size_t RefCountLifetime(void *object) {
+size_t RefCountLifetime(const void *object) {
   Ref_Count *counter;
   size_t     objectLifetime;
 
@@ -109,5 +108,5 @@ size_t RefCountLifetime(void *object) {
     return 0;
   }
 
-  return counter->count;
+  return objectLifetime;
 }

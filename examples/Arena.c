@@ -32,9 +32,9 @@ int main(void) {
   Arena    arena;
   int64_t *bigChunk;
 
-  assert(arena_create(&arena, 4096, true));
+  assert(ArenaInit(&arena, 4096, true));
   bigChunk = ArenaAlloc(&arena, 64 * sizeof *bigChunk);
-  assert(big_chunk);
+  assert(bigChunk);
 
   for (int64_t i = 0; i < 64; i++) {
     bigChunk[i] = i * 2;
@@ -44,7 +44,7 @@ int main(void) {
   bigChunk = ArenaRealloc(&arena, bigChunk, 64 * sizeof *bigChunk,
                           128 * sizeof *bigChunk);
 
-  assert(big_chunk);
+  assert(bigChunk);
   for (int64_t i = 0; i < 128; i++) {
     printf("Chunk: %li\n", bigChunk[i]);
   }

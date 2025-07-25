@@ -34,7 +34,7 @@ software. */
 For a better portability, we using uintptr_t instead of raw void* on a pointer
 arithmetic context.
 
-You initialize arena using arena_create() that accept 3 arguments, with the
+You initialize arena using ArenaCreate() that accept 3 arguments, with the
 following:
 1. arena, is a pointer to a parent arena that's currently empty.
 2. init_size, is the initial size for a memory region that the arena hold.
@@ -98,18 +98,34 @@ check it before using it.
 Now for the best part is that we only need to free our arena's once and we're
 done with it. Other neat thing is that you can use the arena and pass it around
 to a bunch of function, so that you know that those section of your program need
-to allocate some memory. */
+to allocate some memory. 
+
+Synopsis:
+
+-- Initialize an empty arena to initSize and pre-allocate room for child node
+bool  ArenaInit(Arena *arena, size_t initSize, bool preAllocate);
+
+-- Allocate chunk of memory from arena
+void *ArenaAlloc(Arena *arena, size_t size);
+
+-- Reallocate a chunk of memory from oldSize to newSize
+void *ArenaRealloc(Arena *arena, void *dst, size_t oldSize, size_t newSize);
+
+-- Freeing the arena from top to bottom, you need to atleast call this routine once
+void  ArenaFree(Arena *arena);
+
+*/
 
 typedef struct Arena {
-  struct Arena *nextNode;
-  uintptr_t     buffer;
-  size_t        size;
-  size_t        offset;
+  struct Arena *nextNode; // Next arena
+  uintptr_t     buffer;   // Pointer casted to integer
+  size_t        size;     // Region size
+  size_t        offset;   // Offset from left
 } Arena;
 
-bool  ArenaInit(Arena *arena, size_t initSize, bool preAllocate);
-void *ArenaAlloc(Arena *arena, size_t size);
-void *ArenaRealloc(Arena *arena, void *dst, size_t oldSize, size_t newSize);
+bool  ArenaInit(Arena *arena, const size_t initSize, const bool preAllocate);
+void *ArenaAlloc(Arena *arena, const size_t size);
+void *ArenaRealloc(Arena *arena, const void *dst, const size_t oldSize, const size_t newSize);
 void  ArenaFree(Arena *arena);
 
 #endif
