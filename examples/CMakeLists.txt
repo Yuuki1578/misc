@@ -37,7 +37,7 @@ add_executable(reference_counting reference_counting.c)
 target_link_libraries(vector misc)
 target_link_libraries(arena misc)
 target_link_libraries(string misc)
-target_link_libraries(referencecounting misc)
+target_link_libraries(reference_counting misc)
 
 if (NOT MSVC)
   target_link_options(vector PRIVATE -fsanitize=address)
