@@ -29,17 +29,17 @@ software. */
 #include "vector.h"
 
 #ifndef CSTR
-#  define CSTR(string) ((char *)(string.vector.items))
+#    define CSTR(string) ((char *)(string.vector.items))
 #endif
 
 #define string_push_many(string, ...)                                          \
-  string_push_many_fn(string, __VA_ARGS__, '\0')
+    string_push_many_fn(string, __VA_ARGS__, '\0')
 
 #define string_pushcstr_many(string, ...)                                      \
-  string_pushcstr_many_fn(string, __VA_ARGS__, ((void)0))
+    string_pushcstr_many_fn(string, __VA_ARGS__, ((void)0))
 
 typedef struct {
-  Vector vector;
+    Vector vector;
 } String;
 
 String string_with(const size_t init_capacity);

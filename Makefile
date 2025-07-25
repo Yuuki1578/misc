@@ -65,13 +65,13 @@ EXAMPLES = \
 	examples/reference_counting.c
 
 BUILD_OBJS = $(patsubst src/%.c, build/%.o, $(C_SOURCES))
-EXAMPLE_OBJS = $(patsubst examples/%.c, build/examples/%.out, $(EXAMPLES))
+EXAMPLE_OBJS = $(patsubst examples/%.c, build/examples/%, $(EXAMPLES))
 
 .PHONY: all clean
 
 all: $(STATIC_LIB) $(BUILD_OBJS) $(EXAMPLE_OBJS)
 
-build/examples/%.out: examples/%.c $(STATIC_LIB)
+build/examples/%: examples/%.c $(STATIC_LIB)
 	$(CC) $(CFLAGS) $< -Wno-overlength-strings -fsanitize=address -Lbuild -lmisc -o $@
 
 $(STATIC_LIB): $(BUILD_OBJS)

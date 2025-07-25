@@ -26,17 +26,18 @@ software. */
 #include "../include/libmisc/string.h"
 #include <stdio.h>
 
-int main(void) {
-  String       string = string_new();
-  extern char *static_str;
+int main(void)
+{
+    String       string = string_new();
+    extern char *static_str;
 
-  string_pushcstr(&string, static_str);
-  string_push(&string, '\n');
+    string_pushcstr(&string, static_str);
+    string_push(&string, '\n');
 
-  printf("%s", CSTR(string));
-  printf("%zu\n", string.vector.capacity);
+    printf("%s", CSTR(string));
+    printf("%zu\n", string.vector.capacity);
 
-  string_free(&string);
+    string_free(&string);
 }
 
 char *static_str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ\n"

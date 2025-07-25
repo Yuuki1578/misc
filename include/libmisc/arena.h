@@ -101,15 +101,17 @@ to a bunch of function, so that you know that those section of your program need
 to allocate some memory. */
 
 typedef struct Arena {
-  struct Arena *next_node; // Next arena
-  uintptr_t     buffer;    // Pointer casted to integer
-  size_t        size;      // Region size
-  size_t        offset;    // Offset from left
+    struct Arena *next_node; // Next arena
+    uintptr_t     buffer;    // Pointer casted to integer
+    size_t        size;      // Region size
+    size_t        offset;    // Offset from left
 } Arena;
 
 bool  arena_init(Arena *arena, const size_t init_size, const bool pre_alloc);
 void *arena_alloc(Arena *arena, const size_t size);
-void *arena_realloc(Arena *arena, const void *dst, const size_t old_size,
+void *arena_realloc(Arena       *arena,
+                    const void  *dst,
+                    const size_t old_size,
                     const size_t new_size);
 void  arena_free(Arena *arena);
 

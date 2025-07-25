@@ -32,13 +32,13 @@ software. */
 
 #define VECTOR_ALLOC_FREQ 8ULL
 #define vector_push_many(vector, ...)                                          \
-  vector_push_many_fn(vector, __VA_ARGS__, ((void *)0))
+    vector_push_many_fn(vector, __VA_ARGS__, ((void *)0))
 
 typedef struct {
-  uintptr_t items;
-  size_t    item_size;
-  size_t    length;
-  size_t    capacity;
+    uintptr_t items;
+    size_t    item_size;
+    size_t    length;
+    size_t    capacity;
 } Vector;
 
 Vector vector_with(const size_t init_capacity, const size_t item_size);
@@ -49,6 +49,6 @@ size_t vector_remaining(const Vector *v);
 void  *vector_at(const Vector *v, const size_t index);
 void   vector_push(Vector *v, const void *any);
 void   vector_free(Vector *v);
-void   vector_push_many_fn(Vector *v, ...);
+void   vector_push_many_fn(Vector *v, ...); // use the macro instead!
 
 #endif
