@@ -2,6 +2,11 @@ AlignConsecutiveMacros: true
 AlignConsecutiveDeclarations: true
 AlignConsecutiveAssignments: Consecutive
 ColumnLimit: 80
-IndentWidth: 2
+IndentWidth: 4
 UseTab: Never
 IndentPPDirectives: AfterHash
+BreakBeforeBraces: Custom
+BinPackParameters: false
+AllowAllParametersOfDeclarationOnNextLine: true
+BraceWrapping:
+  AfterFunction: true

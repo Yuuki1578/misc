@@ -29,21 +29,21 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED true)
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
-add_executable(Vector Vector.c)
-add_executable(Arena Arena.c)
-add_executable(String String.c)
-add_executable(ReferenceCounting ReferenceCounting.c)
+add_executable(vector vector.c)
+add_executable(arena arena.c)
+add_executable(string string.c)
+add_executable(reference_counting reference_counting.c)
 
-target_link_libraries(Vector misc)
-target_link_libraries(Arena misc)
-target_link_libraries(String misc)
-target_link_libraries(ReferenceCounting misc)
+target_link_libraries(vector misc)
+target_link_libraries(arena misc)
+target_link_libraries(string misc)
+target_link_libraries(referencecounting misc)
 
 if (NOT MSVC)
-  target_link_options(Vector PRIVATE -fsanitize=address)
-  target_link_options(Arena PRIVATE -fsanitize=address)
-  target_link_options(String PRIVATE -fsanitize=address)
-  target_link_options(ReferenceCounting PRIVATE -fsanitize=address)
+  target_link_options(vector PRIVATE -fsanitize=address)
+  target_link_options(arena PRIVATE -fsanitize=address)
+  target_link_options(string PRIVATE -fsanitize=address)
+  target_link_options(reference_counting PRIVATE -fsanitize=address)
 
   add_compile_options(
     -O0

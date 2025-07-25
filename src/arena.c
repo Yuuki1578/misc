@@ -23,43 +23,43 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#include <libmisc/Arena.h>
+#include "../include/libmisc/arena.h"
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
-bool ArenaInit(Arena *arena, const size_t initSize, const bool preAllocate) {
-  if (arena == NULL || initSize == 0)
+bool arena_init(Arena *arena, const size_t init_size, const bool pre_alloc) {
+  if (arena == NULL || init_size == 0)
     return false;
 
-  if (preAllocate) {
-    if ((arena->nextNode = calloc(1, sizeof *arena)) == NULL)
+  if (pre_alloc) {
+    if ((arena->next_node = calloc(1, sizeof *arena)) == NULL)
       return false;
   } else {
-    arena->nextNode = NULL;
+    arena->next_node = NULL;
   }
 
-  if ((arena->buffer = (uintptr_t)calloc(initSize, 1)) == 0) {
-    if (preAllocate)
-      free(arena->nextNode);
+  if ((arena->buffer = (uintptr_t)calloc(init_size, 1)) == 0) {
+    if (pre_alloc)
+      free(arena->next_node);
 
     return false;
   }
 
-  arena->size   = initSize;
+  arena->size   = init_size;
   arena->offset = 0;
   return true;
 }
 
-static Arena *ArenaPullLast(Arena *base) {
+static Arena *arena_pull_last(Arena *base) {
   register Arena *last = base;
 
   if (last == NULL)
     return NULL;
 
   while (true) {
-    if (last->nextNode != NULL)
-      last = last->nextNode;
+    if (last->next_node != NULL)
+      last = last->next_node;
     else
       break;
   }
@@ -67,24 +67,24 @@ static Arena *ArenaPullLast(Arena *base) {
   return last;
 }
 
-void *ArenaAlloc(Arena *arena, const size_t size) {
-  Arena *last   = ArenaPullLast(arena);
+void *arena_alloc(Arena *arena, const size_t size) {
+  Arena *last   = arena_pull_last(arena);
   void  *result = NULL;
 
   if (last == NULL || size < 1)
     return NULL;
 
   if (last->size == 0) {
-    if (!ArenaInit(last, size, false))
+    if (!arena_init(last, size, false))
       return NULL;
 
   } else if (last->size - last->offset < size) {
-    size_t baseValue = size >= last->size ? size : last->size;
+    size_t base_value = size >= last->size ? size : last->size;
 
-    if ((last = ArenaPullLast(last)) == NULL)
+    if ((last = arena_pull_last(last)) == NULL)
       return NULL;
 
-    if (!ArenaInit(last, baseValue * 2, true))
+    if (!arena_init(last, base_value * 2, true))
       return NULL;
   }
 
@@ -93,9 +93,10 @@ void *ArenaAlloc(Arena *arena, const size_t size) {
   return result;
 }
 
-void *ArenaRealloc(Arena *arena, const void *dst, const size_t old_size, const size_t new_size) {
-  void  *result      = NULL;
-  size_t bytesCopied = 0;
+void *arena_realloc(Arena *arena, const void *dst, const size_t old_size,
+                    const size_t new_size) {
+  void  *result       = NULL;
+  size_t bytes_copied = 0;
 
   if (arena == NULL)
     return NULL;
@@ -104,23 +105,23 @@ void *ArenaRealloc(Arena *arena, const void *dst, const size_t old_size, const s
     return (void *)dst;
 
   if (dst == NULL)
-    return ArenaAlloc(arena, new_size);
+    return arena_alloc(arena, new_size);
 
-  if ((result = ArenaAlloc(arena, new_size)) == NULL)
+  if ((result = arena_alloc(arena, new_size)) == NULL)
     return NULL;
 
-  bytesCopied = old_size > new_size ? new_size : old_size;
-  memcpy(result, dst, bytesCopied);
+  bytes_copied = old_size > new_size ? new_size : old_size;
+  memcpy(result, dst, bytes_copied);
   return result;
 }
 
-void ArenaFree(Arena *arena) {
+void arena_free(Arena *arena) {
   for (Arena *current = arena; current != NULL;) {
     if (current->size > 0)
       free((void *)current->buffer);
 
-    if (current->nextNode != NULL)
-      current = current->nextNode;
+    if (current->next_node != NULL)
+      current = current->next_node;
     else
       break;
   }

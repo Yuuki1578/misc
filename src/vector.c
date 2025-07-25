@@ -23,46 +23,46 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#include <libmisc/Vector.h>
+#include "../include/libmisc/vector.h"
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-Vector VectorWith(const size_t initCapacity, const size_t itemSize) {
+Vector vector_with(const size_t init_capacity, const size_t item_size) {
   Vector vector = {
-      .items    = 0,
-      .itemSize = itemSize,
-      .capacity = 0,
-      .length   = 0,
+      .items     = 0,
+      .item_size = item_size,
+      .capacity  = 0,
+      .length    = 0,
   };
 
-  if (itemSize == 0)
+  if (item_size == 0)
     return (Vector){0};
-  else if (initCapacity == 0)
+  else if (init_capacity == 0)
     return vector;
 
-  vector.items = (uintptr_t)calloc(initCapacity, itemSize);
+  vector.items = (uintptr_t)calloc(init_capacity, item_size);
   if (vector.items == 0)
     return vector;
   else
-    vector.capacity = initCapacity;
+    vector.capacity = init_capacity;
 
   return vector;
 }
 
-Vector VectorNew(const size_t itemSize) {
+Vector vector_new(const size_t item_size) {
   /* Inherit */
-  return VectorWith(0, itemSize);
+  return vector_with(0, item_size);
 }
 
-bool VectorResize(Vector *v, const size_t into) {
+bool vector_resize(Vector *v, const size_t into) {
   uintptr_t tmp;
 
-  if (v == NULL || v->capacity == into || v->itemSize == 0)
+  if (v == NULL || v->capacity == into || v->item_size == 0)
     return false;
 
-  tmp = (uintptr_t)realloc((void *)v->items, v->itemSize * into);
+  tmp = (uintptr_t)realloc((void *)v->items, v->item_size * into);
   if (tmp == 0)
     return false;
 
@@ -73,45 +73,45 @@ bool VectorResize(Vector *v, const size_t into) {
   return true;
 }
 
-bool VectorMakeFit(Vector *v) {
-  return VectorResize(v, v != NULL ? v->length : 0);
+bool vector_make_fit(Vector *v) {
+  return vector_resize(v, v != NULL ? v->length : 0);
 }
 
-size_t VectorRemaining(const Vector *v) {
+size_t vector_remaining(const Vector *v) {
   if (v != NULL)
     return v->capacity - v->length;
   else
     return 0;
 }
 
-void *VectorAt(const Vector *v, const size_t index) {
+void *vector_at(const Vector *v, const size_t index) {
   if (v != NULL && index < v->length) {
     if (v->capacity > 0)
-      return (void *)(v->items + (v->itemSize * index));
+      return (void *)(v->items + (v->item_size * index));
   }
   return NULL;
 }
 
-void VectorPush(Vector *v, const void *any) {
+void vector_push(Vector *v, const void *any) {
   uintptr_t increment;
 
   if (v == NULL || any == NULL)
     return;
 
   if (v->capacity == 0) {
-    if (!VectorResize(v, VECTOR_ALLOC_FREQ))
+    if (!vector_resize(v, VECTOR_ALLOC_FREQ))
       return;
 
-  } else if (VectorRemaining(v) <= 1) {
-    if (!VectorResize(v, v->capacity * 2))
+  } else if (vector_remaining(v) <= 1) {
+    if (!vector_resize(v, v->capacity * 2))
       return;
   }
 
-  increment = v->items + (v->itemSize * v->length++);
-  memcpy((void *)increment, any, v->itemSize);
+  increment = v->items + (v->item_size * v->length++);
+  memcpy((void *)increment, any, v->item_size);
 }
 
-void VectorPushMany(Vector *v, ...) {
+void vector_push_many_fn(Vector *v, ...) {
   va_list va;
   void   *args;
 
@@ -121,12 +121,12 @@ void VectorPushMany(Vector *v, ...) {
   va_start(va, v);
 
   while ((args = va_arg(va, void *)) != NULL)
-    VectorPush(v, args);
+    vector_push(v, args);
 
   va_end(va);
 }
 
-void VectorFree(Vector *v) {
+void vector_free(Vector *v) {
   if (v != NULL) {
     if (v->items != 0)
       free((void *)v->items);

@@ -23,72 +23,32 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#include <libmisc/String.h>
-#include <limits.h>
-#include <stdarg.h>
-#include <string.h>
+#ifndef MISC_VECTOR_H
+#define MISC_VECTOR_H
 
-String StringWith(const size_t initCapacity) {
-  return (String){VectorWith(initCapacity, 1)};
-}
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
-String StringNew(void) {
-  /* Inherit */
-  return StringWith(0);
-}
+#define VECTOR_ALLOC_FREQ 8ULL
+#define vector_push_many(vector, ...)                                          \
+  vector_push_many_fn(vector, __VA_ARGS__, ((void *)0))
 
-String StringFrom(const char *cstr, size_t len) {
-  String string;
+typedef struct {
+  uintptr_t items;
+  size_t    item_size;
+  size_t    length;
+  size_t    capacity;
+} Vector;
 
-  if (cstr == NULL || len < 1)
-    return StringNew();
+Vector vector_with(const size_t init_capacity, const size_t item_size);
+Vector vector_new(const size_t item_size);
+bool   vector_resize(Vector *v, const size_t into);
+bool   vector_make_fit(Vector *v);
+size_t vector_remaining(const Vector *v);
+void  *vector_at(const Vector *v, const size_t index);
+void   vector_push(Vector *v, const void *any);
+void   vector_free(Vector *v);
+void   vector_push_many_fn(Vector *v, ...);
 
-  string = StringWith(len + 1);
-  StringPushCstr(&string, cstr);
-  return string;
-}
-
-void StringPush(String *s, const char ch) {
-  /* Inherit */
-  VectorPush((Vector *)s, &ch);
-}
-
-void StringPushMany(String *s, ...) {
-  va_list va;
-  int     ch;
-
-  va_start(va, s);
-  while ((ch = va_arg(va, int)) != '\0') {
-    if (ch >= CHAR_MIN && ch <= CHAR_MAX)
-      StringPush(s, ch);
-  }
-
-  va_end(va);
-}
-
-void StringPushCstr(String *s, const char *cstr) {
-  register size_t len;
-
-  if (cstr == NULL)
-    return;
-
-  len = strlen(cstr);
-  while (len--)
-    StringPush(s, *cstr++);
-}
-
-void StringPushCstrMany(String *s, ...) {
-  va_list va;
-  char   *cstr;
-
-  va_start(va, s);
-  while ((cstr = va_arg(va, char *)) != NULL)
-    StringPushCstr(s, cstr);
-
-  va_end(va);
-}
-
-void StringFree(String *s) {
-  /* Inherit */
-  VectorFree((Vector *)s);
-}
+#endif

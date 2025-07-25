@@ -23,31 +23,66 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#include <assert.h>
-#include <libmisc/Arena.h>
-#include <stdint.h>
-#include <stdio.h>
+#include "../include/libmisc/string.h"
+#include <limits.h>
+#include <stdarg.h>
+#include <string.h>
 
-int main(void) {
-  Arena    arena;
-  int64_t *bigChunk;
+String string_with(const size_t init_capacity) {
+  return (String){vector_with(init_capacity, 1)};
+}
 
-  assert(ArenaInit(&arena, 4096, true));
-  bigChunk = ArenaAlloc(&arena, 64 * sizeof *bigChunk);
-  assert(bigChunk);
+String string_new(void) {
+  /* Inherit */
+  return string_with(0);
+}
 
-  for (int64_t i = 0; i < 64; i++) {
-    bigChunk[i] = i * 2;
-    printf("Chunk: %li\n", bigChunk[i]);
-  }
+String string_from(const char *cstr, size_t len) {
+  String string;
 
-  bigChunk = ArenaRealloc(&arena, bigChunk, 64 * sizeof *bigChunk,
-                          128 * sizeof *bigChunk);
+  if (cstr == NULL || len < 1)
+    return string_new();
 
-  assert(bigChunk);
-  for (int64_t i = 0; i < 128; i++) {
-    printf("Chunk: %li\n", bigChunk[i]);
-  }
+  string = string_with(len + 1);
+  string_pushcstr(&string, cstr);
+  return string;
+}
 
-  ArenaFree(&arena);
+void string_push(String *s, const char ch) {
+  /* Inherit */
+  vector_push((Vector *)s, &ch);
+}
+
+void string_push_many_fn(String *s, ...) {
+  va_list va;
+  va_start(va, s);
+  vector_push_many((Vector *)s, va);
+  va_end(va);
+}
+
+void string_pushcstr(String *s, const char *cstr) {
+  register size_t len;
+
+  if (cstr == NULL)
+    return;
+
+  len = strlen(cstr);
+  while (len--)
+    string_push(s, *cstr++);
+}
+
+void string_pushcstr_many_fn(String *s, ...) {
+  va_list va;
+  char   *cstr;
+
+  va_start(va, s);
+  while ((cstr = va_arg(va, char *)) != NULL)
+    string_pushcstr(s, cstr);
+
+  va_end(va);
+}
+
+void string_free(String *s) {
+  /* Inherit */
+  vector_free((Vector *)s);
 }

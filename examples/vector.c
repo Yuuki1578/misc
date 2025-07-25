@@ -23,24 +23,24 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#include <libmisc/Vector.h>
+#include "../include/libmisc/vector.h"
 #include <stddef.h>
 #include <stdio.h>
 
 int main(void) {
-  Vector vector = VectorWith(1, sizeof(size_t));
+  Vector vector = vector_with(1, sizeof(size_t));
 
   for (size_t i = 1 << 14; i > 0; i--)
-    VectorPush(&vector, &i);
+    vector_push(&vector, &i);
 
   for (size_t i = 0, *current; i < vector.length; i++) {
-    current = VectorAt(&vector, i);
+    current = vector_at(&vector, i);
     printf("%zu\n", *current);
   }
 
   printf("Capacity:  %zu\n", vector.capacity);
   printf("Length:    %zu\n", vector.length);
-  printf("Remaining: %zu\n", VectorRemaining(&vector));
-  VectorFree(&vector);
+  printf("Remaining: %zu\n", vector_remaining(&vector));
+  vector_free(&vector);
   return 0;
 }

@@ -1,4 +1,7 @@
+third_party/
 build/
 .cache/
 .clangd/
 compile_commands.json
+nob
+nob.old
