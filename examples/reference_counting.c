@@ -7,15 +7,19 @@
 int thread_routine(void *args)
 {
     int            *data  = args;
-    struct timespec timer = {
-        .tv_sec = 1,
-    };
+    struct timespec timer = {.tv_sec = 1};
 
-    refcount_strong(data);
+    // lock
+    refcount_strong(&args);
     *data += 1;
 
-    printf("thread %d is done!\n", *data);
-    refcount_weak(data);
+    // lock
+    refcount_weak(&args);
+    printf("thread %d is done!\n"
+           "lifetime: %zu\n",
+
+           // lock
+           *data, refcount_lifetime(&args));
 
     thrd_sleep(&timer, NULL);
     return 0;
@@ -25,6 +29,7 @@ int main(void)
 {
     Vector handler_list = vector_with(10, sizeof(thrd_t));
     int   *data         = refcount_alloc(sizeof(int));
+    void  *holder       = data;
 
     for (int i = 0; i < 10; i++) {
         thrd_t handle;
@@ -39,7 +44,8 @@ int main(void)
 
     printf("now: %d\n", *data);
     vector_free(&handler_list);
+    refcount_weak(&holder);
 
-    refcount_drop(data);
-    printf("lifetime: %zu\n", refcount_lifetime(data));
+    printf("lifetime: %zu\n", refcount_lifetime(&holder));
+    printf("address: %p\n", holder);
 }

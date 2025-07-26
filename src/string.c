@@ -28,7 +28,7 @@ software. */
 #include <stdarg.h>
 #include <string.h>
 
-String string_with(const size_t init_capacity)
+String string_with(size_t init_capacity)
 {
     return (String){vector_with(init_capacity, 1)};
 }
@@ -39,7 +39,7 @@ String string_new(void)
     return string_with(0);
 }
 
-String string_from(const char *cstr, size_t len)
+String string_from(char *cstr, size_t len)
 {
     String string;
 
@@ -51,7 +51,7 @@ String string_from(const char *cstr, size_t len)
     return string;
 }
 
-void string_push(String *s, const char ch)
+void string_push(String *s, char ch)
 {
     /* Inherit */
     vector_push((Vector *)s, &ch);
@@ -65,7 +65,7 @@ void string_push_many_fn(String *s, ...)
     va_end(va);
 }
 
-void string_pushcstr(String *s, const char *cstr)
+void string_pushcstr(String *s, char *cstr)
 {
     register size_t len;
 

@@ -50,13 +50,13 @@ static inline bool refcount_lock(mtx_t *mutex)
     return true;
 }
 
-static void *get_refcount(const void *object)
+static void *get_refcount(void *object)
 {
     const uint8_t *counter = object;
     return (void *)(counter - sizeof(RefCount));
 }
 
-void *refcount_alloc(const size_t size)
+void *refcount_alloc(size_t size)
 {
     RefCount *huge_page;
     uint8_t  *slice;
@@ -77,13 +77,13 @@ void *refcount_alloc(const size_t size)
     return (void *)slice;
 }
 
-bool refcount_strong(void *object)
+bool refcount_strong(void **object)
 {
     RefCount *counter;
-    if (object == NULL)
+    if (object == NULL || *object == NULL)
         return false;
 
-    counter = get_refcount(object);
+    counter = get_refcount(*object);
     if (refcount_lock(&counter->mutex)) {
         counter->count++;
         mtx_unlock(&counter->mutex);
@@ -94,19 +94,19 @@ bool refcount_strong(void *object)
     return true;
 }
 
-bool refcount_weak(void *object)
+bool refcount_weak(void **object)
 {
     RefCount *counter;
     bool      mark_as_free;
 
-    if (object == NULL)
+    if (object == NULL || *object == NULL)
         return false;
 
-    counter      = get_refcount(object);
+    counter      = get_refcount(*object);
     mark_as_free = false;
 
     if (refcount_lock(&counter->mutex)) {
-        if (counter->count == 0)
+        if (counter->count == 1)
             mark_as_free = true;
         else
             counter->count--;
@@ -119,29 +119,33 @@ bool refcount_weak(void *object)
     if (mark_as_free) {
         mtx_destroy(&counter->mutex);
         free(counter);
+        *object = NULL;
     }
 
     return true;
 }
 
-void refcount_drop(void *object)
+void refcount_drop(void **object)
 {
-    while (refcount_lifetime(object) != 0)
+    while (object != NULL && *object != NULL) {
+        refcount_lifetime(object);
         refcount_weak(object);
+    }
 }
 
-size_t refcount_lifetime(const void *object)
+size_t refcount_lifetime(void **object)
 {
     RefCount *counter;
     size_t    object_lifetime;
 
-    if (object == NULL)
+    if (object == NULL || *object == NULL)
         return 0;
 
-    counter = get_refcount(object);
+    counter = get_refcount(*object);
     if (refcount_lock(&counter->mutex)) {
         object_lifetime = counter->count;
         mtx_unlock(&counter->mutex);
+
     } else {
         return 0;
     }

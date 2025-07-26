@@ -36,17 +36,17 @@ software. */
     string_push_many_fn(string, __VA_ARGS__, '\0')
 
 #define string_pushcstr_many(string, ...)                                      \
-    string_pushcstr_many_fn(string, __VA_ARGS__, ((void)0))
+    string_pushcstr_many_fn(string, __VA_ARGS__, ((void *)0))
 
 typedef struct {
     Vector vector;
 } String;
 
-String string_with(const size_t init_capacity);
+String string_with(size_t init_capacity);
 String string_new(void);
-String string_from(const char *cstr, size_t len);
-void   string_push(String *s, const char ch);
-void   string_pushcstr(String *s, const char *cstr);
+String string_from(char *cstr, size_t len);
+void   string_push(String *s, char ch);
+void   string_pushcstr(String *s, char *cstr);
 void   string_push_many_fn(String *s, ...);     // use the macro instead!
 void   string_pushcstr_many_fn(String *s, ...); // use the macro instead!
 void   string_free(String *s);

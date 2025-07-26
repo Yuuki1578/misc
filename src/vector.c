@@ -29,7 +29,7 @@ software. */
 #include <stdlib.h>
 #include <string.h>
 
-Vector vector_with(const size_t init_capacity, const size_t item_size)
+Vector vector_with(size_t init_capacity, size_t item_size)
 {
     Vector vector = {
         .items     = 0,
@@ -52,13 +52,13 @@ Vector vector_with(const size_t init_capacity, const size_t item_size)
     return vector;
 }
 
-Vector vector_new(const size_t item_size)
+Vector vector_new(size_t item_size)
 {
     /* Inherit */
     return vector_with(0, item_size);
 }
 
-bool vector_resize(Vector *v, const size_t into)
+bool vector_resize(Vector *v, size_t into)
 {
     uintptr_t tmp;
 
@@ -81,7 +81,7 @@ bool vector_make_fit(Vector *v)
     return vector_resize(v, v != NULL ? v->length : 0);
 }
 
-size_t vector_remaining(const Vector *v)
+size_t vector_remaining(Vector *v)
 {
     if (v != NULL)
         return v->capacity - v->length;
@@ -89,7 +89,7 @@ size_t vector_remaining(const Vector *v)
         return 0;
 }
 
-void *vector_at(const Vector *v, const size_t index)
+void *vector_at(Vector *v, size_t index)
 {
     if (v != NULL && index < v->length) {
         if (v->capacity > 0)
@@ -98,7 +98,7 @@ void *vector_at(const Vector *v, const size_t index)
     return NULL;
 }
 
-void vector_push(Vector *v, const void *any)
+void vector_push(Vector *v, void *any)
 {
     uintptr_t increment;
 

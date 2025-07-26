@@ -28,7 +28,7 @@ software. */
 #include <stdlib.h>
 #include <string.h>
 
-bool arena_init(Arena *arena, const size_t init_size, const bool pre_alloc)
+bool arena_init(Arena *arena, size_t init_size, bool pre_alloc)
 {
     if (arena == NULL || init_size == 0)
         return false;
@@ -69,7 +69,7 @@ static Arena *arena_pull_last(Arena *base)
     return last;
 }
 
-void *arena_alloc(Arena *arena, const size_t size)
+void *arena_alloc(Arena *arena, size_t size)
 {
     Arena *last   = arena_pull_last(arena);
     void  *result = NULL;
@@ -96,10 +96,7 @@ void *arena_alloc(Arena *arena, const size_t size)
     return result;
 }
 
-void *arena_realloc(Arena       *arena,
-                    const void  *dst,
-                    const size_t old_size,
-                    const size_t new_size)
+void *arena_realloc(Arena *arena, void *dst, size_t old_size, size_t new_size)
 {
     void  *result       = NULL;
     size_t bytes_copied = 0;

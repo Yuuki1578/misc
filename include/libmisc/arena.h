@@ -107,12 +107,9 @@ typedef struct Arena {
     size_t        offset;    // Offset from left
 } Arena;
 
-bool  arena_init(Arena *arena, const size_t init_size, const bool pre_alloc);
-void *arena_alloc(Arena *arena, const size_t size);
-void *arena_realloc(Arena       *arena,
-                    const void  *dst,
-                    const size_t old_size,
-                    const size_t new_size);
+bool  arena_init(Arena *arena, size_t init_size, bool pre_alloc);
+void *arena_alloc(Arena *arena, size_t size);
+void *arena_realloc(Arena *arena, void *dst, size_t old_size, size_t new_size);
 void  arena_free(Arena *arena);
 
 #endif

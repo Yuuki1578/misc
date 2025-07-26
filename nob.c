@@ -1,4 +1,5 @@
 /*
+
 ======= Copyright (c) 2024 Alexey Kutepov =======
          Licensed under the MIT License
 */
@@ -85,7 +86,7 @@ void compile_source_files(Nob_Cmd *cmd)
 {
     for (size_t i = 0; i < file_total; i++) {
         nob_cmd_append(cmd, CC, CFLAGS, srcs[i], "-c", "-o", objs[i]);
-        nob_cmd_run_sync_and_reset(cmd);
+        nob_cmd_run_async_and_reset(cmd);
     }
 }
 
@@ -99,10 +100,10 @@ void archive_object_files(Nob_Cmd *cmd)
 void create_examples(Nob_Cmd *cmd)
 {
     for (size_t i = 0; i < file_total; i++) {
-        nob_cmd_append(cmd, CC, CFLAGS, "-fsanitize=address",
+        nob_cmd_append(cmd, CC, "-O0", "-ggdb", "-fsanitize=address",
                        "-Wno-overlength-strings", "-Lbuild", "-lmisc",
                        examples[i], "-o", exe_amples[i]);
-        nob_cmd_run_sync_and_reset(cmd);
+        nob_cmd_run_async_and_reset(cmd);
     }
 }
 

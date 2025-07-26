@@ -41,13 +41,13 @@ typedef struct {
     size_t    capacity;
 } Vector;
 
-Vector vector_with(const size_t init_capacity, const size_t item_size);
-Vector vector_new(const size_t item_size);
-bool   vector_resize(Vector *v, const size_t into);
+Vector vector_with(size_t init_capacity, size_t item_size);
+Vector vector_new(size_t item_size);
+bool   vector_resize(Vector *v, size_t into);
 bool   vector_make_fit(Vector *v);
-size_t vector_remaining(const Vector *v);
-void  *vector_at(const Vector *v, const size_t index);
-void   vector_push(Vector *v, const void *any);
+size_t vector_remaining(Vector *v);
+void  *vector_at(Vector *v, size_t index);
+void   vector_push(Vector *v, void *any);
 void   vector_free(Vector *v);
 void   vector_push_many_fn(Vector *v, ...); // use the macro instead!
 
