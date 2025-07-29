@@ -28,12 +28,12 @@ software. */
 #include <stdlib.h>
 
 typedef struct {
-    mtx_t  mutex;
-    void  *raw_data;
+    mtx_t mutex;
+    void* raw_data;
     size_t count;
 } RefCount;
 
-static inline bool refcount_lock(mtx_t *mutex)
+static inline bool refcount_lock(mtx_t* mutex)
 {
     switch (mtx_trylock(mutex)) {
     case thrd_error:
@@ -50,16 +50,16 @@ static inline bool refcount_lock(mtx_t *mutex)
     return true;
 }
 
-static void *get_refcount(void *object)
+static void* get_refcount(void* object)
 {
-    const uint8_t *counter = object;
-    return (void *)(counter - sizeof(RefCount));
+    const uint8_t* counter = object;
+    return (void*)(counter - sizeof(RefCount));
 }
 
-void *refcount_alloc(size_t size)
+void* refcount_alloc(size_t size)
 {
-    RefCount *huge_page;
-    uint8_t  *slice;
+    RefCount* huge_page;
+    uint8_t* slice;
 
     if ((huge_page = calloc(sizeof *huge_page + size, 1)) == NULL)
         return NULL;
@@ -69,17 +69,17 @@ void *refcount_alloc(size_t size)
         return NULL;
     }
 
-    huge_page->count    = 1;
-    slice               = (void *)huge_page;
-    slice               = slice + sizeof *huge_page;
+    huge_page->count = 1;
+    slice = (void*)huge_page;
+    slice = slice + sizeof *huge_page;
     huge_page->raw_data = slice;
 
-    return (void *)slice;
+    return (void*)slice;
 }
 
-bool refcount_strong(void **object)
+bool refcount_strong(void** object)
 {
-    RefCount *counter;
+    RefCount* counter;
     if (object == NULL || *object == NULL)
         return false;
 
@@ -94,15 +94,15 @@ bool refcount_strong(void **object)
     return true;
 }
 
-bool refcount_weak(void **object)
+bool refcount_weak(void** object)
 {
-    RefCount *counter;
-    bool      mark_as_free;
+    RefCount* counter;
+    bool mark_as_free;
 
     if (object == NULL || *object == NULL)
         return false;
 
-    counter      = get_refcount(*object);
+    counter = get_refcount(*object);
     mark_as_free = false;
 
     if (refcount_lock(&counter->mutex)) {
@@ -125,7 +125,7 @@ bool refcount_weak(void **object)
     return true;
 }
 
-void refcount_drop(void **object)
+void refcount_drop(void** object)
 {
     while (object != NULL && *object != NULL) {
         refcount_lifetime(object);
@@ -133,10 +133,10 @@ void refcount_drop(void **object)
     }
 }
 
-size_t refcount_lifetime(void **object)
+size_t refcount_lifetime(void** object)
 {
-    RefCount *counter;
-    size_t    object_lifetime;
+    RefCount* counter;
+    size_t object_lifetime;
 
     if (object == NULL || *object == NULL)
         return 0;

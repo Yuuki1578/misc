@@ -31,24 +31,24 @@ software. */
 #include <stdint.h>
 
 #define VECTOR_ALLOC_FREQ 8ULL
-#define vector_push_many(vector, ...)                                          \
-    vector_push_many_fn(vector, __VA_ARGS__, ((void *)0))
+#define vector_push_many(vector, ...) \
+    vector_push_many_fn(vector, __VA_ARGS__, ((void*)0))
 
 typedef struct {
     uintptr_t items;
-    size_t    item_size;
-    size_t    length;
-    size_t    capacity;
+    size_t item_size;
+    size_t length;
+    size_t capacity;
 } Vector;
 
 Vector vector_with(size_t init_capacity, size_t item_size);
 Vector vector_new(size_t item_size);
-bool   vector_resize(Vector *v, size_t into);
-bool   vector_make_fit(Vector *v);
-size_t vector_remaining(Vector *v);
-void  *vector_at(Vector *v, size_t index);
-void   vector_push(Vector *v, void *any);
-void   vector_free(Vector *v);
-void   vector_push_many_fn(Vector *v, ...); // use the macro instead!
+bool vector_resize(Vector* v, size_t into);
+bool vector_make_fit(Vector* v);
+size_t vector_remaining(Vector* v);
+void* vector_at(Vector* v, size_t index);
+void vector_push(Vector* v, void* any);
+void vector_free(Vector* v);
+void vector_push_many_fn(Vector* v, ...); // use the macro instead!
 
 #endif

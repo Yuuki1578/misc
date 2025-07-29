@@ -56,10 +56,10 @@ WARNING
 Don't ever free() the reference counted object manually, if you want to release
 it all, just use refcount_drop(). */
 
-void  *refcount_alloc(size_t size);
-bool   refcount_strong(void **object);
-bool   refcount_weak(void **object);
-void   refcount_drop(void **object);
-size_t refcount_lifetime(void **object);
+void* refcount_alloc(size_t size);
+bool refcount_strong(void** object);
+bool refcount_weak(void** object);
+void refcount_drop(void** object);
+size_t refcount_lifetime(void** object);
 
 #endif

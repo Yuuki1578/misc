@@ -28,8 +28,8 @@ software. */
 
 int main(void)
 {
-    String       string = string_new();
-    extern char *static_str;
+    String string = string_new();
+    extern char* static_str;
 
     string_pushcstr(&string, static_str);
     string_push(&string, '\n');
@@ -40,7 +40,7 @@ int main(void)
     string_free(&string);
 }
 
-char *static_str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ\n"
+char* static_str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ\n"
                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ\n"
                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ\n"
                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ\n"

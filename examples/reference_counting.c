@@ -4,10 +4,10 @@
 #include <stdio.h>
 #include <time.h>
 
-int thread_routine(void *args)
+int thread_routine(void* args)
 {
-    int            *data  = args;
-    struct timespec timer = {.tv_sec = 1};
+    int* data = args;
+    struct timespec timer = { .tv_sec = 1 };
 
     // lock
     refcount_strong(&args);
@@ -18,8 +18,8 @@ int thread_routine(void *args)
     printf("thread %d is done!\n"
            "lifetime: %zu\n",
 
-           // lock
-           *data, refcount_lifetime(&args));
+        // lock
+        *data, refcount_lifetime(&args));
 
     thrd_sleep(&timer, NULL);
     return 0;
@@ -28,8 +28,8 @@ int thread_routine(void *args)
 int main(void)
 {
     Vector handler_list = vector_with(10, sizeof(thrd_t));
-    int   *data         = refcount_alloc(sizeof(int));
-    void  *holder       = data;
+    int* data = refcount_alloc(sizeof(int));
+    void* holder = data;
 
     for (int i = 0; i < 10; i++) {
         thrd_t handle;
@@ -38,7 +38,7 @@ int main(void)
     }
 
     for (size_t i = 0; i < handler_list.length; i++) {
-        thrd_t *handle = vector_at(&handler_list, i);
+        thrd_t* handle = vector_at(&handler_list, i);
         thrd_join(*handle, NULL);
     }
 

@@ -30,7 +30,7 @@ software. */
 
 String string_with(size_t init_capacity)
 {
-    return (String){vector_with(init_capacity, 1)};
+    return (String) { vector_with(init_capacity, 1) };
 }
 
 String string_new(void)
@@ -39,7 +39,7 @@ String string_new(void)
     return string_with(0);
 }
 
-String string_from(char *cstr, size_t len)
+String string_from(char* cstr, size_t len)
 {
     String string;
 
@@ -51,21 +51,21 @@ String string_from(char *cstr, size_t len)
     return string;
 }
 
-void string_push(String *s, char ch)
+void string_push(String* s, char ch)
 {
     /* Inherit */
-    vector_push((Vector *)s, &ch);
+    vector_push((Vector*)s, &ch);
 }
 
-void string_push_many_fn(String *s, ...)
+void string_push_many_fn(String* s, ...)
 {
     va_list va;
     va_start(va, s);
-    vector_push_many((Vector *)s, va);
+    vector_push_many((Vector*)s, va);
     va_end(va);
 }
 
-void string_pushcstr(String *s, char *cstr)
+void string_pushcstr(String* s, char* cstr)
 {
     register size_t len;
 
@@ -77,20 +77,20 @@ void string_pushcstr(String *s, char *cstr)
         string_push(s, *cstr++);
 }
 
-void string_pushcstr_many_fn(String *s, ...)
+void string_pushcstr_many_fn(String* s, ...)
 {
     va_list va;
-    char   *cstr;
+    char* cstr;
 
     va_start(va, s);
-    while ((cstr = va_arg(va, char *)) != NULL)
+    while ((cstr = va_arg(va, char*)) != NULL)
         string_pushcstr(s, cstr);
 
     va_end(va);
 }
 
-void string_free(String *s)
+void string_free(String* s)
 {
     /* Inherit */
-    vector_free((Vector *)s);
+    vector_free((Vector*)s);
 }

@@ -25,30 +25,17 @@ software. */
 
 #include "../include/libmisc/arena.h"
 #include <assert.h>
-#include <stdint.h>
-#include <stdio.h>
 
 int main(void)
 {
-    Arena    arena;
-    int64_t *big_chunk;
+    Arena* arena = arena_create(32);
 
-    assert(arena_init(&arena, 4096, true));
-    big_chunk = arena_alloc(&arena, 64 * sizeof *big_chunk);
-    assert(big_chunk);
+    assert(arena_alloc(&arena, 16));
+    assert(arena_alloc(&arena, 16));
+    assert(arena_alloc(&arena, 16));
+    assert(arena_alloc(&arena, 16));
+    assert(arena_alloc(&arena, 16));
+    assert(arena_alloc(&arena, 4097));
 
-    for (int64_t i = 0; i < 64; i++) {
-        big_chunk[i] = i * 2;
-        printf("Chunk: %li\n", big_chunk[i]);
-    }
-
-    big_chunk = arena_realloc(&arena, big_chunk, 64 * sizeof *big_chunk,
-                              128 * sizeof *big_chunk);
-
-    assert(big_chunk);
-    for (int64_t i = 0; i < 128; i++) {
-        printf("Chunk: %li\n", big_chunk[i]);
-    }
-
-    arena_free(&arena);
+    arena_free(arena);
 }

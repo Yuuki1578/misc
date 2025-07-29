@@ -86,7 +86,7 @@ void compile_source_files(Nob_Cmd *cmd)
 {
     for (size_t i = 0; i < file_total; i++) {
         nob_cmd_append(cmd, CC, CFLAGS, srcs[i], "-c", "-o", objs[i]);
-        nob_cmd_run_async_and_reset(cmd);
+        nob_cmd_run_sync_and_reset(cmd);
     }
 }
 
