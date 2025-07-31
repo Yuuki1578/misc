@@ -1,4 +1,4 @@
-#include "../include/libmisc/reference_counting.h"
+#include "../include/libmisc/refcount.h"
 #include "../include/libmisc/vector.h"
 #include <stddef.h>
 #include <stdio.h>

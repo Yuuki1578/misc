@@ -23,8 +23,8 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#ifndef MISC_REFERENCE_COUNTING_H
-#define MISC_REFERENCE_COUNTING_H
+#ifndef MISC_REFCOUNT_H
+#define MISC_REFCOUNT_H
 
 #include <stdbool.h>
 #include <stddef.h>

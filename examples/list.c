@@ -23,19 +23,30 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#include "../include/libmisc/arena.h"
-#include <assert.h>
+#include "../include/libmisc/list.h"
 #include <stdio.h>
+
+typedef List(long) LongList;
+
+void print_list(LongList * source)
+{
+    printf("%zu\n", source->capacity);
+    printf("%zu\n", source->length);
+    list_make_fit(*source);
+
+    printf("%zu\n", source->capacity);
+    printf("%zu\n", source->length);
+}
 
 int main(void)
 {
-    Arena *arena = arena_create(ARENA_PAGE * 2);
-    long *ptr = arena_alloc(&arena, sizeof(long));
-    *ptr = 1024;
-    printf("%li\n", *ptr);
+    LongList some_list = { 0 };
 
-    ptr = arena_realloc(&arena, ptr, sizeof(long), sizeof(long) * 2);
-    printf("%li\n", *ptr);
+    for (long i = 0, j = 1; i < 10000; i++, j++) {
+        list_append(some_list, j * 10);
+        printf("%li\n", some_list.items[i]);
+    }
 
-    arena_free(arena);
+    print_list((void*)&some_list);
+    list_free(some_list);
 }

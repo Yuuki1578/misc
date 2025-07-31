@@ -26,7 +26,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(misc
   VERSION 0.1.1
-  DESCRIPTION "Dumb C89 Library"
+  DESCRIPTION "Dumb C11 Library"
   LANGUAGES C
 )
 

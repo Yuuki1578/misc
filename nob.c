@@ -2,9 +2,8 @@
 
 ======= Copyright (c) 2024 Alexey Kutepov =======
          Licensed under the MIT License
-*/
 
-/* The Fuck Around and Find Out License v0.1
+The Fuck Around and Find Out License v0.1
 Copyright (C) 2025 Awang Destu Pradhana
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -32,93 +31,117 @@ software. */
 #define NOB_IMPLEMENTATION
 #include "third_party/nob.h/nob.h"
 
-#ifdef _MSVC_VER
-#    error MSVC is not supported
-#endif
-
 #ifdef __clang__
-#    define CC "clang"
-#    define AR "llvm-ar"
-#elif defined(__GNUC__) && !defined(__clang__)
-#    define CC "gcc"
-#    define AR "ar"
+#define CC "clang"
+#define AR "llvm-ar"
+#elif !defined(__clang__) && defined(__GNUC__)
+#define CC "gcc"
+#define AR "ar"
+#else
+#error Compiler must be either gcc or clang
 #endif
 
-#define CFLAGS                                                                 \
-    "-Wall", "-Werror", "-Wextra", "-std=c11", "-pedantic", "-ffast-math",     \
-        "-fomit-frame-pointer", "-funroll-loops", "-O2", "-march=native",      \
-        "-mtune=native"
+#define CFLAGS               \
+    "-Wall",                 \
+    "-Werror",               \
+    "-Wextra",               \
+    "-std=c23",              \
+    "-pedantic",             \
+    "-ffast-math",           \
+    "-fomit-frame-pointer",  \
+    "-funroll-loops",        \
+    "-march=native",         \
+    "-mtune=native"
 
-#define ARFLAGS    "rcs"
-#define STATIC_LIB "build/libmisc.a"
+#define ARFLAGS "rcs"
 
-static char *srcs[] = {
-    "src/arena.c",
-    "src/string.c",
-    "src/vector.c",
-    "src/reference_counting.c",
-};
+/* ===== CORE FILES ===== */
+static void core_compile_only(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char *output);
+static void core_compile_only_all(Nob_Cmd *cmd, Nob_Procs *procs);
+static void core_create_archive(Nob_Cmd *cmd, Nob_Procs *procs);
+/* ===== CORE FILES ===== */
 
-static char *objs[] = {
-    "build/arena.o",
-    "build/string.o",
-    "build/vector.o",
-    "build/reference_counting.o",
-};
-
-static char *examples[] = {
-    "examples/arena.c",
-    "examples/string.c",
-    "examples/vector.c",
-    "examples/reference_counting.c",
-};
-
-static char *exe_amples[] = {
-    "build/examples/arena",
-    "build/examples/string",
-    "build/examples/vector",
-    "build/examples/reference_counting",
-};
-
-static size_t file_total = sizeof srcs / sizeof *srcs;
-
-void compile_source_files(Nob_Cmd *cmd)
-{
-    for (size_t i = 0; i < file_total; i++) {
-        nob_cmd_append(cmd, CC, CFLAGS, srcs[i], "-c", "-o", objs[i]);
-        nob_cmd_run_sync_and_reset(cmd);
-    }
-}
-
-void archive_object_files(Nob_Cmd *cmd)
-{
-    nob_cmd_append(cmd, AR, ARFLAGS, STATIC_LIB, objs[0], objs[1], objs[2],
-                   objs[3]);
-    nob_cmd_run_sync_and_reset(cmd);
-}
-
-void create_examples(Nob_Cmd *cmd)
-{
-    for (size_t i = 0; i < file_total; i++) {
-        nob_cmd_append(cmd, CC, "-O0", "-ggdb", "-fsanitize=address",
-                       "-Wno-overlength-strings", "-Lbuild", "-lmisc",
-                       examples[i], "-o", exe_amples[i]);
-        nob_cmd_run_async_and_reset(cmd);
-    }
-}
+/* ===== EXAMPLES ===== */
+static void examples_compile(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char *output);
+static void examples_compile_all(Nob_Cmd *cmd, Nob_Procs *procs);
+/* ===== EXAMPLES ===== */
 
 int main(int argc, char **argv)
 {
-    Nob_Cmd cmd = {0};
-
     NOB_GO_REBUILD_URSELF(argc, argv);
-    nob_mkdir_if_not_exists("build");
-    nob_mkdir_if_not_exists("build/examples");
 
-    compile_source_files(&cmd);
-    archive_object_files(&cmd);
-    create_examples(&cmd);
+    Nob_Cmd cmd = {0};
+    Nob_Procs procs = {0};
 
-    nob_cmd_free(cmd);
+    core_compile_only_all(&cmd, &procs);
+    core_create_archive(&cmd, &procs);
+
+    if (!nob_procs_wait_and_reset(&procs))
+        return 1;
+
+    examples_compile_all(&cmd, &procs);
+
+    if (!nob_procs_wait_and_reset(&procs))
+        return 1;
+
     return 0;
+}
+
+static void core_compile_only(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char *output)
+{
+    nob_cc(cmd);
+    nob_cmd_append(cmd, CFLAGS, "-c");
+    nob_cc_inputs(cmd, input);
+    nob_cc_output(cmd, output);
+    nob_da_append(procs, nob_cmd_run_async_and_reset(cmd));
+}
+
+static void core_compile_only_all(Nob_Cmd *cmd, Nob_Procs *procs)
+{
+    nob_mkdir_if_not_exists("build");
+
+    core_compile_only(cmd, procs, "src/arena.c", "build/arena.o");
+    core_compile_only(cmd, procs, "src/vector.c", "build/vector.o");
+    core_compile_only(cmd, procs, "src/string.c", "build/string.o");
+    core_compile_only(cmd, procs, "src/refcount.c", "build/refcount.o");
+}
+
+static void core_create_archive(Nob_Cmd *cmd, Nob_Procs *procs)
+{
+    nob_mkdir_if_not_exists("build");
+
+    nob_cmd_append(cmd,
+        AR,
+        ARFLAGS,
+        "build/libmisc.a",
+
+        /* ===== OBJECT FILES ===== */
+        "build/arena.o",
+        "build/vector.o",
+        "build/string.o",
+        "build/refcount.o"
+        /* ===== OBJECT FILES ===== */
+    );
+
+    nob_da_append(procs, nob_cmd_run_async_and_reset(cmd));
+}
+
+static void examples_compile(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char *output)
+{
+    nob_cc(cmd);
+    nob_cmd_append(cmd, CFLAGS, "-Wno-overlength-strings");
+    nob_cc_inputs(cmd, input, "build/libmisc.a");
+    nob_cc_output(cmd, output);
+    nob_da_append(procs, nob_cmd_run_async_and_reset(cmd));
+}
+
+static void examples_compile_all(Nob_Cmd *cmd, Nob_Procs *procs)
+{
+    nob_mkdir_if_not_exists("build/examples");
+    
+    examples_compile(cmd, procs, "examples/arena.c", "build/examples/arena");
+    examples_compile(cmd, procs, "examples/vector.c", "build/examples/vector");
+    examples_compile(cmd, procs, "examples/string.c", "build/examples/string");
+    examples_compile(cmd, procs, "examples/refcount.c", "build/examples/refcount");
+    examples_compile(cmd, procs, "examples/list.c", "build/examples/list");
 }

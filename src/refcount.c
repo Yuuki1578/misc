@@ -23,7 +23,7 @@ liability, whether in an action of contract, tort or otherwise, arising from,
 out of or in connection with the software or the use or other dealings in the
 software. */
 
-#include "../include/libmisc/reference_counting.h"
+#include "../include/libmisc/refcount.h"
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -58,21 +58,21 @@ static void* get_refcount(void* object)
 
 void* refcount_alloc(size_t size)
 {
-    RefCount* huge_page;
+    RefCount* object_template;
     uint8_t* slice;
 
-    if ((huge_page = calloc(sizeof *huge_page + size, 1)) == NULL)
+    if ((object_template = calloc(sizeof *object_template + size, 1)) == NULL)
         return NULL;
 
-    if (mtx_init(&huge_page->mutex, mtx_plain) != thrd_success) {
-        free(huge_page);
+    if (mtx_init(&object_template->mutex, mtx_plain) != thrd_success) {
+        free(object_template);
         return NULL;
     }
 
-    huge_page->count = 1;
-    slice = (void*)huge_page;
-    slice = slice + sizeof *huge_page;
-    huge_page->raw_data = slice;
+    object_template->count = 1;
+    slice = (void*)object_template;
+    slice = slice + sizeof *object_template;
+    object_template->raw_data = slice;
 
     return (void*)slice;
 }
@@ -87,11 +87,10 @@ bool refcount_strong(void** object)
     if (refcount_lock(&counter->mutex)) {
         counter->count++;
         mtx_unlock(&counter->mutex);
-    } else {
-        return false;
+        return true;
     }
 
-    return true;
+    return false;
 }
 
 bool refcount_weak(void** object)
@@ -127,10 +126,8 @@ bool refcount_weak(void** object)
 
 void refcount_drop(void** object)
 {
-    while (object != NULL && *object != NULL) {
-        refcount_lifetime(object);
-        refcount_weak(object);
-    }
+    while (refcount_weak(object))
+        ;
 }
 
 size_t refcount_lifetime(void** object)
