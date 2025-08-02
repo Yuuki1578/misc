@@ -3,6 +3,9 @@
 ======= Copyright (c) 2024 Alexey Kutepov =======
          Licensed under the MIT License
 
+DISCLAIMER:
+This is a third party build system, all right reserved to the author of this library.
+
 The Fuck Around and Find Out License v0.1
 Copyright (C) 2025 Awang Destu Pradhana
 
@@ -41,53 +44,54 @@ software. */
 #error Compiler must be either gcc or clang
 #endif
 
-#define CFLAGS               \
-    "-Wall",                 \
-    "-Werror",               \
-    "-Wextra",               \
-    "-std=c23",              \
-    "-pedantic",             \
-    "-ffast-math",           \
-    "-fomit-frame-pointer",  \
-    "-funroll-loops",        \
-    "-march=native",         \
-    "-mtune=native"
+#define CFLAGS                  \
+    "-Wall",                    \
+        "-Werror",              \
+        "-Wextra",              \
+        "-std=c23",             \
+        "-pedantic",            \
+        "-ffast-math",          \
+        "-fomit-frame-pointer", \
+        "-funroll-loops",       \
+        "-march=native",        \
+        "-mtune=native"
 
 #define ARFLAGS "rcs"
 
 /* ===== CORE FILES ===== */
-static void core_compile_only(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char *output);
-static void core_compile_only_all(Nob_Cmd *cmd, Nob_Procs *procs);
-static void core_create_archive(Nob_Cmd *cmd, Nob_Procs *procs);
+static void core_compile_only(Nob_Cmd* cmd, Nob_Procs* procs, char* input, char* output);
+static void core_compile_only_all(Nob_Cmd* cmd, Nob_Procs* procs);
+static void core_create_archive(Nob_Cmd* cmd, Nob_Procs* procs);
 /* ===== CORE FILES ===== */
 
 /* ===== EXAMPLES ===== */
-static void examples_compile(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char *output);
-static void examples_compile_all(Nob_Cmd *cmd, Nob_Procs *procs);
+static void examples_compile(Nob_Cmd* cmd, Nob_Procs* procs, char* input, char* output);
+static void examples_compile_all(Nob_Cmd* cmd, Nob_Procs* procs);
 /* ===== EXAMPLES ===== */
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     NOB_GO_REBUILD_URSELF(argc, argv);
 
-    Nob_Cmd cmd = {0};
-    Nob_Procs procs = {0};
+    Nob_Cmd cmd = { 0 };
+    Nob_Procs procs = { 0 };
 
     core_compile_only_all(&cmd, &procs);
-    core_create_archive(&cmd, &procs);
+    if (!nob_procs_wait_and_reset(&procs))
+        return 1;
 
+    core_create_archive(&cmd, &procs);
     if (!nob_procs_wait_and_reset(&procs))
         return 1;
 
     examples_compile_all(&cmd, &procs);
-
     if (!nob_procs_wait_and_reset(&procs))
         return 1;
 
     return 0;
 }
 
-static void core_compile_only(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char *output)
+static void core_compile_only(Nob_Cmd* cmd, Nob_Procs* procs, char* input, char* output)
 {
     nob_cc(cmd);
     nob_cmd_append(cmd, CFLAGS, "-c");
@@ -96,7 +100,7 @@ static void core_compile_only(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char 
     nob_da_append(procs, nob_cmd_run_async_and_reset(cmd));
 }
 
-static void core_compile_only_all(Nob_Cmd *cmd, Nob_Procs *procs)
+static void core_compile_only_all(Nob_Cmd* cmd, Nob_Procs* procs)
 {
     nob_mkdir_if_not_exists("build");
 
@@ -106,7 +110,7 @@ static void core_compile_only_all(Nob_Cmd *cmd, Nob_Procs *procs)
     core_compile_only(cmd, procs, "src/refcount.c", "build/refcount.o");
 }
 
-static void core_create_archive(Nob_Cmd *cmd, Nob_Procs *procs)
+static void core_create_archive(Nob_Cmd* cmd, Nob_Procs* procs)
 {
     nob_mkdir_if_not_exists("build");
 
@@ -126,19 +130,23 @@ static void core_create_archive(Nob_Cmd *cmd, Nob_Procs *procs)
     nob_da_append(procs, nob_cmd_run_async_and_reset(cmd));
 }
 
-static void examples_compile(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char *output)
+static void examples_compile(Nob_Cmd* cmd, Nob_Procs* procs, char* input, char* output)
 {
     nob_cc(cmd);
+#ifdef __clang__
+    nob_cmd_append(cmd, CFLAGS, "-Wno-overlength-strings", "-fsanitize=address");
+#else
     nob_cmd_append(cmd, CFLAGS, "-Wno-overlength-strings");
+#endif
     nob_cc_inputs(cmd, input, "build/libmisc.a");
     nob_cc_output(cmd, output);
     nob_da_append(procs, nob_cmd_run_async_and_reset(cmd));
 }
 
-static void examples_compile_all(Nob_Cmd *cmd, Nob_Procs *procs)
+static void examples_compile_all(Nob_Cmd* cmd, Nob_Procs* procs)
 {
     nob_mkdir_if_not_exists("build/examples");
-    
+
     examples_compile(cmd, procs, "examples/arena.c", "build/examples/arena");
     examples_compile(cmd, procs, "examples/vector.c", "build/examples/vector");
     examples_compile(cmd, procs, "examples/string.c", "build/examples/string");

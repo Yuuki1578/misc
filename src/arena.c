@@ -25,86 +25,81 @@ software. */
 
 #include "../include/libmisc/arena.h"
 #include <stdlib.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <string.h>
 
-#define SELF_PTR ((void*)69)
-
-struct Arena {
-    Arena *prev, *next;
-    size_t offset, size;
-    uint8_t *data;
-};
-
-Arena *arena_new(size_t size)
+Arena* arena_create(size_t size)
 {
-    Arena *arena = calloc(1, sizeof(Arena) + size);
-    if (!arena)
+    Arena* head = calloc(1, sizeof *head + size);
+    if (!head)
         return NULL;
 
-    arena->prev = NULL;
-    arena->next = NULL;
-    arena->offset = 0;
-    arena->size = size;
-    arena->data = (uint8_t*) arena + offsetof(Arena, data);
-
-    return arena;
+    head->next = NULL;
+    head->total = size;
+    head->offset = 0;
+    head->data = ((uint8_t*)head) + sizeof *head;
+    return head;
 }
 
-static inline Arena *find_suitable(Arena *arena, size_t spec)
+static Arena* find_suitable_arena(Arena* base, size_t size, int* found)
 {
-    while (arena) {
-        if (arena->size - arena->offset >= spec)
-            return arena;
-    }
-    return NULL;
-}
-
-static inline Arena *get_last_node(Arena *arena)
-{
-    Arena *iter = arena;
-
-    if (!iter)
-        return NULL;
-
-    while (iter->next)
-        iter = iter->next;
-
-    if (iter == arena)
-        return SELF_PTR;
-
-    return iter;
-}
-
-void *arena_alloc(Arena *arena, size_t size)
-{
-    if (!arena || size < 1)
-        return NULL;
-
-    Arena
-        *suitable = find_suitable(arena, size),
-        *last = get_last_node(arena),
-        *used_arena = NULL;
-
-    if (!suitable) {
-        if (last == SELF_PTR) {
-            Arena *new_instance = arena_new(size + ARENA_PAGE);
-            new_instance->prev = arena;
-            arena->next = new_instance;
-            used_arena = new_instance;
-        } else {
-            
+    Arena *iter = base, *last_nonnull;
+    while (iter) {
+        if (remainof(iter) >= size) {
+            *found = 1;
+            return iter;
         }
+
+        last_nonnull = iter;
+        iter = iter->next;
     }
+
+    *found = 0;
+    return last_nonnull;
 }
 
-void arena_free(Arena *arena)
+void* arena_alloc(Arena* arena, size_t size)
 {
-    Arena *save = arena;
-    
-    while (save != NULL) {
-        Arena *prev = save->prev;
-        free(save);
-        save = prev;
+    Arena* suitable;
+    int found;
+    size_t size_required;
+
+    if (!arena || !size)
+        return NULL;
+
+    size_required = size >= ARENA_PAGE ? size : ARENA_PAGE;
+    suitable = find_suitable_arena(arena, size, &found);
+
+    if (!found) {
+        suitable->next = arena_create(size_required);
+        if (!suitable->next)
+            return NULL;
+
+        suitable = suitable->next;
+    }
+
+    void* result = suitable->data + suitable->offset;
+    suitable->offset += size;
+    return result;
+}
+
+void* arena_realloc(Arena* base, void* dst, size_t old_size, size_t new_size)
+{
+    void* result = arena_alloc(base, new_size);
+    if (!result)
+        return NULL;
+
+    else if (!dst)
+        return result;
+
+    memcpy(result, dst, old_size > new_size ? new_size : old_size);
+    return result;
+}
+
+void arena_free(Arena* base)
+{
+    while (base) {
+        Arena* tmp = base->next;
+        free(base);
+        base = tmp;
     }
 }

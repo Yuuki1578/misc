@@ -28,7 +28,7 @@ software. */
 
 typedef List(long) LongList;
 
-void print_list(LongList * source)
+void print_list(LongList* source)
 {
     printf("%zu\n", source->capacity);
     printf("%zu\n", source->length);

@@ -27,8 +27,10 @@ software. */
 #define MISC_ARENA_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #define ARENA_PAGE (1ULL << 12ULL)
+#define remainof(arena) ((arena)->total - (arena)->offset)
 
 /* Arena types, a single linked list that point to the next allocator.
 For a better portability, we using uintptr_t instead of raw void* on a pointer
@@ -102,6 +104,15 @@ to allocate some memory. */
 
 typedef struct Arena Arena;
 
-Arena *arena_new(size_t size);
+struct Arena {
+    Arena* next;
+    size_t total, offset;
+    uint8_t* data;
+};
+
+Arena* arena_create(size_t size);
+void* arena_alloc(Arena* base, size_t size);
+void* arena_realloc(Arena* base, void* dst, size_t old_size, size_t new_size);
+void arena_free(Arena* base);
 
 #endif

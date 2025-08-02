@@ -24,18 +24,19 @@ out of or in connection with the software or the use or other dealings in the
 software. */
 
 #include "../include/libmisc/arena.h"
-#include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 int main(void)
 {
-    Arena *arena = arena_create(ARENA_PAGE * 2);
-    long *ptr = arena_alloc(&arena, sizeof(long));
-    *ptr = 1024;
-    printf("%li\n", *ptr);
+    Arena* base_arena = arena_create(ARENA_PAGE);
+    char* str = arena_alloc(base_arena, 32);
+    strcpy(str, "Hello, world!");
+    printf("%s\n", str);
 
-    ptr = arena_realloc(&arena, ptr, sizeof(long), sizeof(long) * 2);
-    printf("%li\n", *ptr);
+    str = arena_realloc(base_arena, str, 32, 10);
+    str[9] = '\0';
+    printf("%s\n", str);
 
-    arena_free(arena);
+    arena_free(base_arena);
 }
