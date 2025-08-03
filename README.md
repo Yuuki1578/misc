@@ -1,4 +1,4 @@
-# Dumb C library for my project
+# C23 library for my daily usage
 
 ## Building
 
