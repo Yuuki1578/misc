@@ -21,6 +21,7 @@ char* read_entire_file(Arena* allocator, const char* path)
         size *= 2;
     }
 
+    fclose(handler);
     return buffer;
 }
 
@@ -30,5 +31,22 @@ int main(void)
     char* file_content = read_entire_file(allocator_context, __FILE__);
 
     printf("%s", file_content);
+
+    arena_alloc(allocator_context, 4000);
+    printf("Total size of arena: %zu\n"
+           "Offset: %zu\n"
+           "Remains: %zu\n",
+        allocator_context->next->total,
+        allocator_context->next->offset,
+        remainof(allocator_context->next));
+
+    arena_alloc(allocator_context, 4000);
+    printf("Total size of arena: %zu\n"
+           "Offset: %zu\n"
+           "Remains: %zu\n",
+        allocator_context->next->next->total,
+        allocator_context->next->next->offset,
+        remainof(allocator_context->next->next));
+
     arena_free(allocator_context);
 }

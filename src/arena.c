@@ -41,8 +41,8 @@ void* arena_alloc(Arena* arena, size_t size)
     if (!arena || !size)
         return NULL;
 
-    size_required = size >= ARENA_PAGE ? size + ARENA_PAGE : ARENA_PAGE;
     suitable = find_suitable_arena(arena, size, &found);
+    size_required = size > suitable->total ? size * 2 : suitable->total * 2;
 
     if (!found) {
         suitable->next = arena_create(size_required);
