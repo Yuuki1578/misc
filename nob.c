@@ -144,4 +144,5 @@ static void examples_compile_all(Nob_Cmd* cmd, Nob_Procs* procs)
     examples_compile(cmd, procs, "examples/refcount.c", "build/examples/refcount");
     examples_compile(cmd, procs, "examples/list.c", "build/examples/list");
     examples_compile(cmd, procs, "examples/file_reading.c", "build/examples/file_reading");
+    examples_compile(cmd, procs, "examples/numeric.c", "build/examples/numeric");
 }
