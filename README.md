@@ -29,7 +29,7 @@ clang nob.c -o nob # Or use whatever compiler you are using
 ```
 
 ## Cheatsheet
-1. ### List
+### List
 You can create a dynamic list of any type like this:
 ```c
 #include "./include/libmisc/list.h"
@@ -50,7 +50,7 @@ Or, make an alias to it:
 typedef List(char) string_t;
 ```
 
-2. ### Vector
+### Vector
 Vector is a container that contain some bytes in order
 with a fixed size for each byte. In other words, it's
 a generic vector.
@@ -80,7 +80,7 @@ int main(void)
 }
 ```
 
-3. ### Arena
+### Arena
 Arena is just an already allocated region that placed next to each other in a linked list form.
 If you allocate from arena, the arena will just chop a chunk from a region and return it to you.
 That operation is almost happen in a constant time (if the arena can fulfill the size requirement).
@@ -95,5 +95,34 @@ int main(void)
     arena_alloc(head, ARENA_PAGE); // Can fulfill the request, new list is appended with a double capacity
 
     arena_free(head); // Free it all at once
+}
+```
+
+### Manual reference counting
+MT-Safe manual reference counting using `RefCount`.
+```c
+#include "./include/libmisc/refcount.h"
+
+int main(void)
+{
+    // Create a reference counting object, lifetime now is 1.
+    void* pool = refcount_alloc(1 << 12);
+
+    if (pool != NULL) {
+        /* Retain object's lifetime.
+        Lifetime now is 2. */
+        refcount_strong(&pool);
+
+        // Use the object.
+        spawn_thread_and_use(pool);
+
+        /* Release object's lifetime.
+        Lifetime now is 1. */
+        refcount_weak(&pool);
+
+        /* Release the object's lifetime until reach 0,
+        effectively freeing the object. */
+        refcount_drop(&pool);
+    }
 }
 ```

@@ -12,10 +12,12 @@ This is a third party build system, all right reserved to the author of this lib
 
 #define NOB_IMPLEMENTATION
 #include "third_party/nob.h/nob.h"
+#include <string.h>
 
 #ifdef __clang__
 #define CC "clang"
 #define AR "llvm-ar"
+#define FMT "clang-format"
 #elif !defined(__clang__) && defined(__GNUC__)
 #define CC "gcc"
 #define AR "ar"
@@ -48,6 +50,10 @@ static void examples_compile(Nob_Cmd* cmd, Nob_Procs* procs, char* input, char* 
 static void examples_compile_all(Nob_Cmd* cmd, Nob_Procs* procs);
 /* ===== EXAMPLES ===== */
 
+/* ===== MISC ===== */
+static void source_format(Nob_Cmd* cmd);
+/* ===== MISC ===== */
+
 int main(int argc, char** argv)
 {
     NOB_GO_REBUILD_URSELF(argc, argv);
@@ -68,13 +74,17 @@ int main(int argc, char** argv)
         return 1;
 
     if (argc > 1) {
-        /* Run the executable from nob.
-        Examples:
-            ./nob file_reading
-            ./nob arena */
-        nob_cmd_append(&cmd, nob_temp_sprintf("./build/examples/%s", argv[1]));
-        if (!nob_cmd_run_sync_and_reset(&cmd))
-            return 1;
+        if (strcmp(argv[1], "--format") == 0) {
+#ifdef __clang__
+            source_format(&cmd);
+#else
+            (void)0;
+#endif
+        } else {
+            nob_cmd_append(&cmd, nob_temp_sprintf("./build/examples/%s", argv[1]));
+            if (!nob_cmd_run_sync_and_reset(&cmd))
+                return 1;
+        }
     }
 
     return 0;
@@ -145,4 +155,33 @@ static void examples_compile_all(Nob_Cmd* cmd, Nob_Procs* procs)
     examples_compile(cmd, procs, "examples/list.c", "build/examples/list");
     examples_compile(cmd, procs, "examples/file_reading.c", "build/examples/file_reading");
     examples_compile(cmd, procs, "examples/numeric.c", "build/examples/numeric");
+}
+
+#define format_file(file)                     \
+    do {                                      \
+        nob_cmd_append(cmd, FMT, file, "-i"); \
+        nob_cmd_run_async_and_reset(cmd);     \
+    } while (0);
+
+static void source_format(Nob_Cmd* cmd)
+{
+    format_file("src/arena.c");
+    format_file("src/refcount.c");
+    format_file("src/string.c");
+    format_file("src/vector.c");
+
+    format_file("include/libmisc/arena.h");
+    format_file("include/libmisc/list.h");
+    format_file("include/libmisc/refcount.h");
+    format_file("include/libmisc/string.h");
+    format_file("include/libmisc/vector.h");
+
+    format_file("examples/arena.c");
+    format_file("examples/refcount.c");
+    format_file("examples/string.c");
+    format_file("examples/vector.c");
+    format_file("examples/file_reading.c");
+    format_file("examples/numeric.c");
+
+    format_file("nob.c");
 }
