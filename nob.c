@@ -12,7 +12,6 @@ This is a third party build system, all right reserved to the author of this lib
 
 #define NOB_IMPLEMENTATION
 #include "third_party/nob.h/nob.h"
-#include <string.h>
 
 #ifdef __clang__
 #define CC "clang"
@@ -80,6 +79,13 @@ int main(int argc, char** argv)
 #else
             (void)0;
 #endif
+        } else if (strcmp(argv[1], "--clean") == 0) {
+            DIR* dir = opendir("build");
+            if (dir != NULL) {
+                closedir(dir);
+                remove("build");
+            }
+
         } else {
             nob_cmd_append(&cmd, nob_temp_sprintf("./build/examples/%s", argv[1]));
             if (!nob_cmd_run_sync_and_reset(&cmd))
@@ -107,6 +113,7 @@ static void core_compile_only_all(Nob_Cmd* cmd, Nob_Procs* procs)
     core_compile_only(cmd, procs, "src/vector.c", "build/vector.o");
     core_compile_only(cmd, procs, "src/string.c", "build/string.o");
     core_compile_only(cmd, procs, "src/refcount.c", "build/refcount.o");
+    core_compile_only(cmd, procs, "src/file.c", "build/file.o");
 }
 
 static void core_create_archive(Nob_Cmd* cmd, Nob_Procs* procs)
@@ -122,7 +129,8 @@ static void core_create_archive(Nob_Cmd* cmd, Nob_Procs* procs)
         "build/arena.o",
         "build/vector.o",
         "build/string.o",
-        "build/refcount.o"
+        "build/refcount.o",
+        "build/file.o"
         /* ===== OBJECT FILES ===== */
     );
 
@@ -155,7 +163,10 @@ static void examples_compile_all(Nob_Cmd* cmd, Nob_Procs* procs)
     examples_compile(cmd, procs, "examples/list.c", "build/examples/list");
     examples_compile(cmd, procs, "examples/file_reading.c", "build/examples/file_reading");
     examples_compile(cmd, procs, "examples/numeric.c", "build/examples/numeric");
+    examples_compile(cmd, procs, "examples/file.c", "build/examples/file");
 }
+
+#ifdef __clang__
 
 #define format_file(file)                     \
     do {                                      \
@@ -182,6 +193,9 @@ static void source_format(Nob_Cmd* cmd)
     format_file("examples/vector.c");
     format_file("examples/file_reading.c");
     format_file("examples/numeric.c");
+    format_file("examples/file.c");
 
     format_file("nob.c");
 }
+
+#endif

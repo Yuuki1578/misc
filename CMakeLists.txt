@@ -24,7 +24,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     -Wextra
     -march=native
     -mtune=native
-    -O3
+    -O2
     -g0
     -ffast-math
     -fomit-frame-pointer

@@ -7,7 +7,7 @@ CFLAGS = \
 	-Wall \
 	-Werror \
 	-Wextra \
-	-std=c11 \
+	-std=c23 \
 	-pedantic \
 	-ffast-math \
 	-fomit-frame-pointer \
@@ -31,13 +31,18 @@ C_SOURCES = \
 	src/arena.c \
 	src/vector.c \
 	src/string.c \
-	src/reference_counting.c
+	src/refcount.c \
+	src/file.c
 
 EXAMPLES = \
 	examples/arena.c \
 	examples/vector.c \
 	examples/string.c \
-	examples/reference_counting.c
+	examples/refcount.c \
+	examples/numeric.c \
+	examples/list.c \
+	examples/file_reading.c \
+	examples/file.c
 
 BUILD_OBJS = $(patsubst src/%.c, build/%.o, $(C_SOURCES))
 EXAMPLE_OBJS = $(patsubst examples/%.c, build/examples/%, $(EXAMPLES))
@@ -47,7 +52,7 @@ EXAMPLE_OBJS = $(patsubst examples/%.c, build/examples/%, $(EXAMPLES))
 all: $(STATIC_LIB) $(BUILD_OBJS) $(EXAMPLE_OBJS)
 
 build/examples/%: examples/%.c $(STATIC_LIB)
-	$(CC) $(CFLAGS) $< -Wno-overlength-strings -fsanitize=address -Lbuild -lmisc -o $@
+	$(CC) $(CFLAGS) $< -O0 -ggdb -Wno-overlength-strings -Lbuild -lmisc -o $@
 
 $(STATIC_LIB): $(BUILD_OBJS)
 	$(AR) $(ARFLAGS) $@ $^
