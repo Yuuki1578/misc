@@ -1,4 +1,4 @@
-#include "../include/libmisc/arena.h"
+#include "../misc.h"
 #include <assert.h>
 #include <stddef.h>
 #include <stdio.h>

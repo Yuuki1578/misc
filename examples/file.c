@@ -1,4 +1,4 @@
-#include "../include/libmisc/file.h"
+#include "../misc.h"
 #include <stdlib.h>
 
 int main(void)

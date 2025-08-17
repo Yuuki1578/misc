@@ -130,7 +130,7 @@ static void core_create_archive(Nob_Cmd* cmd, Nob_Procs* procs)
         "build/vector.o",
         "build/string.o",
         "build/refcount.o",
-        "build/file.o"
+        "build/file.o",
         /* ===== OBJECT FILES ===== */
     );
 
@@ -180,12 +180,14 @@ static void source_format(Nob_Cmd* cmd)
     format_file("src/refcount.c");
     format_file("src/string.c");
     format_file("src/vector.c");
+    format_file("src/file.c");
 
     format_file("include/libmisc/arena.h");
     format_file("include/libmisc/list.h");
     format_file("include/libmisc/refcount.h");
     format_file("include/libmisc/string.h");
     format_file("include/libmisc/vector.h");
+    format_file("include/libmisc/file.h");
 
     format_file("examples/arena.c");
     format_file("examples/refcount.c");

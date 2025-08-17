@@ -1,4 +1,4 @@
-#include "../include/libmisc/list.h"
+#include "../misc.h"
 #include <stdio.h>
 
 typedef List(long) LongList;

@@ -1,4 +1,4 @@
-#include "../include/libmisc/string.h"
+#include "../misc.h"
 #include <stdio.h>
 
 int main(void)

@@ -1,5 +1,4 @@
-#include "../include/libmisc/refcount.h"
-#include "../include/libmisc/vector.h"
+#include "../misc.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <time.h>

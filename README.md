@@ -1,8 +1,10 @@
 # C23 library for my daily usage
 
-## Building
+This library comes with 2 flavours, single header and archive library.
 
-1. ### Using CMake
+## Building static library
+
+1. **Using CMake**
 ```bash
 git clone https://github.com/Yuuki1578/misc --recurse-submodule
 cd misc
@@ -12,14 +14,14 @@ cmake -S . -B build
 cmake --build build
 ```
 
-2. ### Using Makefile
+2. **Using Makefile**
 ```bash
 git clone https://github.com/Yuuki1578/misc --recurse-submodule
 cd misc
 make -j8
 ```
 
-3. ### Using nob (recomended)
+3. **Using nob (recomended)**
 ```bash
 git clone https://github.com/Yuuki1578/misc --recurse-submodule
 cd misc
@@ -28,11 +30,16 @@ clang nob.c -o nob # Or use whatever compiler you are using
 ./nob
 ```
 
+## Using the header
+```c
+#include "misc.h"
+```
+
 ## Cheatsheet
 ### List
 You can create a dynamic list of any type like this:
 ```c
-#include "./include/libmisc/list.h"
+#include "misc.h"
 
 int main(void)
 {
@@ -55,7 +62,7 @@ Vector is a container that contain some bytes in order
 with a fixed size for each byte. In other words, it's
 a generic vector.
 ```c
-#include "./include/libmisc/vector.h"
+#include "misc.h"
 
 #pragma pack(1)
 struct animal {
@@ -85,7 +92,7 @@ Arena is just an already allocated region that placed next to each other in a li
 If you allocate from arena, the arena will just chop a chunk from a region and return it to you.
 That operation is almost happen in a constant time (if the arena can fulfill the size requirement).
 ```c
-#include "./include/libmisc/arena.h"
+#include "misc.h"
 
 int main(void)
 {
@@ -101,7 +108,7 @@ int main(void)
 ### Manual reference counting
 MT-Safe manual reference counting using `RefCount`.
 ```c
-#include "./include/libmisc/refcount.h"
+#include "misc.h"
 
 int main(void)
 {

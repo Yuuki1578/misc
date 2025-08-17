@@ -32,7 +32,7 @@ C_SOURCES = \
 	src/vector.c \
 	src/string.c \
 	src/refcount.c \
-	src/file.c
+	src/file.c \
 
 EXAMPLES = \
 	examples/arena.c \
@@ -42,7 +42,7 @@ EXAMPLES = \
 	examples/numeric.c \
 	examples/list.c \
 	examples/file_reading.c \
-	examples/file.c
+	examples/file.c \
 
 BUILD_OBJS = $(patsubst src/%.c, build/%.o, $(C_SOURCES))
 EXAMPLE_OBJS = $(patsubst examples/%.c, build/examples/%, $(EXAMPLES))
