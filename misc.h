@@ -9,9 +9,6 @@ Licensed under MIT License. All right reserved.
 #define MISC_H
 
 /* ===== ARENA SECTION ===== */
-#ifndef MISC_ARENA
-#define MISC_ARENA
-
 #include <stddef.h>
 #include <stdint.h>
 
@@ -105,7 +102,7 @@ struct Arena {
 #include <stdlib.h>
 #include <string.h>
 
-inline Arena* arena_create(size_t size)
+static inline Arena* arena_create(size_t size)
 {
     Arena* head = calloc(1, sizeof *head + size);
     if (!head)
@@ -118,7 +115,7 @@ inline Arena* arena_create(size_t size)
     return head;
 }
 
-inline Arena* find_suitable_arena(Arena* base, size_t size, int* found)
+static inline Arena* find_suitable_arena(Arena* base, size_t size, int* found)
 {
     Arena *iter = base, *last_nonnull;
     while (iter) {
@@ -135,7 +132,7 @@ inline Arena* find_suitable_arena(Arena* base, size_t size, int* found)
     return last_nonnull;
 }
 
-inline void* arena_alloc(Arena* arena, size_t size)
+static inline void* arena_alloc(Arena* arena, size_t size)
 {
     Arena* suitable;
     int found;
@@ -160,7 +157,7 @@ inline void* arena_alloc(Arena* arena, size_t size)
     return result;
 }
 
-inline void* arena_realloc(Arena* base, void* dst, size_t old_size, size_t new_size)
+static inline void* arena_realloc(Arena* base, void* dst, size_t old_size, size_t new_size)
 {
     void* result = arena_alloc(base, new_size);
     if (!result)
@@ -173,7 +170,7 @@ inline void* arena_realloc(Arena* base, void* dst, size_t old_size, size_t new_s
     return result;
 }
 
-inline void arena_free(Arena* base)
+static inline void arena_free(Arena* base)
 {
     while (base) {
         Arena* tmp = base->next;
@@ -181,19 +178,17 @@ inline void arena_free(Arena* base)
         base = tmp;
     }
 }
-
-#endif
 /* ===== ARENA SECTION ===== */
 
 /* ===== VECTOR SECTION ===== */
-#ifndef MISC_VECTOR
-#define MISC_VECTOR
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
+#ifndef VECTOR_ALLOC_FREQ
 #define VECTOR_ALLOC_FREQ 8ULL
+#endif
+
 #define vector_push_many(vector, ...) \
     vector_push_many_fn(vector, __VA_ARGS__, ((void*)0))
 
@@ -214,7 +209,7 @@ appending/getting the item requiring the vector to copy each bytes from the spec
 But that cons is paid off because it can store almost anything you can imagine. */
 
 typedef struct {
-    uintptr_t items;
+    uint8_t* items;
     size_t item_size;
     size_t length;
     size_t capacity;
@@ -225,10 +220,10 @@ typedef struct {
 #include <stdlib.h>
 #include <string.h>
 
-inline Vector vector_with(size_t init_capacity, size_t item_size)
+static inline Vector vector_with(size_t init_capacity, size_t item_size)
 {
     Vector vector = {
-        .items = 0,
+        .items = NULL,
         .item_size = item_size,
         .capacity = 0,
         .length = 0,
@@ -239,7 +234,7 @@ inline Vector vector_with(size_t init_capacity, size_t item_size)
     else if (init_capacity == 0)
         return vector;
 
-    vector.items = (uintptr_t)calloc(init_capacity, item_size);
+    vector.items = calloc(init_capacity, item_size);
     if (vector.items == 0)
         return vector;
     else
@@ -248,20 +243,20 @@ inline Vector vector_with(size_t init_capacity, size_t item_size)
     return vector;
 }
 
-inline Vector vector_new(size_t item_size)
+static inline Vector vector_new(size_t item_size)
 {
     /* Inherit */
     return vector_with(0, item_size);
 }
 
-inline bool vector_resize(Vector* v, size_t into)
+static inline bool vector_resize(Vector* v, size_t into)
 {
-    uintptr_t tmp;
+    uint8_t* tmp;
 
     if (v == NULL || v->capacity == into || v->item_size == 0)
         return false;
 
-    tmp = (uintptr_t)realloc((void*)v->items, v->item_size * into);
+    tmp = realloc(v->items, v->item_size * into);
     if (tmp == 0)
         return false;
 
@@ -272,12 +267,12 @@ inline bool vector_resize(Vector* v, size_t into)
     return true;
 }
 
-inline bool vector_make_fit(Vector* v)
+static inline bool vector_make_fit(Vector* v)
 {
     return vector_resize(v, v != NULL ? v->length : 0);
 }
 
-inline size_t vector_remaining(Vector* v)
+static inline size_t vector_remaining(Vector* v)
 {
     if (v != NULL)
         return v->capacity - v->length;
@@ -285,18 +280,18 @@ inline size_t vector_remaining(Vector* v)
         return 0;
 }
 
-inline void* vector_at(Vector* v, size_t index)
+static inline void* vector_at(Vector* v, size_t index)
 {
     if (v != NULL && index < v->length) {
         if (v->capacity > 0)
-            return (void*)(v->items + (v->item_size * index));
+            return (v->items + (v->item_size * index));
     }
     return NULL;
 }
 
-inline void vector_push(Vector* v, void* any)
+static inline void vector_push(Vector* v, void* any)
 {
-    uintptr_t increment;
+    uint8_t* increment;
 
     if (v == NULL || any == NULL)
         return;
@@ -311,10 +306,10 @@ inline void vector_push(Vector* v, void* any)
     }
 
     increment = v->items + (v->item_size * v->length++);
-    memcpy((void*)increment, any, v->item_size);
+    memcpy(increment, any, v->item_size);
 }
 
-inline void vector_push_many_fn(Vector* v, ...)
+static inline void vector_push_many_fn(Vector* v, ...)
 {
     va_list va;
     void* args;
@@ -330,24 +325,19 @@ inline void vector_push_many_fn(Vector* v, ...)
     va_end(va);
 }
 
-inline void vector_free(Vector* v)
+static inline void vector_free(Vector* v)
 {
     if (v != NULL) {
-        if (v->items != 0)
-            free((void*)v->items);
+        if (v->items != NULL)
+            free(v->items);
         v->items = 0;
         v->capacity = 0;
         v->length = 0;
     }
 }
-
-#endif
 /* ===== VECTOR SECTION ===== */
 
 /* ===== STRING SECTION ===== */
-#ifndef MISC_STRING
-#define MISC_STRING
-
 #ifndef CSTR
 #define CSTR(string) ((char*)(string.vector.items))
 #endif
@@ -366,24 +356,24 @@ typedef struct {
 #include <stdarg.h>
 #include <string.h>
 
-inline String string_with(size_t init_capacity)
+static inline String string_with(size_t init_capacity)
 {
     return (String) { vector_with(init_capacity, 1) };
 }
 
-inline String string_new(void)
+static inline String string_new(void)
 {
     /* Inherit */
     return string_with(0);
 }
 
-inline void string_push(String* s, char ch)
+static inline void string_push(String* s, char ch)
 {
     /* Inherit */
     vector_push((Vector*)s, &ch);
 }
 
-inline void string_push_many_fn(String* s, ...)
+static inline void string_push_many_fn(String* s, ...)
 {
     va_list va;
     va_start(va, s);
@@ -391,7 +381,7 @@ inline void string_push_many_fn(String* s, ...)
     va_end(va);
 }
 
-inline void string_pushcstr(String* s, char* cstr)
+static inline void string_pushcstr(String* s, char* cstr)
 {
     register size_t len;
 
@@ -403,7 +393,7 @@ inline void string_pushcstr(String* s, char* cstr)
         string_push(s, *cstr++);
 }
 
-inline void string_pushcstr_many_fn(String* s, ...)
+static inline void string_pushcstr_many_fn(String* s, ...)
 {
     va_list va;
     char* cstr;
@@ -415,13 +405,13 @@ inline void string_pushcstr_many_fn(String* s, ...)
     va_end(va);
 }
 
-inline void string_free(String* s)
+static inline void string_free(String* s)
 {
     /* Inherit */
     vector_free((Vector*)s);
 }
 
-inline String string_from(char* cstr, size_t len)
+static inline String string_from(char* cstr, size_t len)
 {
     String string;
 
@@ -432,14 +422,9 @@ inline String string_from(char* cstr, size_t len)
     string_pushcstr(&string, cstr);
     return string;
 }
-
-#endif
 /* ===== STRING SECTION ===== */
 
 /* ===== REFCOUNT SECTION ===== */
-#ifndef MISC_REFCOUNT
-#define MISC_REFCOUNT
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <threads.h>
@@ -479,7 +464,7 @@ typedef struct {
     size_t count;
 } RefCount;
 
-inline bool refcount_lock(mtx_t* mutex)
+static inline bool refcount_lock(mtx_t* mutex)
 {
     switch (mtx_trylock(mutex)) {
     case thrd_error:
@@ -496,13 +481,13 @@ inline bool refcount_lock(mtx_t* mutex)
     return true;
 }
 
-inline void* get_refcount(void* object)
+static inline void* get_refcount(void* object)
 {
     const uint8_t* counter = object;
     return (void*)(counter - sizeof(RefCount));
 }
 
-inline void* refcount_alloc(size_t size)
+static inline void* refcount_alloc(size_t size)
 {
     RefCount* object_template;
     uint8_t* slice;
@@ -523,7 +508,7 @@ inline void* refcount_alloc(size_t size)
     return (void*)slice;
 }
 
-inline bool refcount_strong(void** object)
+static inline bool refcount_strong(void** object)
 {
     RefCount* counter;
     if (object == NULL || *object == NULL)
@@ -539,7 +524,7 @@ inline bool refcount_strong(void** object)
     return false;
 }
 
-inline bool refcount_weak(void** object)
+static inline bool refcount_weak(void** object)
 {
     RefCount* counter;
     bool mark_as_free;
@@ -570,13 +555,13 @@ inline bool refcount_weak(void** object)
     return true;
 }
 
-inline void refcount_drop(void** object)
+static inline void refcount_drop(void** object)
 {
     while (refcount_weak(object))
         ;
 }
 
-inline size_t refcount_lifetime(void** object)
+static inline size_t refcount_lifetime(void** object)
 {
     RefCount* counter;
     size_t object_lifetime;
@@ -595,18 +580,15 @@ inline size_t refcount_lifetime(void** object)
 
     return object_lifetime;
 }
-
-#endif
 /* ===== REFCOUNT SECTION ===== */
 
 /* ===== LIST SECTION ===== */
-#ifndef MISC_LIST
-#define MISC_LIST
-
 #include <stddef.h>
 #include <stdlib.h>
 
+#ifndef MISC_LIST_FREQ
 #define MISC_LIST_FREQ (8ULL)
+#endif
 
 /* NOTE:
 The macros below are works on all struct implementing the field listed here:
@@ -680,18 +662,13 @@ Examples:
         (list).capacity = 0;                             \
         (list).length = 0;                               \
     } while (0)
-
-#endif
 /* ===== LIST SECTION ===== */
 
 /* ===== FILE SECTION ===== */
-#ifndef MISC_FILE
-#define MISC_FILE
-
 #include <stdio.h>
 #include <stdlib.h>
 
-inline char* read_from_stream(FILE* file)
+static inline char* read_from_stream(FILE* file)
 {
     size_t bufsiz = BUFSIZ, readed = 0;
     char* buffer;
@@ -719,7 +696,7 @@ inline char* read_from_stream(FILE* file)
     return buffer;
 }
 
-inline char* file_readall(const char* path)
+static inline char* file_readall(const char* path)
 {
     FILE* file = fopen(path, "rb");
     if (file != NULL) {
@@ -732,12 +709,10 @@ inline char* file_readall(const char* path)
     return NULL;
 }
 
-inline char* file_readfrom(FILE* file)
+static inline char* file_readfrom(FILE* file)
 {
     return read_from_stream(file);
 }
-
-#endif
 /* ===== FILE SECTION ===== */
 
 #endif
