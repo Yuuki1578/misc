@@ -1,11 +1,13 @@
 #include "../misc.h"
-#include <stdlib.h>
 
-int main(void)
+int main(int argc, char** argv)
 {
-    char* file_content = file_read_all(__FILE__);
-    if (file_content != NULL) {
-        printf("%s", file_content);
-        free(file_content);
+    if (argc < 2)
+        return 1;
+
+    char* content = file_read_all(argv[1]);
+    if (content != NULL) {
+        printf("%s", content);
+        free(content);
     }
 }

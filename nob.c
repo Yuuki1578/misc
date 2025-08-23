@@ -15,12 +15,10 @@ This is a third party build system, all right reserved to the author of this lib
 
 #ifdef __clang__
 #define CC "clang"
-#define AR "llvm-ar"
 #define FMT "clang-format"
 #define ADDRESS_SANITIZER
 #elif !defined(__clang__) && defined(__GNUC__)
 #define CC "gcc"
-#define AR "ar"
 #else
 #error Compiler must be either gcc or clang
 #endif
@@ -36,8 +34,6 @@ This is a third party build system, all right reserved to the author of this lib
         "-funroll-loops",       \
         "-march=native",        \
         "-mtune=native"
-
-#define ARFLAGS "rcs"
 
 /* ===== EXAMPLES ===== */
 static void examples_compile(Nob_Cmd* cmd, Nob_Procs* procs, char* input, char* output);

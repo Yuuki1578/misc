@@ -8,10 +8,17 @@ Licensed under MIT License. All right reserved.
 #ifndef MISC_H
 #define MISC_H
 
-/* ===== ARENA SECTION ===== */
+#include <limits.h>
+#include <stdarg.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <threads.h>
 
+/* ===== ARENA SECTION ===== */
 #define ARENA_PAGE (1ULL << 12ULL)
 #define remain_of(arena) ((arena)->total - (arena)->offset)
 
@@ -99,9 +106,6 @@ struct Arena {
     uint8_t* data;
 };
 
-#include <stdlib.h>
-#include <string.h>
-
 static inline Arena* arena_create(size_t size)
 {
     Arena* head = (Arena*)calloc(1, sizeof *head + size);
@@ -181,10 +185,6 @@ static inline void arena_free(Arena* base)
 /* ===== ARENA SECTION ===== */
 
 /* ===== VECTOR SECTION ===== */
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-
 #ifndef VECTOR_ALLOC_FREQ
 #define VECTOR_ALLOC_FREQ 8ULL
 #endif
@@ -214,11 +214,6 @@ typedef struct {
     size_t length;
     size_t capacity;
 } Vector;
-
-#include <stdarg.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 
 static inline Vector vector_with(size_t init_capacity, size_t item_size)
 {
@@ -350,10 +345,6 @@ typedef struct {
     Vector vector;
 } String;
 
-#include <limits.h>
-#include <stdarg.h>
-#include <string.h>
-
 static inline String string_with(size_t init_capacity)
 {
     return (String) { vector_with(init_capacity, 1) };
@@ -423,10 +414,6 @@ static inline String string_from(char* cstr, size_t len)
 /* ===== STRING SECTION ===== */
 
 /* ===== REFCOUNT SECTION ===== */
-#include <stdbool.h>
-#include <stddef.h>
-#include <threads.h>
-
 /* This is the implementation of a reference counting
 originally https://github.com/jeraymond/refcount.git
 
@@ -452,9 +439,6 @@ unlocked. This way you don't encounter data race.
 WARNING
 Don't ever free() the reference counted object manually, if you want to release
 it all, just use refcount_drop(). */
-
-#include <stdint.h>
-#include <stdlib.h>
 
 typedef struct {
     mtx_t mutex;
@@ -581,9 +565,6 @@ static inline size_t refcount_lifetime(void** object)
 /* ===== REFCOUNT SECTION ===== */
 
 /* ===== LIST SECTION ===== */
-#include <stddef.h>
-#include <stdlib.h>
-
 #ifndef MISC_LIST_FREQ
 #define MISC_LIST_FREQ (8ULL)
 #endif
@@ -663,35 +644,30 @@ Examples:
 /* ===== LIST SECTION ===== */
 
 /* ===== FILE SECTION ===== */
-#include <stdio.h>
-#include <stdlib.h>
-
 static inline char* __read_from_stream(FILE* file)
 {
-    size_t bufsiz = BUFSIZ, readed = 0;
-    char* buffer;
+    size_t offset = 0, size = BUFSIZ;
+    char *buffer = (char*)calloc(size + 1, 1), *tmp;
 
-    if (file == NULL)
-        return NULL;
+    if (buffer != NULL) {
+        while ((offset += fread(buffer, 1, BUFSIZ, file)) > 0) {
+            tmp = (char*)realloc(buffer, size * 2);
+            if (tmp == NULL)
+                return buffer;
 
-    if ((buffer = (char*)calloc(1, bufsiz + 1)) == NULL)
-        return NULL;
+            buffer = tmp;
+            size *= 2;
+        }
 
-    while ((readed += fread(buffer + readed, 1, bufsiz, file)) > 0) {
-        char* temporary = (char*)realloc(buffer, bufsiz * 2);
-        if (temporary == NULL)
+        tmp = (char*)realloc(buffer, offset + 1);
+        if (tmp == NULL)
             return buffer;
 
-        buffer = temporary;
-        bufsiz *= 2;
+        tmp[offset] = '\0';
+        return tmp;
     }
 
-    buffer = (char*)realloc(buffer, readed + 1);
-    if (buffer == NULL)
-        return NULL;
-
-    buffer[readed] = '\0';
-    return buffer;
+    return NULL;
 }
 
 static inline char* file_read_all(const char* path)
@@ -709,16 +685,11 @@ static inline char* file_read_all(const char* path)
 
 static inline char* file_read_from(FILE* file)
 {
-    return __read_from_stream(file);
+    return file != NULL ? __read_from_stream(file) : NULL;
 }
 /* ===== FILE SECTION ===== */
 
 /* ===== LINKED LIST SECTION ===== */
-
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-
 #if !defined(address_of) && !defined(__cplusplus)
 #define address_of(T) (&(typeof(T)) { T })
 #endif
@@ -843,6 +814,135 @@ static inline void* ll_get_item(Linked_List* dst, size_t index)
         return NULL;
 }
 
+typedef struct Raw_Double_Link Raw_Double_Link;
+struct Raw_Double_Link {
+    Raw_Double_Link *prev, *next;
+    void* item;
+};
+
+static inline Raw_Double_Link* rdl_new(void* inhabitan, size_t size)
+{
+    if (inhabitan == NULL || size < 1)
+        return NULL;
+
+    Raw_Double_Link* chain = NULL;
+    uint8_t* room = (uint8_t*)calloc(1, sizeof(Raw_Double_Link) + size);
+
+    if (room != NULL) {
+        chain = (Raw_Double_Link*)(room + 0);
+        chain->prev = NULL;
+        chain->next = NULL;
+        chain->item = room + sizeof(Raw_Double_Link);
+        memcpy(chain->item, inhabitan, size);
+    }
+
+    return chain;
+}
+
+static inline bool rdl_append(Raw_Double_Link** tail, void* inhabitan, size_t size)
+{
+    if (tail == NULL || *tail == NULL || inhabitan == NULL || size < 1)
+        return false;
+
+    Raw_Double_Link* latter = rdl_new(inhabitan, size);
+    if (latter != NULL) {
+        Raw_Double_Link* now = *tail;
+        now->next = latter;
+        latter->prev = now;
+        *tail = latter;
+
+        return true;
+    }
+
+    return false;
+}
+
+static inline bool rdl_prepend(Raw_Double_Link** tail, void* inhabitan, size_t size)
+{
+    if (tail == NULL || *tail == NULL || inhabitan == NULL || size < 1)
+        return false;
+
+    Raw_Double_Link* new_head = rdl_new(inhabitan, size);
+    if (new_head != NULL) {
+        Raw_Double_Link* now = *tail;
+        now->prev = new_head;
+        new_head->next = now;
+        *tail = new_head;
+
+        return true;
+    }
+
+    return false;
+}
+
+static inline Raw_Double_Link* rdl_rewind(Raw_Double_Link** tail)
+{
+    if (tail == NULL || *tail == NULL)
+        return NULL;
+
+    while ((*tail)->prev != NULL)
+        (*tail) = (*tail)->prev;
+
+    return *tail;
+}
+
+static inline void rdl_free(Raw_Double_Link* tail)
+{
+    while (tail != NULL) {
+        Raw_Double_Link* prev = tail->prev;
+        free(tail);
+        tail = prev;
+    }
+}
+
+typedef struct {
+    Raw_Double_Link *head, *tail;
+    size_t item_size, length;
+} Double_Link;
+
+static inline void dl_append(Double_Link* dst, void* item)
+{
+    if (dst == NULL || dst->item_size < 1 || item == NULL)
+        return;
+
+    if (dst->tail == NULL) {
+        if ((dst->tail = rdl_new(item, dst->item_size)) == NULL)
+            return;
+
+        dst->head = dst->tail;
+    } else {
+        if (!rdl_append(&dst->tail, item, dst->item_size))
+            return;
+    }
+
+    dst->length++;
+}
+
+static inline void dl_prepend(Double_Link* dst, void* item)
+{
+    if (dst == NULL || item == NULL)
+        return;
+
+    if (dst->tail == NULL) {
+        if ((dst->tail = rdl_new(item, dst->item_size)) == NULL)
+            return;
+
+        dst->head = dst->tail;
+    } else {
+        if (!rdl_prepend(&dst->tail, item, dst->item_size))
+            return;
+
+        dst->head = dst->tail;
+    }
+
+    dst->length++;
+}
+
+static inline void dl_free(Double_Link* dst)
+{
+    if (dst != NULL)
+        rdl_free(dst->tail);
+}
 /* ===== LINKED LIST SECTION ===== */
 
 #endif
