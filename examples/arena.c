@@ -19,20 +19,20 @@ int main(void)
         printf("%s\n", large);
         printf("Size: %zu\n", base_arena->next->total);
         printf("Offset: %zu\n", base_arena->next->offset);
-        printf("Remains: %zu\n", remainof(base_arena->next));
+        printf("Remains: %zu\n", remain_of(base_arena->next));
         putchar('\n');
     }
 
     arena_alloc(base_arena, ARENA_PAGE);
     printf("Size: %zu\n", base_arena->next->total);
     printf("Offset: %zu\n", base_arena->next->offset);
-    printf("Remains: %zu\n", remainof(base_arena->next));
+    printf("Remains: %zu\n", remain_of(base_arena->next));
     putchar('\n');
 
     arena_alloc(base_arena, ARENA_PAGE + 1);
     printf("Size: %zu\n", base_arena->next->next->total);
     printf("Offset: %zu\n", base_arena->next->next->offset);
-    printf("Remains: %zu\n", remainof(base_arena->next->next));
+    printf("Remains: %zu\n", remain_of(base_arena->next->next));
     putchar('\n');
 
     arena_free(base_arena);

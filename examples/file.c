@@ -3,7 +3,7 @@
 
 int main(void)
 {
-    char* file_content = file_readall(__FILE__);
+    char* file_content = file_read_all(__FILE__);
     if (file_content != NULL) {
         printf("%s", file_content);
         free(file_content);

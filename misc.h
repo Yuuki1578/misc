@@ -13,7 +13,7 @@ Licensed under MIT License. All right reserved.
 #include <stdint.h>
 
 #define ARENA_PAGE (1ULL << 12ULL)
-#define remainof(arena) ((arena)->total - (arena)->offset)
+#define remain_of(arena) ((arena)->total - (arena)->offset)
 
 /* Arena types, a single linked list that point to the next allocator.
 For a better portability, we using uint8_t* instead of raw void* on a pointer
@@ -104,7 +104,7 @@ struct Arena {
 
 static inline Arena* arena_create(size_t size)
 {
-    Arena* head = calloc(1, sizeof *head + size);
+    Arena* head = (Arena*)calloc(1, sizeof *head + size);
     if (!head)
         return NULL;
 
@@ -115,11 +115,11 @@ static inline Arena* arena_create(size_t size)
     return head;
 }
 
-static inline Arena* find_suitable_arena(Arena* base, size_t size, int* found)
+static inline Arena* __find_suitable_arena(Arena* base, size_t size, int* found)
 {
     Arena *iter = base, *last_nonnull;
     while (iter) {
-        if (remainof(iter) >= size) {
+        if (remain_of(iter) >= size) {
             *found = 1;
             return iter;
         }
@@ -141,7 +141,7 @@ static inline void* arena_alloc(Arena* arena, size_t size)
     if (!arena || !size)
         return NULL;
 
-    suitable = find_suitable_arena(arena, size, &found);
+    suitable = __find_suitable_arena(arena, size, &found);
     size_required = size > suitable->total ? size * 2 : suitable->total * 2;
 
     if (!found) {
@@ -225,8 +225,6 @@ static inline Vector vector_with(size_t init_capacity, size_t item_size)
     Vector vector = {
         .items = NULL,
         .item_size = item_size,
-        .capacity = 0,
-        .length = 0,
     };
 
     if (item_size == 0)
@@ -234,7 +232,7 @@ static inline Vector vector_with(size_t init_capacity, size_t item_size)
     else if (init_capacity == 0)
         return vector;
 
-    vector.items = calloc(init_capacity, item_size);
+    vector.items = (uint8_t*)calloc(init_capacity, item_size);
     if (vector.items == 0)
         return vector;
     else
@@ -256,7 +254,7 @@ static inline bool vector_resize(Vector* v, size_t into)
     if (v == NULL || v->capacity == into || v->item_size == 0)
         return false;
 
-    tmp = realloc(v->items, v->item_size * into);
+    tmp = (uint8_t*)realloc(v->items, v->item_size * into);
     if (tmp == 0)
         return false;
 
@@ -383,7 +381,7 @@ static inline void string_push_many_fn(String* s, ...)
 
 static inline void string_pushcstr(String* s, char* cstr)
 {
-    register size_t len;
+    size_t len;
 
     if (cstr == NULL)
         return;
@@ -462,9 +460,9 @@ typedef struct {
     mtx_t mutex;
     void* raw_data;
     size_t count;
-} RefCount;
+} Ref_Count;
 
-static inline bool refcount_lock(mtx_t* mutex)
+static inline bool __refcount_lock(mtx_t* mutex)
 {
     switch (mtx_trylock(mutex)) {
     case thrd_error:
@@ -481,18 +479,18 @@ static inline bool refcount_lock(mtx_t* mutex)
     return true;
 }
 
-static inline void* get_refcount(void* object)
+static inline void* __get_refcount(void* object)
 {
-    const uint8_t* counter = object;
-    return (void*)(counter - sizeof(RefCount));
+    const uint8_t* counter = (uint8_t*)object;
+    return (void*)(counter - sizeof(Ref_Count));
 }
 
 static inline void* refcount_alloc(size_t size)
 {
-    RefCount* object_template;
+    Ref_Count* object_template;
     uint8_t* slice;
 
-    if ((object_template = calloc(sizeof *object_template + size, 1)) == NULL)
+    if ((object_template = (Ref_Count*)calloc(sizeof *object_template + size, 1)) == NULL)
         return NULL;
 
     if (mtx_init(&object_template->mutex, mtx_plain) != thrd_success) {
@@ -501,7 +499,7 @@ static inline void* refcount_alloc(size_t size)
     }
 
     object_template->count = 1;
-    slice = (void*)object_template;
+    slice = (uint8_t*)object_template;
     slice = slice + sizeof *object_template;
     object_template->raw_data = slice;
 
@@ -510,12 +508,12 @@ static inline void* refcount_alloc(size_t size)
 
 static inline bool refcount_strong(void** object)
 {
-    RefCount* counter;
+    Ref_Count* counter;
     if (object == NULL || *object == NULL)
         return false;
 
-    counter = get_refcount(*object);
-    if (refcount_lock(&counter->mutex)) {
+    counter = (Ref_Count*)__get_refcount(*object);
+    if (__refcount_lock(&counter->mutex)) {
         counter->count++;
         mtx_unlock(&counter->mutex);
         return true;
@@ -526,16 +524,16 @@ static inline bool refcount_strong(void** object)
 
 static inline bool refcount_weak(void** object)
 {
-    RefCount* counter;
+    Ref_Count* counter;
     bool mark_as_free;
 
     if (object == NULL || *object == NULL)
         return false;
 
-    counter = get_refcount(*object);
+    counter = (Ref_Count*)__get_refcount(*object);
     mark_as_free = false;
 
-    if (refcount_lock(&counter->mutex)) {
+    if (__refcount_lock(&counter->mutex)) {
         if (counter->count == 1)
             mark_as_free = true;
         else
@@ -563,14 +561,14 @@ static inline void refcount_drop(void** object)
 
 static inline size_t refcount_lifetime(void** object)
 {
-    RefCount* counter;
+    Ref_Count* counter;
     size_t object_lifetime;
 
     if (object == NULL || *object == NULL)
         return 0;
 
-    counter = get_refcount(*object);
-    if (refcount_lock(&counter->mutex)) {
+    counter = (Ref_Count*)__get_refcount(*object);
+    if (__refcount_lock(&counter->mutex)) {
         object_lifetime = counter->count;
         mtx_unlock(&counter->mutex);
 
@@ -668,7 +666,7 @@ Examples:
 #include <stdio.h>
 #include <stdlib.h>
 
-static inline char* read_from_stream(FILE* file)
+static inline char* __read_from_stream(FILE* file)
 {
     size_t bufsiz = BUFSIZ, readed = 0;
     char* buffer;
@@ -676,11 +674,11 @@ static inline char* read_from_stream(FILE* file)
     if (file == NULL)
         return NULL;
 
-    if ((buffer = calloc(1, bufsiz + 1)) == NULL)
+    if ((buffer = (char*)calloc(1, bufsiz + 1)) == NULL)
         return NULL;
 
     while ((readed += fread(buffer + readed, 1, bufsiz, file)) > 0) {
-        char* temporary = realloc(buffer, bufsiz * 2);
+        char* temporary = (char*)realloc(buffer, bufsiz * 2);
         if (temporary == NULL)
             return buffer;
 
@@ -688,7 +686,7 @@ static inline char* read_from_stream(FILE* file)
         bufsiz *= 2;
     }
 
-    buffer = realloc(buffer, readed + 1);
+    buffer = (char*)realloc(buffer, readed + 1);
     if (buffer == NULL)
         return NULL;
 
@@ -696,11 +694,11 @@ static inline char* read_from_stream(FILE* file)
     return buffer;
 }
 
-static inline char* file_readall(const char* path)
+static inline char* file_read_all(const char* path)
 {
     FILE* file = fopen(path, "rb");
     if (file != NULL) {
-        char* buffer = read_from_stream(file);
+        char* buffer = __read_from_stream(file);
         fclose(file);
 
         if (buffer != NULL)
@@ -709,10 +707,142 @@ static inline char* file_readall(const char* path)
     return NULL;
 }
 
-static inline char* file_readfrom(FILE* file)
+static inline char* file_read_from(FILE* file)
 {
-    return read_from_stream(file);
+    return __read_from_stream(file);
 }
 /* ===== FILE SECTION ===== */
+
+/* ===== LINKED LIST SECTION ===== */
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+#if !defined(address_of) && !defined(__cplusplus)
+#define address_of(T) (&(typeof(T)) { T })
+#endif
+#define for_link(list, var_name) for (Raw_List* var_name = list.list; var_name != NULL && var_name->item != NULL; var_name = var_name->next)
+
+typedef struct Raw_Link Raw_Link;
+struct Raw_Link {
+    Raw_Link* next;
+    void* item;
+};
+
+typedef struct {
+    Raw_Link* list;
+    size_t item_size, length;
+    void (*on_free)(void* item, size_t item_size);
+} Linked_List;
+
+static inline Raw_Link* ll_get_last_node(Raw_Link* dst)
+{
+    if (dst == NULL)
+        return NULL;
+
+    while (dst->next != NULL)
+        dst = dst->next;
+
+    return dst;
+}
+
+static inline void ll_append(Linked_List* dst, void* item)
+{
+    Raw_Link** last = NULL;
+    void** item_ref = NULL;
+    uint8_t* room = NULL;
+
+    if (dst == NULL || dst->item_size < 1 || item == NULL)
+        return;
+
+    if (dst->list == NULL)
+        last = &dst->list;
+    else {
+        Raw_Link* last_nonnull = ll_get_last_node(dst->list);
+        last = &last_nonnull->next;
+    }
+
+    room = (uint8_t*)calloc(1, sizeof(Raw_Link) + dst->item_size);
+    if (room == NULL)
+        return;
+
+    *last = (Raw_Link*)(room + 0);
+    (*last)->next = NULL;
+    item_ref = &(*last)->item;
+    *item_ref = (void*)(room + sizeof(Raw_Link));
+
+    memcpy(*item_ref, item, dst->item_size);
+    dst->length++;
+}
+
+static inline void ll_prepend(Linked_List* dst, void* item)
+{
+    Raw_Link* front = NULL;
+    uint8_t* room = NULL;
+
+    if (dst == NULL || dst->item_size == 0 || item == NULL)
+        return;
+
+    room = (uint8_t*)calloc(1, sizeof(Raw_Link) + dst->item_size);
+    if (room != NULL) {
+        front = (Raw_Link*)(room + 0);
+        front->item = (void*)(room + sizeof(Raw_Link));
+        front->next = dst->list;
+
+        memcpy(front->item, item, dst->item_size);
+        dst->list = front;
+        dst->length++;
+    }
+}
+
+static inline void ll_free(Linked_List* dst)
+{
+    Raw_Link* tmp = NULL;
+
+    if (dst == NULL)
+        return;
+    else
+        tmp = dst->list;
+
+    while (tmp != NULL) {
+        Raw_Link* next = tmp->next;
+        if (dst->on_free != NULL)
+            dst->on_free(tmp->item, dst->item_size);
+
+        free(tmp);
+        tmp = next;
+    }
+
+    dst->list = NULL;
+}
+
+static inline Raw_Link* ll_get_node(Linked_List* dst, size_t index)
+{
+
+    Raw_Link* current = NULL;
+
+    if (dst == NULL || dst->length <= index)
+        return NULL;
+    else
+        current = dst->list;
+
+    for (size_t i = 0;; i++, current = current->next) {
+        if (i == index)
+            return current;
+    }
+}
+
+static inline void* ll_get_item(Linked_List* dst, size_t index)
+{
+    Raw_Link* list = ll_get_node(dst, index);
+
+    if (list != NULL)
+        return list->item;
+    else
+        return NULL;
+}
+
+/* ===== LINKED LIST SECTION ===== */
 
 #endif

@@ -38,7 +38,7 @@ int main(void)
            "Remains: %zu\n",
         allocator_context->next->total,
         allocator_context->next->offset,
-        remainof(allocator_context->next));
+        remain_of(allocator_context->next));
 
     arena_alloc(allocator_context, 4000);
     printf("Total size of arena: %zu\n"
@@ -46,7 +46,7 @@ int main(void)
            "Remains: %zu\n",
         allocator_context->next->next->total,
         allocator_context->next->next->offset,
-        remainof(allocator_context->next->next));
+        remain_of(allocator_context->next->next));
 
     arena_free(allocator_context);
 }
