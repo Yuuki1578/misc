@@ -1,3 +1,4 @@
+#define VECTOR_ALLOC_FREQ (256)
 #include "../misc.h"
 #include <stddef.h>
 #include <stdio.h>

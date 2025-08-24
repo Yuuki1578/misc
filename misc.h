@@ -646,25 +646,22 @@ Examples:
 /* ===== FILE SECTION ===== */
 static inline char* __read_from_stream(FILE* file)
 {
-    size_t offset = 0, size = BUFSIZ;
-    char *buffer = (char*)calloc(size + 1, 1), *tmp;
+    int64_t offset_max = 0;
 
-    if (buffer != NULL) {
-        while ((offset += fread(buffer, 1, BUFSIZ, file)) > 0) {
-            tmp = (char*)realloc(buffer, size * 2);
-            if (tmp == NULL)
-                return buffer;
+#if defined(_WIN32) || defined(_WIN64)
+    _fseeki64(file, 0, SEEK_END);
+    offset_max = _ftelli64(file);
+    _fseeki64(file, 0, SEEK_SET);
+#elif defined(__unix__) || defined(__linux__)
+    fseeko64(file, 0, SEEK_END);
+    offset_max = ftello64(file);
+    fseeko64(file, 0, SEEK_SET);
+#endif
 
-            buffer = tmp;
-            size *= 2;
-        }
-
-        tmp = (char*)realloc(buffer, offset + 1);
-        if (tmp == NULL)
-            return buffer;
-
-        tmp[offset] = '\0';
-        return tmp;
+    if (offset_max > 0) {
+        char* buffer = (char*)malloc(offset_max + 1);
+        buffer != NULL ? fread(buffer, 1, offset_max, file) : 0;
+        return buffer;
     }
 
     return NULL;
@@ -814,6 +811,9 @@ static inline void* ll_get_item(Linked_List* dst, size_t index)
         return NULL;
 }
 
+#define DLINK_FORWARD (1)
+#define DLINK_BACKWARD (0)
+
 typedef struct Raw_Double_Link Raw_Double_Link;
 struct Raw_Double_Link {
     Raw_Double_Link *prev, *next;
@@ -893,6 +893,35 @@ static inline void rdl_free(Raw_Double_Link* tail)
         free(tail);
         tail = prev;
     }
+}
+
+static inline Raw_Double_Link* rdl_get_node(Raw_Double_Link** node, size_t index, int direction)
+{
+    Raw_Double_Link* iter = NULL;
+    size_t count = 0;
+
+    if (node == NULL || *node == NULL)
+        return NULL;
+
+    iter = *node;
+    if (direction) {
+        while (iter->next != NULL && count < index)
+            iter = iter->next;
+    } else {
+        while (iter->prev != NULL && count < index)
+            iter = iter->prev;
+    }
+
+    return iter;
+}
+
+static inline void* rdl_get_item(Raw_Double_Link** node, size_t index, int direction)
+{
+    Raw_Double_Link* node_target = rdl_get_node(node, index, direction);
+    if (node_target != NULL)
+        return node_target->item;
+
+    return NULL;
 }
 
 typedef struct {

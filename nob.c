@@ -101,6 +101,8 @@ static void examples_compile_all(Nob_Cmd* cmd, Nob_Procs* procs)
     examples_compile(cmd, procs, "examples/numeric.c", "build/examples/numeric");
     examples_compile(cmd, procs, "examples/file.c", "build/examples/file");
     examples_compile(cmd, procs, "examples/linked_list.c", "build/examples/linked_list");
+    examples_compile(cmd, procs, "examples/double_link.c", "build/examples/double_link");
+    examples_compile(cmd, procs, "examples/raw_dlink.c", "build/examples/raw_dlink");
 }
 
 #ifdef __clang__
@@ -121,6 +123,8 @@ static void source_format(Nob_Cmd* cmd)
     format_file("examples/numeric.c");
     format_file("examples/file.c");
     format_file("examples/linked_list.c");
+    format_file("examples/double_link.c");
+    format_file("examples/raw_dlink.c");
 
     format_file("nob.c");
 }
