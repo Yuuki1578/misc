@@ -565,6 +565,8 @@ static inline size_t refcount_lifetime(void** object)
 /* ===== REFCOUNT SECTION ===== */
 
 /* ===== LIST SECTION ===== */
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ < 202311L
+#else
 #ifndef MISC_LIST_FREQ
 #define MISC_LIST_FREQ (8ULL)
 #endif
@@ -641,6 +643,8 @@ Examples:
         (list).capacity = 0;                             \
         (list).length = 0;                               \
     } while (0)
+
+#endif
 /* ===== LIST SECTION ===== */
 
 /* ===== FILE SECTION ===== */

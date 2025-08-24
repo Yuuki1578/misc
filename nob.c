@@ -15,10 +15,12 @@ This is a third party build system, all right reserved to the author of this lib
 
 #ifdef __clang__
 #define CC "clang"
+#define CXX "clang++"
 #define FMT "clang-format"
 #define ADDRESS_SANITIZER
 #elif !defined(__clang__) && defined(__GNUC__)
 #define CC "gcc"
+#define CXX "g++"
 #else
 #error Compiler must be either gcc or clang
 #endif
@@ -27,8 +29,8 @@ This is a third party build system, all right reserved to the author of this lib
     "-Wall",                    \
         "-Werror",              \
         "-Wextra",              \
-        "-std=c23",             \
         "-pedantic",            \
+        "-std=c23",             \
         "-ffast-math",          \
         "-fomit-frame-pointer", \
         "-funroll-loops",       \
@@ -37,7 +39,9 @@ This is a third party build system, all right reserved to the author of this lib
 
 /* ===== EXAMPLES ===== */
 static void examples_compile(Nob_Cmd* cmd, Nob_Procs* procs, char* input, char* output);
+static void examples_compile_cxx(Nob_Cmd* cmd, Nob_Procs* procs, char* input, char* output);
 static void examples_compile_all(Nob_Cmd* cmd, Nob_Procs* procs);
+static void examples_compile_all_cxx(Nob_Cmd* cmd, Nob_Procs* procs);
 /* ===== EXAMPLES ===== */
 
 /* ===== MISC ===== */
@@ -52,6 +56,10 @@ int main(int argc, char** argv)
     Nob_Procs procs = { 0 };
 
     examples_compile_all(&cmd, &procs);
+    if (!nob_procs_wait_and_reset(&procs))
+        return 1;
+
+    examples_compile_all_cxx(&cmd, &procs);
     if (!nob_procs_wait_and_reset(&procs))
         return 1;
 
@@ -87,6 +95,18 @@ static void examples_compile(Nob_Cmd* cmd, Nob_Procs* procs, char* input, char* 
     nob_da_append(procs, nob_cmd_run_async_and_reset(cmd));
 }
 
+static void examples_compile_cxx(Nob_Cmd* cmd, Nob_Procs* procs, char* input, char* output)
+{
+    nob_cmd_append(cmd, CXX, input, "-o", output,
+#if defined(__clang__) && defined(ADDRESS_SANITIZER)
+        "-fsanitize=address",
+#endif
+        "-O0",
+        "-ggdb");
+
+    nob_da_append(procs, nob_cmd_run_async_and_reset(cmd));
+}
+
 static void examples_compile_all(Nob_Cmd* cmd, Nob_Procs* procs)
 {
     nob_mkdir_if_not_exists("build");
@@ -103,6 +123,15 @@ static void examples_compile_all(Nob_Cmd* cmd, Nob_Procs* procs)
     examples_compile(cmd, procs, "examples/linked_list.c", "build/examples/linked_list");
     examples_compile(cmd, procs, "examples/double_link.c", "build/examples/double_link");
     examples_compile(cmd, procs, "examples/raw_dlink.c", "build/examples/raw_dlink");
+    examples_compile(cmd, procs, "examples/hexdump.c", "build/examples/hexdump");
+}
+
+static void examples_compile_all_cxx(Nob_Cmd* cmd, Nob_Procs* procs)
+{
+    nob_mkdir_if_not_exists("build");
+    nob_mkdir_if_not_exists("build/examples");
+
+    examples_compile_cxx(cmd, procs, "examples/dlink_binding.cc", "build/examples/dlink_binding");
 }
 
 #ifdef __clang__
@@ -125,6 +154,8 @@ static void source_format(Nob_Cmd* cmd)
     format_file("examples/linked_list.c");
     format_file("examples/double_link.c");
     format_file("examples/raw_dlink.c");
+    format_file("examples/dlink_binding.cc");
+    format_file("examples/hexdump.c");
 
     format_file("nob.c");
 }
