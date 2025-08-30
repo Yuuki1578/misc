@@ -113,6 +113,10 @@ struct Arena {
     uint8_t* data;
 };
 
+#ifdef MISC_USE_GLOBAL_ALLOCATOR
+static Arena* MISC_GLOBAL_ALLOCATOR = NULL;
+#endif
+
 static inline Arena* arena_create(size_t size)
 {
     Arena* head = (Arena*)calloc(1, sizeof *head + size);
@@ -189,6 +193,39 @@ static inline void arena_free(Arena* base)
         base = tmp;
     }
 }
+
+#ifndef MISC_USE_GLOBAL_ALLOCATOR
+
+#ifndef misc_alloc
+#define misc_alloc(size) malloc((size))
+#endif
+
+#ifndef misc_calloc
+#define misc_calloc(count, size) calloc((count), (size))
+#endif
+
+#ifndef misc_realloc
+#define misc_realloc(ptr, old_size, new_size) realloc((ptr), (new_size))
+#endif
+
+#ifndef misc_free
+#define misc_free(ptr) free((ptr))
+#endif
+
+#else
+
+/* IMPORTANT: This macro shall be called in every main function. */
+#define ARENA_INIT()                                         \
+    do {                                                     \
+        MISC_GLOBAL_ALLOCATOR = arena_create(ARENA_PAGE);    \
+    } while (0)
+
+#define misc_alloc(size) arena_alloc(MISC_GLOBAL_ALLOCATOR, (size))
+#define misc_calloc(count, size) arena_alloc(MISC_GLOBAL_ALLOCATOR, (count) * (size))
+#define misc_realloc(ptr, old_size, new_size) arena_realloc(MISC_GLOBAL_ALLOCATOR, (ptr), (old_size), (new_size))
+#define misc_free(ptr) arena_free(MISC_GLOBAL_ALLOCATOR)
+
+#endif
 /* ===== ARENA SECTION ===== */
 
 /* ===== VECTOR SECTION ===== */
@@ -234,7 +271,7 @@ static inline Vector vector_with(size_t init_capacity, size_t item_size)
     else if (init_capacity == 0)
         return vector;
 
-    vector.items = (uint8_t*)calloc(init_capacity, item_size);
+    vector.items = (uint8_t*)misc_calloc(init_capacity, item_size);
     if (vector.items == 0)
         return vector;
     else
@@ -256,7 +293,7 @@ static inline bool vector_resize(Vector* v, size_t into)
     if (v == NULL || v->capacity == into || v->item_size == 0)
         return false;
 
-    tmp = (uint8_t*)realloc(v->items, v->item_size * into);
+    tmp = (uint8_t*)misc_realloc(v->items, v->item_size * v->capacity, v->item_size * into);
     if (tmp == 0)
         return false;
 
@@ -424,7 +461,7 @@ static inline String string_from(char* cstr, size_t len)
 /* This is the implementation of a reference counting
 originally https://github.com/jeraymond/refcount.git
 
-By default, when you allocate something using malloc() or realloc(), the
+By default, when you allocate something using malloc() or misc_realloc(), the
 object is gone by the time you call free(), but in reference counting, that's
 not the case.
 
@@ -481,7 +518,7 @@ static inline void* refcount_alloc(size_t size)
     Ref_Count* object_template;
     uint8_t* slice;
 
-    if ((object_template = (Ref_Count*)calloc(sizeof *object_template + size, 1)) == NULL)
+    if ((object_template = (Ref_Count*)misc_calloc(sizeof *object_template + size, 1)) == NULL)
         return NULL;
 
     if (mtx_init(&object_template->mutex, mtx_plain) != thrd_success) {
@@ -605,21 +642,21 @@ Examples:
     }
 
 /* Resizing the list up and/or down. */
-#define list_resize(list, size)                                                                                     \
-    do {                                                                                                            \
-        if ((list).capacity < 1 || (list).items == NULL) {                                                          \
-            (list).items = (typeof((list).items))calloc((size), sizeof(typeof(*(list).items)));                     \
-            if ((list).items == NULL)                                                                               \
-                break;                                                                                              \
-        } else {                                                                                                    \
-            typeof((list).items) tmp = (typeof((list).items))realloc((list).items, (size) * sizeof(*(list).items)); \
-            if ((list).items == NULL)                                                                               \
-                break;                                                                                              \
-            (list).items = tmp;                                                                                     \
-        }                                                                                                           \
-        if ((size) < (list).length)                                                                                 \
-            (list).length = size;                                                                                   \
-        (list).capacity = size;                                                                                     \
+#define list_resize(list, size)                                                                                                                                     \
+    do {                                                                                                                                                            \
+        if ((list).capacity < 1 || (list).items == NULL) {                                                                                                          \
+            (list).items = (typeof((list).items))misc_calloc((size), sizeof(typeof(*(list).items)));                                                                \
+            if ((list).items == NULL)                                                                                                                               \
+                break;                                                                                                                                              \
+        } else {                                                                                                                                                    \
+            typeof((list).items) tmp = (typeof((list).items))misc_realloc((list).items, (list).capacity * sizeof(*(list).items), (size) * sizeof(*(list).items));   \
+            if ((list).items == NULL)                                                                                                                               \
+                break;                                                                                                                                              \
+            (list).items = tmp;                                                                                                                                     \
+        }                                                                                                                                                           \
+        if ((size) < (list).length)                                                                                                                                 \
+            (list).length = size;                                                                                                                                   \
+        (list).capacity = size;                                                                                                                                     \
     } while (0)
 
 /* Make the list fitting to it's length. */
@@ -669,7 +706,7 @@ static inline char* __read_from_stream(FILE* file)
 #endif
 
     if (offset_max > 0) {
-        char* buffer = (char*)malloc(offset_max + 1);
+        char* buffer = (char*)misc_alloc(offset_max + 1);
         buffer != NULL ? fread(buffer, 1, offset_max, file) : 0;
         return buffer;
     }
@@ -741,7 +778,7 @@ static inline void ll_append(Linked_List* dst, void* item)
         last = &last_nonnull->next;
     }
 
-    room = (uint8_t*)calloc(1, sizeof(Raw_Link) + dst->item_size);
+    room = (uint8_t*)misc_calloc(1, sizeof(Raw_Link) + dst->item_size);
     if (room == NULL)
         return;
 
@@ -762,7 +799,7 @@ static inline void ll_prepend(Linked_List* dst, void* item)
     if (dst == NULL || dst->item_size == 0 || item == NULL)
         return;
 
-    room = (uint8_t*)calloc(1, sizeof(Raw_Link) + dst->item_size);
+    room = (uint8_t*)misc_calloc(1, sizeof(Raw_Link) + dst->item_size);
     if (room != NULL) {
         front = (Raw_Link*)(room + 0);
         front->item = (void*)(room + sizeof(Raw_Link));
@@ -836,7 +873,7 @@ static inline Raw_Double_Link* rdl_new(void* inhabitan, size_t size)
         return NULL;
 
     Raw_Double_Link* chain = NULL;
-    uint8_t* room = (uint8_t*)calloc(1, sizeof(Raw_Double_Link) + size);
+    uint8_t* room = (uint8_t*)misc_calloc(1, sizeof(Raw_Double_Link) + size);
 
     if (room != NULL) {
         chain = (Raw_Double_Link*)(room + 0);

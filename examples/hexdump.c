@@ -1,3 +1,4 @@
+#define MISC_USE_GLOBAL_ALLOCATOR
 #define VECTOR_ALLOC_FREQ (1024)
 #include "../misc.h"
 #include <errno.h>
@@ -13,18 +14,23 @@ void mode_stdin(size_t span);
 
 int main(int argc, char** argv)
 {
+    ARENA_INIT();
+
     if (argc == 1) {
         mode_stdin(PRINTABLE_SPAN);
     } else {
         char* file_content = file_read_all(argv[1]);
         if (file_content == NULL) {
             fprintf(stderr, "%s: %s\n", argv[0], strerror(errno));
+            misc_free();
+
             return 1;
         }
 
         visit_byte(file_content, strlen(file_content) + 1, PRINTABLE_SPAN);
-        free(file_content);
     }
+
+    misc_free();
 }
 
 void visit_byte(char* content, size_t length, size_t span)
@@ -51,5 +57,4 @@ void mode_stdin(size_t span)
         string_push(&string, ch);
 
     visit_byte(vector_at((void*)&string, 0), string.vector.length + 1, span);
-    string_free(&string);
 }

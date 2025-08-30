@@ -1,3 +1,4 @@
+#define MISC_USE_GLOBAL_ALLOCATOR
 #include "../misc.h"
 #include <functional>
 
@@ -29,16 +30,12 @@ struct Link {
             head = head->next;
         }
     }
-
-    ~Link<T>(void)
-    {
-        dl_free(&dlink);
-        dlink = {};
-    }
 };
 
 int main(void)
 {
+    ARENA_INIT();
+
     auto link = Link<int>();
     for (int i = 1; i <= 1 << 12; i++) {
         link.append(i * 10);
@@ -48,4 +45,6 @@ int main(void)
         item /= 10;
         printf("item: %d\n", item);
     });
+
+    misc_free();
 }
