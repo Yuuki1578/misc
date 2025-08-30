@@ -8,6 +8,13 @@ Licensed under MIT License. All right reserved.
 #ifndef MISC_H
 #define MISC_H
 
+#if defined(__unix__) || defined(__linux__)
+#define _FILE_OFFSET_BITS 64
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#endif
+
 #include <limits.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -565,8 +572,7 @@ static inline size_t refcount_lifetime(void** object)
 /* ===== REFCOUNT SECTION ===== */
 
 /* ===== LIST SECTION ===== */
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ < 202311L
-#else
+#if __STDC_VERSION__ >= 201700L
 #ifndef MISC_LIST_FREQ
 #define MISC_LIST_FREQ (8ULL)
 #endif
