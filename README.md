@@ -4,29 +4,33 @@ This library provide some basic functionality that C doesn't have.
 
 ## Using the header
 ```c
-#include "misc.h"
+// For global include path
+#include <Misc.h>
+
+// Local include path
+#include "Path/To/Misc.h"
 ```
 
 ## Cheatsheet
 ### List
 You can create a dynamic list of any type like this:
 ```c
-#include "misc.h"
+#include <Misc.h>
 
 int main(void)
 {
-    List(int) some_ints = { 0 };
-    list_append(some_ints, 1);
-    list_append(some_ints, 2);
-    list_append(some_ints, 1);
+    List(int) SomeInts = {};
+    listAppend(SomeInts, 1);
+    listAppend(SomeInts, 2);
+    listAppend(SomeInts, 3);
 
-    list_free(some_ints);
+    listFree(SomeInts);
 }
 ```
 
 Or, make an alias to it:
 ```c
-typedef List(char) string_t;
+typedef List(char) StringTypes;
 ```
 
 ### Vector
@@ -34,28 +38,23 @@ Vector is a container that contain some bytes in order
 with a fixed size for each byte. In other words, it's
 a generic vector.
 ```c
-#include "misc.h"
+#include <Misc.h>
 
 #pragma pack(1)
-struct animal {
-    char* family;
-    int is_alive;
+struct Animal {
+    char *Family;
+    int IsAlive;
 };
 
 int main(void)
 {
-    Vector my_pet = vector_new(sizeof(struct animal));
-    vector_push_many(&my_pet,
-        &(struct animal){
-            .family = "Feline",
-            .is_alive = 0,
-        },
+    Vector MyPet = vectorNew(sizeof(struct Animal));
+    struct Animal ThisCat = {
+        .Family = "Feline",
+        .IsAlive = 1,
+    };
 
-        &(struct animal){
-            .family = "Caecilia",
-            .is_alive = 1,
-        }
-    );
+    vectorPush(&MyPet, &ThisCat);
 }
 ```
 
@@ -64,44 +63,93 @@ Arena is just an already allocated region that placed next to each other in a li
 If you allocate from arena, the arena will just chop a chunk from a region and return it to you.
 That operation is almost happen in a constant time (if the arena can fulfill the size requirement).
 ```c
-#include "misc.h"
+#include <Misc.h>
 
 int main(void)
 {
-    Arena* head = arena_create(ARENA_PAGE); // 4096
-    arena_alloc(head, 1024); // 4096 - 1024
-    arena_alloc(head, 1024); // 3072 - 1024
-    arena_alloc(head, ARENA_PAGE); // Can fulfill the request, new list is appended with a double capacity
+    Arena* HeadAllocator = arenaCreate(ARENA_PAGE); // 4096
+    void *Memory = arenaAlloc(HeadAllocator, 1024); // 4096 - 1024
+    Memory = arenaAlloc(HeadAllocator, 1024); // 3072 - 1024
+    Memory = arenaAlloc(HeadAllocator, ARENA_PAGE); // Can fulfill the request, new list is appended with a double capacity
 
-    arena_free(head); // Free it all at once
+    arenaFree(HeadAllocator); // Free it all at once
 }
 ```
 
 ### Manual reference counting
 MT-Safe manual reference counting using `RefCount`.
 ```c
-#include "misc.h"
+#include <Misc.h>
 
 int main(void)
 {
     // Create a reference counting object, lifetime now is 1.
-    void* pool = refcount_alloc(1 << 12);
+    void* Pool = refcountAlloc(1 << 12);
 
-    if (pool != NULL) {
+    if (Pool != NULL) {
         /* Retain object's lifetime.
         Lifetime now is 2. */
-        refcount_strong(&pool);
+        refcountUpgrade(&Pool);
 
         // Use the object.
-        spawn_thread_and_use(pool);
+        spawnThreadAndUse(Pool);
 
         /* Release object's lifetime.
         Lifetime now is 1. */
-        refcount_weak(&pool);
+        refcountDegrade(&Pool);
 
         /* Release the object's lifetime until reach 0,
         effectively freeing the object. */
-        refcount_drop(&pool);
+        refcountDrop(&Pool);
     }
+}
+```
+
+### Global Allocator
+You can customize the memory allocator used in `Misc.h`.
+For example, if you want to use your own allocator, you can define it
+on your own:
+```c
+/*
+The allocator API used by Misc.h
+
+#define MISC_ALLOC(Size)
+#define MISC_CALLOC(Count, Size)
+#define MISC_REALLOC(Ptr, OldSize, NewSize)
+#define MISC_FREE(Ptr)
+
+
+Define those macro and include the header
+*/
+
+void *myAlloc(size_t SizeRequired);
+#define MISC_ALLOC(Size) myAlloc(Size)
+#include <Misc.h>
+```
+
+Or, use the default allocator, the Arena Allocator.
+But you can't define the macro for your API
+to use in `Misc.h` though. If you use the default, then
+that's what you got.
+
+```c
+#define MISC_USE_GLOBAL_ALLOCATOR
+#include <Misc.h>
+
+/*
+After this, all the allocator will use the Arena allocator API.
+The global variable is @MiscGlobalAllocator
+*/
+
+int main(void)
+{
+    ARENA_INIT(); // Must use!!!
+
+    // Will use the global alloator instead of classic malloc()
+    char *FileContent = fileRead("Some/File.txt");
+    if (FileContent != NULL)
+        printf("%s", FileContent);
+
+    ARENA_DROP(); // Optional
 }
 ```

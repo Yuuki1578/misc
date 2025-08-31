@@ -1,6 +1,6 @@
 #define MISC_USE_GLOBAL_ALLOCATOR
 #define VECTOR_ALLOC_FREQ (1024)
-#include "../misc.h"
+#include "../Misc.h"
 #include <errno.h>
 
 #if defined(__LP64__) || defined(__LLP64__)
