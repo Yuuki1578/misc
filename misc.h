@@ -746,116 +746,107 @@ struct Raw_Link {
 };
 
 typedef struct {
-    Raw_Link* list;
-    size_t item_size, length;
-    void (*on_free)(void* item, size_t item_size);
+    Raw_Link *head, *tail;
+    size_t length, item_size;
 } Linked_List;
 
-static inline Raw_Link* ll_get_last_node(Raw_Link* dst)
+static inline Raw_Link* rl_new(void* item, size_t size)
 {
-    if (dst == NULL)
+    if (item == NULL || size < 1)
         return NULL;
 
-    while (dst->next != NULL)
-        dst = dst->next;
-
-    return dst;
-}
-
-static inline void ll_append(Linked_List* dst, void* item)
-{
-    Raw_Link** last = NULL;
-    void** item_ref = NULL;
-    uint8_t* room = NULL;
-
-    if (dst == NULL || dst->item_size < 1 || item == NULL)
-        return;
-
-    if (dst->list == NULL)
-        last = &dst->list;
-    else {
-        Raw_Link* last_nonnull = ll_get_last_node(dst->list);
-        last = &last_nonnull->next;
-    }
-
-    room = (uint8_t*)misc_calloc(1, sizeof(Raw_Link) + dst->item_size);
-    if (room == NULL)
-        return;
-
-    *last = (Raw_Link*)(room + 0);
-    (*last)->next = NULL;
-    item_ref = &(*last)->item;
-    *item_ref = (void*)(room + sizeof(Raw_Link));
-
-    memcpy(*item_ref, item, dst->item_size);
-    dst->length++;
-}
-
-static inline void ll_prepend(Linked_List* dst, void* item)
-{
-    Raw_Link* front = NULL;
-    uint8_t* room = NULL;
-
-    if (dst == NULL || dst->item_size == 0 || item == NULL)
-        return;
-
-    room = (uint8_t*)misc_calloc(1, sizeof(Raw_Link) + dst->item_size);
-    if (room != NULL) {
-        front = (Raw_Link*)(room + 0);
-        front->item = (void*)(room + sizeof(Raw_Link));
-        front->next = dst->list;
-
-        memcpy(front->item, item, dst->item_size);
-        dst->list = front;
-        dst->length++;
-    }
-}
-
-static inline void ll_free(Linked_List* dst)
-{
-    Raw_Link* tmp = NULL;
-
-    if (dst == NULL)
-        return;
-    else
-        tmp = dst->list;
-
-    while (tmp != NULL) {
-        Raw_Link* next = tmp->next;
-        if (dst->on_free != NULL)
-            dst->on_free(tmp->item, dst->item_size);
-
-        free(tmp);
-        tmp = next;
-    }
-
-    dst->list = NULL;
-}
-
-static inline Raw_Link* ll_get_node(Linked_List* dst, size_t index)
-{
-
-    Raw_Link* current = NULL;
-
-    if (dst == NULL || dst->length <= index)
+    uint8_t* buf = (uint8_t*)misc_alloc(sizeof(Raw_Link) + size);
+    if (buf == NULL)
         return NULL;
-    else
-        current = dst->list;
 
-    for (size_t i = 0;; i++, current = current->next) {
-        if (i == index)
-            return current;
+    Raw_Link* rl = (Raw_Link*)(buf + 0);
+    rl->item = (void*)(buf + sizeof(Raw_Link));
+    rl->next = NULL;
+    memcpy(rl->item, item, size);
+
+    return rl;
+}
+
+static inline void rl_append(Raw_Link** rl, void* item, size_t size)
+{
+    if (rl == NULL || *rl == NULL || item == NULL || size < 1)
+        return;
+
+    Raw_Link* newly = rl_new(item, size);
+    if (newly != NULL) {
+        Raw_Link* now = *rl;
+        now->next = newly;
+        *rl = newly;
     }
 }
 
-static inline void* ll_get_item(Linked_List* dst, size_t index)
+static inline Raw_Link* rl_get_node(Raw_Link* head, size_t pos)
 {
-    Raw_Link* list = ll_get_node(dst, index);
-
-    if (list != NULL)
-        return list->item;
-    else
+    if (head == NULL)
         return NULL;
+
+    while (head->next != NULL && pos--)
+        head = head->next;
+
+    return head;
+}
+
+static inline void* rl_get_item(Raw_Link* head, size_t pos)
+{
+    Raw_Link* node = rl_get_node(head, pos);
+    if (node != NULL)
+        return node->item;
+
+    return NULL;
+}
+
+static inline void rl_prepend(Raw_Link** rl, void* item, size_t size)
+{
+    if (rl == NULL || *rl == NULL || item == NULL || size < 1)
+        return;
+
+    Raw_Link* newly = rl_new(item, size);
+    if (newly != NULL) {
+        newly->next = *rl;
+        *rl = newly;
+    }
+}
+
+static inline void ll_append(Linked_List* ll, void* item)
+{
+    if (ll == NULL || ll->item_size < 1 || item == NULL)
+        return;
+
+    if (ll->head == NULL) {
+        ll->head = rl_new(item, ll->item_size);
+        if (ll->head == NULL)
+            return;
+
+        ll->tail = ll->head;
+        return;
+    } else {
+        rl_append(&ll->tail, item, ll->item_size);
+    }
+
+    ll->length++;
+}
+
+static inline void ll_prepend(Linked_List* ll, void* item)
+{
+    if (ll == NULL || ll->item_size < 1 || item == NULL)
+        return;
+
+    if (ll->head == NULL) {
+        ll->head = rl_new(item, ll->item_size);
+        if (ll->head == NULL)
+            return;
+
+        ll->tail = ll->head;
+    } else {
+        rl_prepend(&ll->head, item, ll->item_size);
+    }
+
+    ll->length++;
 }
 
 #define DLINK_FORWARD (1)
@@ -867,9 +858,9 @@ struct Raw_Double_Link {
     void* item;
 };
 
-static inline Raw_Double_Link* rdl_new(void* inhabitan, size_t size)
+static inline Raw_Double_Link* rdl_new(void* inhabitant, size_t size)
 {
-    if (inhabitan == NULL || size < 1)
+    if (inhabitant == NULL || size < 1)
         return NULL;
 
     Raw_Double_Link* chain = NULL;
@@ -880,18 +871,18 @@ static inline Raw_Double_Link* rdl_new(void* inhabitan, size_t size)
         chain->prev = NULL;
         chain->next = NULL;
         chain->item = room + sizeof(Raw_Double_Link);
-        memcpy(chain->item, inhabitan, size);
+        memcpy(chain->item, inhabitant, size);
     }
 
     return chain;
 }
 
-static inline bool rdl_append(Raw_Double_Link** tail, void* inhabitan, size_t size)
+static inline bool rdl_append(Raw_Double_Link** tail, void* inhabitant, size_t size)
 {
-    if (tail == NULL || *tail == NULL || inhabitan == NULL || size < 1)
+    if (tail == NULL || *tail == NULL || inhabitant == NULL || size < 1)
         return false;
 
-    Raw_Double_Link* latter = rdl_new(inhabitan, size);
+    Raw_Double_Link* latter = rdl_new(inhabitant, size);
     if (latter != NULL) {
         Raw_Double_Link* now = *tail;
         now->next = latter;
@@ -904,12 +895,12 @@ static inline bool rdl_append(Raw_Double_Link** tail, void* inhabitan, size_t si
     return false;
 }
 
-static inline bool rdl_prepend(Raw_Double_Link** tail, void* inhabitan, size_t size)
+static inline bool rdl_prepend(Raw_Double_Link** tail, void* inhabitant, size_t size)
 {
-    if (tail == NULL || *tail == NULL || inhabitan == NULL || size < 1)
+    if (tail == NULL || *tail == NULL || inhabitant == NULL || size < 1)
         return false;
 
-    Raw_Double_Link* new_head = rdl_new(inhabitan, size);
+    Raw_Double_Link* new_head = rdl_new(inhabitant, size);
     if (new_head != NULL) {
         Raw_Double_Link* now = *tail;
         now->prev = new_head;
