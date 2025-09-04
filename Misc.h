@@ -8,7 +8,13 @@ Licensed under MIT License. All right reserved.
 #ifndef MISC_H
 #define MISC_H
 
+#define MISC_WORD_SIZE (sizeof(void *))
+
 #if defined(__unix__) || defined(__linux__)
+
+#include <fcntl.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #ifndef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
@@ -21,12 +27,15 @@ Licensed under MIT License. All right reserved.
 #endif
 
 #include <limits.h>
+#include <stdalign.h>
 #include <stdarg.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdnoreturn.h>
 #include <string.h>
 #include <threads.h>
 
@@ -124,6 +133,9 @@ static Arena *MiscGlobalAllocator = NULL;
 #endif
 
 static inline Arena *arenaCreate(size_t Size) {
+  if (Size < 1)
+    return NULL;
+
   Arena *HeadNode = (Arena *)calloc(1, sizeof *HeadNode + Size);
   if (!HeadNode)
     return NULL;
@@ -244,7 +256,7 @@ REQUIRED_MACRO: @MISC_USE_GLOBAL_ALLOCATOR
 
 /* ===== VECTOR SECTION ===== */
 #ifndef VECTOR_ALLOC_FREQ
-#define VECTOR_ALLOC_FREQ 8ULL
+#define VECTOR_ALLOC_FREQ ((8ULL) * MISC_WORD_SIZE)
 #endif
 
 #define vectorPushMany(Vector, ...) vectorPushManyFn(Vector, __VA_ARGS__, NULL)
@@ -610,7 +622,7 @@ static inline size_t refcountLifetime(void **Object) {
 /* ===== LIST SECTION ===== */
 #if __STDC_VERSION__ >= 201700L
 #ifndef MISC_LIST_FREQ
-#define MISC_LIST_FREQ (8ULL)
+#define MISC_LIST_FREQ ((8ULL) * MISC_WORD_SIZE)
 #endif
 
 /* NOTE:
@@ -710,8 +722,13 @@ static inline char *readFromFileStream(FILE *FileStream) {
 
   if (OffsetMax > 0) {
     char *Buffer = (char *)MISC_ALLOC(OffsetMax + 1);
-    Buffer != NULL ? fread(Buffer, 1, OffsetMax, FileStream) : 0;
-    return Buffer;
+    if (Buffer == NULL)
+      return NULL;
+
+    if (fread(Buffer, 1, OffsetMax, FileStream) > 0)
+      return Buffer;
+    else
+      MISC_FREE(Buffer);
   }
 
   return NULL;
@@ -732,6 +749,69 @@ static inline char *fileRead(const char *FilePath) {
 static inline char *fileReadFrom(FILE *FileStream) {
   return FileStream != NULL ? readFromFileStream(FileStream) : NULL;
 }
+
+#if defined(__unix__) || defined(__linux__)
+
+#ifndef MISC_BULK_SIZE
+#define MISC_BULK_SIZE ((1 << 8) + 1)
+#else
+#if MISC_BULK_SIZE < 1
+#undef MISC_BULK_SIZE
+#define MISC_BULK_SIZE ((1 << 8) + 1)
+#endif
+#endif
+
+static inline String fileDescriptorDrain(int FileDesc) {
+  String NewString = stringCreateWith(BUFSIZ);
+  for (;;) {
+    char LocalBuffer[MISC_BULK_SIZE] = {};
+    ssize_t ReadedBuffer = read(FileDesc, LocalBuffer, sizeof(LocalBuffer) - 1);
+
+    switch (ReadedBuffer) {
+    case -1:
+#ifndef MISC_USE_GLOBAL_ALLOCATOR
+      stringFree(&NewString);
+#endif
+      return stringCreate();
+
+    case 0:
+      goto EndSection;
+
+    default:
+      stringPushStr(&NewString, LocalBuffer);
+      break;
+    }
+  }
+
+EndSection:
+  return NewString;
+}
+
+static inline size_t fileDescriptorWrite(int FileDesc, String CopyString) {
+  size_t CharOffset = 0;
+
+  for (;;) {
+    char *FromOffset = vectorGet((Vector *)&CopyString, CharOffset);
+    if (FromOffset == NULL)
+      break;
+
+    ssize_t FileOffset = write(FileDesc, FromOffset, MISC_BULK_SIZE - 1);
+    switch (FileOffset) {
+    case -1:
+      return 0;
+
+    case 0:
+      goto EndSection;
+
+    default:
+      CharOffset += (size_t)FileOffset;
+    }
+  }
+
+EndSection:
+  return CharOffset;
+}
+#endif
 /* ===== FILE SECTION ===== */
 
 /* ===== LINKED LIST SECTION ===== */
@@ -739,7 +819,7 @@ static inline char *fileReadFrom(FILE *FileStream) {
 #define ADDRESS_OF(T) (&(typeof(T)){T})
 #endif
 
-#define forLink(Link, VarName)                                                 \
+#define FOR_LINK(Link, VarName)                                                \
   for (RawLink *VarName = (Link).Head;                                         \
        VarName != NULL && VarName->Item != NULL; VarName = VarName->Next)
 
@@ -983,11 +1063,11 @@ static inline void *rawDlinkGetItem(RawDlink **IndependentLink, size_t Index,
   return NULL;
 }
 
-#define dlinkForward(Dlink, VarName)                                           \
+#define DLINK_GO_FORWARD(Dlink, VarName)                                       \
   for (RawDlink *VarName = (Dlink).Head; VarName != NULL;                      \
        VarName = VarName->Next)
 
-#define dlink_backward(Dlink, VarName)                                         \
+#define DLINK_GO_BACKWARD(Dlink, VarName)                                      \
   for (RawDlink *VarName = (Dlink).Tail; VarName != NULL;                      \
        VarName = VarName->Previous)
 
@@ -1041,5 +1121,28 @@ static inline void doubleLinkFree(DoubleLink *Input) {
   }
 }
 /* ===== LINKED LIST SECTION ===== */
+
+/* ===== PROCESS RELATED ROUTINES ===== */
+#if defined(__unix__) || defined(__linux__)
+
+typedef int (*ThreadTask)(void *Args);
+
+static inline bool runSeparately(ThreadTask Routine, void *Args) {
+  switch (fork()) {
+  case -1:
+    return false;
+
+  case 0:
+    exit(Routine(Args));
+
+  default:
+    break;
+  }
+
+  return true;
+}
+
+#endif
+/* ===== PROCESS RELATED ROUTINES ===== */
 
 #endif

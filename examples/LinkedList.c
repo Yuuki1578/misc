@@ -22,7 +22,7 @@ int main(void) {
     linkedListPrepend(&SquareLink, &NewSquare);
   }
 
-  forLink(SquareLink, Head) {
+  FOR_LINK(SquareLink, Head) {
     Square *FromSquare = Head->Item;
     printf("Square [%Lf,%Lf] with diameter %Lf cm\n", FromSquare->AxisX,
            FromSquare->AxisY, FromSquare->AxisX * FromSquare->AxisY);

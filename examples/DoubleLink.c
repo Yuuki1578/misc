@@ -14,7 +14,7 @@ int main(void) {
     doubleLinkAppend(&Dlink, Buffer);
   }
 
-  dlinkForward(Dlink, Head) {
+  DLINK_GO_FORWARD(Dlink, Head) {
     char *Buffer = Head->Item;
     printf("%s\n", Buffer);
   }
