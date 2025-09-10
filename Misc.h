@@ -3,6 +3,20 @@
 Copyright (c) 2025 Awang Destu Pradhana <destuawang@gmail.com>
 Licensed under MIT License. All right reserved.
 
+######          ######   ###      ############         ###############
+######          ######   ###   ################     ###################
+### ###        ### ###   ###   ###           ###   ###                ###
+###  ###      ###  ###   ###   ###                 ###                ###
+###   ###    ###   ###   ###   ###                 ###
+###    ###  ###    ###   ###     #############     ###
+###     ######     ###   ###                 ###   ###
+###                ###   ###                 ###   ###
+###                ###   ###                 ###   ###
+###                ###   ###   ###           ###   ###                ###
+###                ###   ###   #################     ####################
+###                ###   ###     #############         ###############
+
+
 */
 
 #ifndef MISC_H
@@ -10,20 +24,16 @@ Licensed under MIT License. All right reserved.
 
 #define MISC_WORD_SIZE (sizeof(void *))
 
-#if defined(__unix__) || defined(__linux__)
-
-#include <fcntl.h>
-#include <sys/types.h>
-#include <unistd.h>
-
 #ifndef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
 #endif
 
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
+#ifndef _LARGEFILE_SOURCE
+#define _LARGEFILE_SOURCE
 #endif
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
 #endif
 
 #include <limits.h>
@@ -39,6 +49,32 @@ Licensed under MIT License. All right reserved.
 #include <string.h>
 #include <threads.h>
 
+#if defined(__unix__) || defined(__linux__)
+
+#define MISC_POSIX_HOST
+
+#include <fcntl.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#endif
+
+#ifdef MISC_POSIX_HOST
+
+#include <sys/mman.h>
+
+#define MISC_BUILTIN_ALLOC(Size) mmap(NULL, Size, PROT_WRITE | PROT_READ, MAP_ANON | MAP_PRIVATE, -1, 0)
+#define MISC_BUILTIN_FREE(Ptr, Size) munmap(Ptr, Size)
+#define MISC_BUILTIN_ALLOC_FAIL MAP_FAILED
+
+#else
+
+#define MISC_BUILTIN_ALLOC(Size) malloc(Size)
+#define MISC_BUILTIN_FREE(Ptr, Size) free(Ptr)
+#define MISC_BUILTIN_ALLOC_FAIL NULL
+
+#endif
+
 /* ===== ARENA SECTION ===== */
 #define ARENA_PAGE (1ULL << 12ULL)
 #define REMAIN_OF(Arena) ((Arena)->Total - (Arena)->Offset)
@@ -47,7 +83,7 @@ Licensed under MIT License. All right reserved.
 For a better portability, we using uint8_t* instead of raw void* on a pointer
 arithmetic context.
 
-You create the arena using arena_create() that accept 1 arguments, the initial
+You create the arena using arenaCreate() that accept 1 arguments, the initial
 size.
 
 The linked list is made of 4 members, described as follow:
@@ -56,9 +92,9 @@ The linked list is made of 4 members, described as follow:
 3. total, is the total size of memory region this allocator hold.
 4. offset, is the difference between base address and current address.
    This member is always incremented on a call of arena_alloc() or
-   arena_realloc()
+   arenaRealloc()
 
-When you call arena_alloc(), it'll check if the current allocator have memory
+When you call arenaAlloc(), it'll check if the current allocator have memory
 as large as "size". If it is, it return the current memory region as a chunk of
 memory
 
@@ -93,9 +129,9 @@ Now if you look at our allocator again, things would change
 Ok cool, now we have 3 bytes left, starting at address 0x2.
 Now, say, you want more than 2 bytes, what if 5 bytes? can you?
 
-Remember that arena_alloc() will check if the current allocator have enough
+Remember that arenaAlloc() will check if the current allocator have enough
 chunk for us to take? When the remaining bytes (total - offset) is not enough,
-arena_alloc() will create a new allocator, pointed by @next with the
+arenaAlloc() will create a new allocator, pointed by @next with the
 following rules:
 1. If the requested size is larger than the size of the past allocator, the size
    of the new allocator would be (size * 2).
@@ -105,7 +141,7 @@ The arena, roughly, would look like this:
 
 [4096] -> [8192] -> [16384] -> [32768]
 
-The chunk returned by arena_alloc() or arena_realloc() may be NULL, so you must
+The chunk returned by arenaAlloc() or arenaRealloc() may be NULL, so you must
 check it before using it.
 
 Now for the best part is that we only need to free our arena's once and we're
@@ -136,8 +172,8 @@ static inline Arena *arenaCreate(size_t Size) {
   if (Size < 1)
     return NULL;
 
-  Arena *HeadNode = (Arena *)calloc(1, sizeof *HeadNode + Size);
-  if (!HeadNode)
+  Arena *HeadNode = (Arena *)MISC_BUILTIN_ALLOC(sizeof *HeadNode + Size);
+  if (HeadNode == MISC_BUILTIN_ALLOC_FAIL)
     return NULL;
 
   HeadNode->Next = NULL;
@@ -147,8 +183,7 @@ static inline Arena *arenaCreate(size_t Size) {
   return HeadNode;
 }
 
-static inline Arena *findSuitableArena(Arena *BaseArena, size_t Size,
-                                       int *Found) {
+static inline Arena *findSuitableArena(Arena *BaseArena, size_t Size, int *Found) {
   Arena *Visitor = BaseArena, *LastNonnull;
   while (Visitor) {
     if (REMAIN_OF(Visitor) >= Size) {
@@ -188,8 +223,7 @@ static inline void *arenaAlloc(Arena *Input, size_t Size) {
   return Result;
 }
 
-static inline void *arenaRealloc(Arena *Input, void *TargetPtr, size_t OldSize,
-                                 size_t NewSize) {
+static inline void *arenaRealloc(Arena *Input, void *TargetPtr, size_t OldSize, size_t NewSize) {
   void *Result = arenaAlloc(Input, NewSize);
   if (!Result)
     return NULL;
@@ -204,7 +238,8 @@ static inline void *arenaRealloc(Arena *Input, void *TargetPtr, size_t OldSize,
 static inline void arenaFree(Arena *Input) {
   while (Input) {
     Arena *Temporary = Input->Next;
-    free(Input);
+    size_t Total = Input->Total;
+    MISC_BUILTIN_FREE(Input, Total);
     Input = Temporary;
   }
 }
@@ -233,21 +268,21 @@ static inline void arenaFree(Arena *Input) {
 IMPORTANT: This macro shall be called in every main function.
 REQUIRED_MACRO: @MISC_USE_GLOBAL_ALLOCATOR
 */
-#define ARENA_INIT()                                                           \
-  do {                                                                         \
-    MiscGlobalAllocator = arenaCreate(ARENA_PAGE * 8);                         \
+#define ARENA_INIT()                                   \
+  do {                                                 \
+    MiscGlobalAllocator = arenaCreate(ARENA_PAGE * 8); \
   } while (0)
 
-#define ARENA_DROP()                                                           \
-  do {                                                                         \
-    arenaFree(MiscGlobalAllocator);                                            \
-    MiscGlobalAllocator = NULL;                                                \
+#define ARENA_DROP()                \
+  do {                              \
+    arenaFree(MiscGlobalAllocator); \
+    MiscGlobalAllocator = NULL;     \
   } while (0)
 
 #define MISC_ALLOC(Size) arenaAlloc(MiscGlobalAllocator, (Size))
-#define MISC_CALLOC(Count, Size)                                               \
+#define MISC_CALLOC(Count, Size) \
   arenaAlloc(MiscGlobalAllocator, (Count) * (Size))
-#define MISC_REALLOC(Ptr, OldSize, NewSize)                                    \
+#define MISC_REALLOC(Ptr, OldSize, NewSize) \
   arenaRealloc(MiscGlobalAllocator, (Ptr), (OldSize), (NewSize))
 #define MISC_FREE(Ptr) arenaFree(MiscGlobalAllocator)
 
@@ -318,8 +353,7 @@ static inline bool vectorResize(Vector *Input, size_t Into) {
   if (Input == NULL || Input->Capacity == Into || Input->ItemSize == 0)
     return false;
 
-  Temporary = (uint8_t *)MISC_REALLOC(
-      Input->Items, Input->ItemSize * Input->Capacity, Input->ItemSize * Into);
+  Temporary = (uint8_t *)MISC_REALLOC(Input->Items, Input->ItemSize * Input->Capacity, Input->ItemSize * Into);
   if (Temporary == 0)
     return false;
 
@@ -406,7 +440,7 @@ static inline void vectorFree(Vector *Input) {
 
 #define stringPushMany(String, ...) stringPushManyFn(String, __VA_ARGS__, '\0')
 
-#define stringPushStrMany(String, ...)                                         \
+#define stringPushStrMany(String, ...) \
   stringPushStrManyFn(String, __VA_ARGS__, NULL)
 
 typedef struct {
@@ -645,61 +679,61 @@ Examples:
     }
 
 */
-#define List(T)                                                                \
-  struct {                                                                     \
-    T *Items;                                                                  \
-    size_t Capacity;                                                           \
-    size_t Length;                                                             \
+#define List(T)      \
+  struct {           \
+    T *Items;        \
+    size_t Capacity; \
+    size_t Length;   \
   }
 
 /* Resizing the list up and/or down. */
-#define listResize(List, Size)                                                 \
-  do {                                                                         \
-    if ((List).Capacity < 1 || (List).Items == NULL) {                         \
-      (List).Items = (typeof((List).Items))MISC_CALLOC(                        \
-          (Size), sizeof(typeof(*(List).Items)));                              \
-      if ((List).Items == NULL)                                                \
-        break;                                                                 \
-    } else {                                                                   \
-      typeof((List).Items) Temporary = (typeof((List).Items))MISC_REALLOC(     \
-          (List).Items, (List).Capacity * sizeof(*(List).Items),               \
-          (Size) * sizeof(*(List).Items));                                     \
-      if (Temporary == NULL)                                                   \
-        break;                                                                 \
-      (List).Items = Temporary;                                                \
-    }                                                                          \
-    if ((Size) < (List).Length)                                                \
-      (List).Length = Size;                                                    \
-    (List).Capacity = Size;                                                    \
+#define listResize(List, Size)                                             \
+  do {                                                                     \
+    if ((List).Capacity < 1 || (List).Items == NULL) {                     \
+      (List).Items = (typeof((List).Items))MISC_CALLOC(                    \
+          (Size), sizeof(typeof(*(List).Items)));                          \
+      if ((List).Items == NULL)                                            \
+        break;                                                             \
+    } else {                                                               \
+      typeof((List).Items) Temporary = (typeof((List).Items))MISC_REALLOC( \
+          (List).Items, (List).Capacity * sizeof(*(List).Items),           \
+          (Size) * sizeof(*(List).Items));                                 \
+      if (Temporary == NULL)                                               \
+        break;                                                             \
+      (List).Items = Temporary;                                            \
+    }                                                                      \
+    if ((Size) < (List).Length)                                            \
+      (List).Length = Size;                                                \
+    (List).Capacity = Size;                                                \
   } while (0)
 
 /* Make the list fitting to it's length. */
-#define listMakeFit(List)                                                      \
-  do {                                                                         \
-    if ((List).Length < 1 || (List).Capacity == (List).Length)                 \
-      break;                                                                   \
-    listResize(List, (List).Length);                                           \
+#define listMakeFit(List)                                      \
+  do {                                                         \
+    if ((List).Length < 1 || (List).Capacity == (List).Length) \
+      break;                                                   \
+    listResize(List, (List).Length);                           \
   } while (0)
 
 /* Append an item to the list, increasing it's length. */
-#define listAppend(List, Item)                                                 \
-  do {                                                                         \
-    if ((List).Capacity < 1) {                                                 \
-      listResize(List, MISC_LIST_FREQ);                                        \
-    } else if ((List).Capacity - (List).Length <= 1) {                         \
-      listResize(List, (List).Capacity * 2);                                   \
-    }                                                                          \
-    (List).Items[(List).Length++] = (typeof(*(List).Items))(Item);             \
+#define listAppend(List, Item)                                     \
+  do {                                                             \
+    if ((List).Capacity < 1) {                                     \
+      listResize(List, MISC_LIST_FREQ);                            \
+    } else if ((List).Capacity - (List).Length <= 1) {             \
+      listResize(List, (List).Capacity * 2);                       \
+    }                                                              \
+    (List).Items[(List).Length++] = (typeof(*(List).Items))(Item); \
   } while (0)
 
 /* Freeing the list, truncating it's capacity to zero. */
 #ifndef MISC_USE_GLOBAL_ALLOCATOR
-#define listFree(List)                                                         \
-  do {                                                                         \
-    if ((List).Capacity > 0 || (List).Items != NULL)                           \
-      free((List).Items);                                                      \
-    (List).Capacity = 0;                                                       \
-    (List).Length = 0;                                                         \
+#define listFree(List)                               \
+  do {                                               \
+    if ((List).Capacity > 0 || (List).Items != NULL) \
+      free((List).Items);                            \
+    (List).Capacity = 0;                             \
+    (List).Length = 0;                               \
   } while (0)
 
 #endif
@@ -715,9 +749,9 @@ static inline char *readFromFileStream(FILE *FileStream) {
   OffsetMax = _ftelli64(file);
   _fseeki64(FileStream, 0, SEEK_SET);
 #elif defined(__unix__) || defined(__linux__)
-  fseeko64(FileStream, 0, SEEK_END);
-  OffsetMax = ftello64(FileStream);
-  fseeko64(FileStream, 0, SEEK_SET);
+  fseeko(FileStream, 0, SEEK_END);
+  OffsetMax = ftello(FileStream);
+  fseeko(FileStream, 0, SEEK_SET);
 #endif
 
   if (OffsetMax > 0) {
@@ -791,7 +825,7 @@ static inline size_t fileDescriptorWrite(int FileDesc, String CopyString) {
   size_t CharOffset = 0;
 
   for (;;) {
-    char *FromOffset = vectorGet((Vector *)&CopyString, CharOffset);
+    char *FromOffset = (char *)vectorGet((Vector *)&CopyString, CharOffset);
     if (FromOffset == NULL)
       break;
 
@@ -819,8 +853,8 @@ EndSection:
 #define ADDRESS_OF(T) (&(typeof(T)){T})
 #endif
 
-#define FOR_LINK(Link, VarName)                                                \
-  for (RawLink *VarName = (Link).Head;                                         \
+#define FOR_LINK(Link, VarName)        \
+  for (RawLink *VarName = (Link).Head; \
        VarName != NULL && VarName->Item != NULL; VarName = VarName->Next)
 
 typedef struct RawLink RawLink;
@@ -975,8 +1009,7 @@ static inline RawDlink *rawDlinkCreate(void *Item, size_t Size) {
   return NewDoubleLink;
 }
 
-static inline bool rawDlinkAppend(RawDlink **InputTail, void *Item,
-                                  size_t Size) {
+static inline bool rawDlinkAppend(RawDlink **InputTail, void *Item, size_t Size) {
   if (InputTail == NULL || *InputTail == NULL || Item == NULL || Size < 1)
     return false;
 
@@ -993,8 +1026,7 @@ static inline bool rawDlinkAppend(RawDlink **InputTail, void *Item,
   return false;
 }
 
-static inline bool rawDlinkPrepend(RawDlink **InputHead, void *Item,
-                                   size_t Size) {
+static inline bool rawDlinkPrepend(RawDlink **InputHead, void *Item, size_t Size) {
   if (InputHead == NULL || *InputHead == NULL || Item == NULL || Size < 1)
     return false;
 
@@ -1034,8 +1066,7 @@ static inline void rawDlinkFree(RawDlink *InputTail) {
 #endif
 }
 
-static inline RawDlink *rawDlinkGet(RawDlink **IndependentLink, size_t Index,
-                                    int SearchDirection) {
+static inline RawDlink *rawDlinkGet(RawDlink **IndependentLink, size_t Index, int SearchDirection) {
   RawDlink *Visitor = NULL;
   size_t Count = 0;
 
@@ -1054,8 +1085,7 @@ static inline RawDlink *rawDlinkGet(RawDlink **IndependentLink, size_t Index,
   return Visitor;
 }
 
-static inline void *rawDlinkGetItem(RawDlink **IndependentLink, size_t Index,
-                                    int SearchDirection) {
+static inline void *rawDlinkGetItem(RawDlink **IndependentLink, size_t Index, int SearchDirection) {
   RawDlink *LinkTarget = rawDlinkGet(IndependentLink, Index, SearchDirection);
   if (LinkTarget != NULL)
     return LinkTarget->Item;
@@ -1063,12 +1093,12 @@ static inline void *rawDlinkGetItem(RawDlink **IndependentLink, size_t Index,
   return NULL;
 }
 
-#define DLINK_GO_FORWARD(Dlink, VarName)                                       \
-  for (RawDlink *VarName = (Dlink).Head; VarName != NULL;                      \
+#define DLINK_GO_FORWARD(Dlink, VarName)                  \
+  for (RawDlink *VarName = (Dlink).Head; VarName != NULL; \
        VarName = VarName->Next)
 
-#define DLINK_GO_BACKWARD(Dlink, VarName)                                      \
-  for (RawDlink *VarName = (Dlink).Tail; VarName != NULL;                      \
+#define DLINK_GO_BACKWARD(Dlink, VarName)                 \
+  for (RawDlink *VarName = (Dlink).Tail; VarName != NULL; \
        VarName = VarName->Previous)
 
 typedef struct {

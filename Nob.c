@@ -26,16 +26,14 @@ library.
 #error Compiler must be either gcc or clang
 #endif
 
-#define CFLAGS                                                                 \
-  "-Wall", "-Werror", "-Wextra", "-pedantic", "-std=c23", "-ffast-math",       \
-      "-fomit-frame-pointer", "-funroll-loops", "-march=native",               \
+#define CFLAGS                                                           \
+  "-Wall", "-Werror", "-Wextra", "-pedantic", "-std=c23", "-ffast-math", \
+      "-fomit-frame-pointer", "-funroll-loops", "-march=native",         \
       "-mtune=native"
 
 /* ===== EXAMPLES ===== */
-static void exampleCompile(Nob_Cmd *Cmd, Nob_Procs *Procs, char *Input,
-                           char *Output);
-static void exampleCompileCpp(Nob_Cmd *Cmd, Nob_Procs *Procs, char *Input,
-                              char *Output);
+static void exampleCompile(Nob_Cmd *Cmd, Nob_Procs *Procs, char *Input, char *Output);
+static void exampleCompileCpp(Nob_Cmd *Cmd, Nob_Procs *Procs, char *Input, char *Output);
 static void exampleCompileAll(Nob_Cmd *Cmd, Nob_Procs *Procs);
 static void exampleCompileAllCpp(Nob_Cmd *Cmd, Nob_Procs *Procs);
 /* ===== EXAMPLES ===== */
@@ -105,55 +103,51 @@ static void exampleCompileAll(Nob_Cmd *Cmd, Nob_Procs *Procs) {
   nob_mkdir_if_not_exists("build");
   nob_mkdir_if_not_exists("build/examples");
 
-  exampleCompile(Cmd, Procs, "examples/arena.c", "build/examples/arena");
-  exampleCompile(Cmd, Procs, "examples/vector.c", "build/examples/vector");
-  exampleCompile(Cmd, Procs, "examples/string.c", "build/examples/string");
-  exampleCompile(Cmd, Procs, "examples/refcount.c", "build/examples/refcount");
-  exampleCompile(Cmd, Procs, "examples/list.c", "build/examples/list");
-  exampleCompile(Cmd, Procs, "examples/file_reading.c",
-                 "build/examples/file_reading");
-  exampleCompile(Cmd, Procs, "examples/numeric.c", "build/examples/numeric");
-  exampleCompile(Cmd, Procs, "examples/file.c", "build/examples/file");
-  exampleCompile(Cmd, Procs, "examples/linked_list.c",
-                 "build/examples/linked_list");
-  exampleCompile(Cmd, Procs, "examples/double_link.c",
-                 "build/examples/double_link");
-  exampleCompile(Cmd, Procs, "examples/raw_dlink.c",
-                 "build/examples/raw_dlink");
-  exampleCompile(Cmd, Procs, "examples/hexdump.c", "build/examples/hexdump");
+  exampleCompile(Cmd, Procs, "examples/Arena.c", "build/examples/Arena");
+  exampleCompile(Cmd, Procs, "examples/Vector.c", "build/examples/Vector");
+  exampleCompile(Cmd, Procs, "examples/String.c", "build/examples/String");
+  exampleCompile(Cmd, Procs, "examples/RefCount.c", "build/examples/RefCount");
+  exampleCompile(Cmd, Procs, "examples/List.c", "build/examples/List");
+  exampleCompile(Cmd, Procs, "examples/FileReading.c", "build/examples/FileReading");
+  exampleCompile(Cmd, Procs, "examples/Numeric.c", "build/examples/Numeric");
+  exampleCompile(Cmd, Procs, "examples/File.c", "build/examples/File");
+  exampleCompile(Cmd, Procs, "examples/LinkedList.c", "build/examples/LinkedList");
+  exampleCompile(Cmd, Procs, "examples/DoubleLink.c", "build/examples/DoubleLink");
+  exampleCompile(Cmd, Procs, "examples/RawDlink.c", "build/examples/RawDlink");
+  exampleCompile(Cmd, Procs, "examples/Hexdump.c", "build/examples/Hexdump");
 }
 
 static void exampleCompileAllCpp(Nob_Cmd *Cmd, Nob_Procs *Procs) {
   nob_mkdir_if_not_exists("build");
   nob_mkdir_if_not_exists("build/examples");
 
-  exampleCompileCpp(Cmd, Procs, "examples/dlink_binding.cc",
-                    "build/examples/dlink_binding");
+  exampleCompileCpp(Cmd, Procs, "examples/DlinkBinding.cc", "build/examples/DlinkBinding");
 }
 
 #ifdef __clang__
 
-#define formatFile(File)                                                       \
-  do {                                                                         \
-    nob_cmd_append(Cmd, FMT, File, "-i");                                      \
-    nob_cmd_run_async_and_reset(Cmd);                                          \
+#define formatFile(File)                  \
+  do {                                    \
+    nob_cmd_append(Cmd, FMT, File, "-i"); \
+    nob_cmd_run_async_and_reset(Cmd);     \
   } while (0);
 
 static void sourceFormat(Nob_Cmd *Cmd) {
-  formatFile("examples/arena.c");
-  formatFile("examples/refcount.c");
-  formatFile("examples/string.c");
-  formatFile("examples/vector.c");
-  formatFile("examples/file_reading.c");
-  formatFile("examples/numeric.c");
-  formatFile("examples/file.c");
-  formatFile("examples/linked_list.c");
-  formatFile("examples/double_link.c");
-  formatFile("examples/raw_dlink.c");
-  formatFile("examples/dlink_binding.cc");
-  formatFile("examples/hexdump.c");
+  formatFile("Misc.h");
+  formatFile("examples/Arena.c");
+  formatFile("examples/RefCount.c");
+  formatFile("examples/String.c");
+  formatFile("examples/Vector.c");
+  formatFile("examples/FileReading.c");
+  formatFile("examples/Numeric.c");
+  formatFile("examples/File.c");
+  formatFile("examples/LinkedList.c");
+  formatFile("examples/DoubleLink.c");
+  formatFile("examples/RawDlink.c");
+  formatFile("examples/DlinkBinding.cc");
+  formatFile("examples/Hexdump.c");
 
-  formatFile("nob.c");
+  formatFile("Nob.c");
 }
 
 #endif

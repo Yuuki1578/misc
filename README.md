@@ -62,6 +62,11 @@ int main(void)
 Arena is just an already allocated region that placed next to each other in a linked list form.
 If you allocate from arena, the arena will just chop a chunk from a region and return it to you.
 That operation is almost happen in a constant time (if the arena can fulfill the size requirement).
+
+If your system support POSIX API, it's likely that the allocator will use mmap(2) and munmap(2) to
+allocate/deallocate the memory. And it's more fast, like so FAST compared to traditional malloc(3)/free(3).
+I think it does that because there is no overhead for something like hook function for malloc(3) like
+__malloc_hook or option for malloc(3) like mallopt.
 ```c
 #include <Misc.h>
 

@@ -2,7 +2,8 @@
 #include "../Misc.h"
 #include <functional>
 
-template <class T> struct Link {
+template <class T>
+struct Link {
   DoubleLink Dlink;
 
   Link<T>(void) : Dlink({nullptr, nullptr, 0, 0}) {}
