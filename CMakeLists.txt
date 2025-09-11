@@ -3,28 +3,30 @@ PROJECT(misc
   DESCRIPTION "Non-standard C23 header only library"
   LANGUAGES C)
 
-SET(CMAKE_C_STANDARD 23)
+SET(CMAKE_C_STANDARD 17)
 SET(CMAKE_C_STANDARD_REQUIRED TRUE)
 SET(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 INCLUDE_DIRECTORIES(./)
 
-ADD_COMPILE_OPTIONS(
-  -Wall
-  -Werror
-  -Wextra
-  -Wno-overlength-strings
-  -Wno-embedded-directive
-  -pedantic
-  -fomit-frame-pointer
-  -funroll-loops
-  -ffast-math
-  -march=native
-  -mtune=native)
+IF (NOT MSVC)
+  ADD_COMPILE_OPTIONS(
+    -Wall
+    -Werror
+    -Wextra
+    -Wno-overlength-strings
+    -Wno-embedded-directive
+    -pedantic
+    -fomit-frame-pointer
+    -funroll-loops
+    -ffast-math
+    -march=native
+    -mtune=native)
 
-ADD_LINK_OPTIONS(
-  -ggdb
-  -fsanitize=address)
+  ADD_LINK_OPTIONS(
+    -ggdb
+    -fsanitize=address)
+ENDIF ()
 
 ADD_EXECUTABLE(File examples/File.c)
 ADD_EXECUTABLE(List examples/List.c)

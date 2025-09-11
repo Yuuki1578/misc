@@ -3,10 +3,10 @@
 Copyright (c) 2025 Awang Destu Pradhana <destuawang@gmail.com>
 Licensed under MIT License. All right reserved.
 
-######          ######   ###      ############         ###############
+######          ######   ###     #############         ###############
 ######          ######   ###   ################     ###################
 ### ###        ### ###   ###   ###           ###   ###                ###
-###  ###      ###  ###   ###   ###                 ###                ###
+###  ###      ###  ###   ###   ###                 ###
 ###   ###    ###   ###   ###   ###                 ###
 ###    ###  ###    ###   ###     #############     ###
 ###     ######     ###   ###                 ###   ###
@@ -26,6 +26,14 @@ Licensed under MIT License. All right reserved.
 
 #ifndef _FILE_OFFSET_BITS
 #define _FILE_OFFSET_BITS 64
+#endif
+
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE
+#endif
+
+#ifndef _LARGE_FILE
+#define _LARGE_FILE
 #endif
 
 #ifndef _LARGEFILE_SOURCE
@@ -48,6 +56,17 @@ Licensed under MIT License. All right reserved.
 #include <stdnoreturn.h>
 #include <string.h>
 #include <threads.h>
+
+#if __STDC_VERSION__ >= 201700L
+
+#define MISC_SWAP(Lhs, Rhs)          \
+  do {                               \
+    typeof((Lhs)) LooseCopy = (Lhs); \
+    (Lhs) = (Rhs);                   \
+    (Rhs) = LooseCopy;               \
+  } while (0)
+
+#endif
 
 #if defined(__unix__) || defined(__linux__)
 
@@ -73,6 +92,11 @@ Licensed under MIT License. All right reserved.
 #define MISC_BUILTIN_FREE(Ptr, Size) free(Ptr)
 #define MISC_BUILTIN_ALLOC_FAIL NULL
 
+#endif
+
+#ifdef MISC_POSIX_HOST
+#include <alloca.h>
+#define MISC_STACK_ALLOC(Size) alloca(Size)
 #endif
 
 /* ===== ARENA SECTION ===== */
@@ -165,6 +189,7 @@ struct Arena {
 };
 
 #ifdef MISC_USE_GLOBAL_ALLOCATOR
+#define MISC_GLOBAL_ALLOCATOR_PAGING (ARENA_PAGE * 4)
 static Arena *MiscGlobalAllocator = NULL;
 #endif
 
@@ -268,9 +293,9 @@ static inline void arenaFree(Arena *Input) {
 IMPORTANT: This macro shall be called in every main function.
 REQUIRED_MACRO: @MISC_USE_GLOBAL_ALLOCATOR
 */
-#define ARENA_INIT()                                   \
-  do {                                                 \
-    MiscGlobalAllocator = arenaCreate(ARENA_PAGE * 8); \
+#define ARENA_INIT()                                                 \
+  do {                                                               \
+    MiscGlobalAllocator = arenaCreate(MISC_GLOBAL_ALLOCATOR_PAGING); \
   } while (0)
 
 #define ARENA_DROP()                \
@@ -280,10 +305,8 @@ REQUIRED_MACRO: @MISC_USE_GLOBAL_ALLOCATOR
   } while (0)
 
 #define MISC_ALLOC(Size) arenaAlloc(MiscGlobalAllocator, (Size))
-#define MISC_CALLOC(Count, Size) \
-  arenaAlloc(MiscGlobalAllocator, (Count) * (Size))
-#define MISC_REALLOC(Ptr, OldSize, NewSize) \
-  arenaRealloc(MiscGlobalAllocator, (Ptr), (OldSize), (NewSize))
+#define MISC_CALLOC(Count, Size) arenaAlloc(MiscGlobalAllocator, (Count) * (Size))
+#define MISC_REALLOC(Ptr, OldSize, NewSize) arenaRealloc(MiscGlobalAllocator, (Ptr), (OldSize), (NewSize))
 #define MISC_FREE(Ptr) arenaFree(MiscGlobalAllocator)
 
 #endif
@@ -323,7 +346,7 @@ typedef struct {
 } Vector;
 
 static inline Vector vectorCreateWith(size_t InitialCapacity, size_t ItemSize) {
-  Vector VectorNew = {
+  Vector NewVector = {
       .Items = NULL,
       .ItemSize = ItemSize,
   };
@@ -331,15 +354,15 @@ static inline Vector vectorCreateWith(size_t InitialCapacity, size_t ItemSize) {
   if (ItemSize == 0)
     return (Vector){0};
   else if (InitialCapacity == 0)
-    return VectorNew;
+    return NewVector;
 
-  VectorNew.Items = (uint8_t *)MISC_CALLOC(InitialCapacity, ItemSize);
-  if (VectorNew.Items == 0)
-    return VectorNew;
+  NewVector.Items = (uint8_t *)MISC_CALLOC(InitialCapacity, ItemSize);
+  if (NewVector.Items == 0)
+    return NewVector;
   else
-    VectorNew.Capacity = InitialCapacity;
+    NewVector.Capacity = InitialCapacity;
 
-  return VectorNew;
+  return NewVector;
 }
 
 static inline Vector vectorCreate(size_t ItemSize) {
@@ -383,6 +406,13 @@ static inline void *vectorGet(Vector *Input, size_t Index) {
   return NULL;
 }
 
+static inline void *vectorGetPosition(Vector *Input, size_t Index) {
+  if (Input != NULL && Index < Input->Capacity)
+    return (Input->Items + (Input->ItemSize * Index));
+
+  return NULL;
+}
+
 static inline void vectorPush(Vector *Input, void *AnyData) {
   uint8_t *IncrementPtr;
 
@@ -421,7 +451,7 @@ static inline void vectorFree(Vector *Input) {
   if (Input != NULL) {
     if (Input->Items != NULL)
 #ifndef MISC_USE_GLOBAL_ALLOCATOR
-      free(Input->Items);
+      MISC_FREE(Input->Items);
 #else
       Input->Items = NULL;
 #endif
@@ -731,7 +761,7 @@ Examples:
 #define listFree(List)                               \
   do {                                               \
     if ((List).Capacity > 0 || (List).Items != NULL) \
-      free((List).Items);                            \
+      MISC_FREE((List).Items);                       \
     (List).Capacity = 0;                             \
     (List).Length = 0;                               \
   } while (0)
@@ -748,10 +778,12 @@ static inline char *readFromFileStream(FILE *FileStream) {
   _fseeki64(FileStream, 0, SEEK_END);
   OffsetMax = _ftelli64(file);
   _fseeki64(FileStream, 0, SEEK_SET);
-#elif defined(__unix__) || defined(__linux__)
+#elif defined(MISC_POSIX_HOST)
   fseeko(FileStream, 0, SEEK_END);
   OffsetMax = ftello(FileStream);
   fseeko(FileStream, 0, SEEK_SET);
+#else
+#error Platform is not supported
 #endif
 
   if (OffsetMax > 0) {
@@ -784,7 +816,7 @@ static inline char *fileReadFrom(FILE *FileStream) {
   return FileStream != NULL ? readFromFileStream(FileStream) : NULL;
 }
 
-#if defined(__unix__) || defined(__linux__)
+#if defined(MISC_POSIX_HOST)
 
 #ifndef MISC_BULK_SIZE
 #define MISC_BULK_SIZE ((1 << 8) + 1)
@@ -793,6 +825,7 @@ static inline char *fileReadFrom(FILE *FileStream) {
 #undef MISC_BULK_SIZE
 #define MISC_BULK_SIZE ((1 << 8) + 1)
 #endif
+
 #endif
 
 static inline String fileDescriptorDrain(int FileDesc) {
@@ -1153,7 +1186,7 @@ static inline void doubleLinkFree(DoubleLink *Input) {
 /* ===== LINKED LIST SECTION ===== */
 
 /* ===== PROCESS RELATED ROUTINES ===== */
-#if defined(__unix__) || defined(__linux__)
+#ifdef MISC_POSIX_HOST
 
 typedef int (*ThreadTask)(void *Args);
 
@@ -1174,5 +1207,69 @@ static inline bool runSeparately(ThreadTask Routine, void *Args) {
 
 #endif
 /* ===== PROCESS RELATED ROUTINES ===== */
+
+/* ===== HASH FUNCTIONALITY ===== */
+#ifndef MISC_HASH_INT
+#define MISC_HASH_INT uint64_t
+#endif
+
+#if defined(__LP64__) || defined(_WIN64)
+#define MISC_HASH_WORD (2ULL << (64ULL - 1ULL))
+#else
+#define MISC_HASH_WORD (2ULL << (32ULL - 1ULL))
+#endif
+
+#define MISC_INT_BITS (2 << (sizeof(MISC_HASH_INT) - 1))
+
+#ifndef MISC_COPRIME_NUMBER
+#define MISC_COPRIME_NUMBER (3)
+#elif MISC_COPRIME_NUMBER % 2 == 0
+#undef MISC_COPRIME_NUMBER
+#define MISC_COPRIME_NUMBER (3)
+#endif
+
+static inline MISC_HASH_INT hashFixedLengthInt(MISC_HASH_INT Input) {
+  return (MISC_COPRIME_NUMBER * Input) ^ (MISC_HASH_WORD - MISC_INT_BITS);
+}
+
+/* WARNING @HashStorage must be 8 bytes */
+static inline void hashVariableLength(void *HashStorage, const void *AnyData, size_t Size) {
+  if (HashStorage == NULL || AnyData == NULL || Size < 1)
+    return;
+
+  size_t Remains = Size % sizeof(MISC_HASH_INT);
+  size_t LengthArch;
+
+  if (Remains == 0)
+    LengthArch = Size / sizeof(MISC_HASH_INT);
+  else
+    LengthArch = (Size + Remains) / sizeof(MISC_HASH_INT);
+
+  void *LocalNonHash = MISC_ALLOC(Size + Remains);
+  if (LocalNonHash == NULL)
+    return;
+  memcpy(LocalNonHash, AnyData, Size);
+
+  MISC_HASH_INT *Representation = (MISC_HASH_INT *)LocalNonHash;
+  MISC_HASH_INT *Destination = (MISC_HASH_INT *)HashStorage;
+
+  for (size_t I = 0; I < LengthArch; I++) {
+    if (*Destination == 0)
+      *Destination |= Representation[I];
+    else
+      *Destination &= Representation[I];
+  }
+
+#ifndef MISC_USE_GLOBAL_ALLOCATOR
+  MISC_FREE(LocalNonHash);
+#endif
+}
+
+typedef Vector HashMap;
+
+static inline void hashInsert(HashMap *Map, const void *Key, size_t KeyLength, void *Value);
+static inline void *hashGet(HashMap *Map, const void *Key, size_t KeyLength);
+static inline void *hashRemove(HashMap *Map, const void *Key, size_t KeyLength);
+/* ===== HASH FUNCTIONALITY ===== */
 
 #endif
