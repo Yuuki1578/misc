@@ -155,15 +155,7 @@ Now, say, you want more than 2 bytes, what if 5 bytes? can you?
 
 Remember that arenaAlloc() will check if the current allocator have enough
 chunk for us to take? When the remaining bytes (total - offset) is not enough,
-arenaAlloc() will create a new allocator, pointed by @next with the
-following rules:
-1. If the requested size is larger than the size of the past allocator, the size
-   of the new allocator would be (size * 2).
-2. If it's not, the size will be (past_allocator->total * 2).
-
-The arena, roughly, would look like this:
-
-[4096] -> [8192] -> [16384] -> [32768]
+arenaAlloc() will create a new allocator, pointed by @Next
 
 The chunk returned by arenaAlloc() or arenaRealloc() may be NULL, so you must
 check it before using it.
@@ -233,7 +225,13 @@ static inline void *arenaAlloc(Arena *Input, size_t Size) {
     return NULL;
 
   Suitable = findSuitableArena(Input, Size, &Found);
-  SizeRequired = Size > Suitable->Total ? Size * 2 : Suitable->Total * 2;
+
+  /*
+  TODO:
+  1. Special page for @Size > @Total
+  2. Dataset member to indicating a special page
+  */
+  SizeRequired = Size > Suitable->Total ? Size * 2 : Suitable->Total;
 
   if (!Found) {
     Suitable->Next = arenaCreate(SizeRequired);
@@ -1208,68 +1206,18 @@ static inline bool runSeparately(ThreadTask Routine, void *Args) {
 #endif
 /* ===== PROCESS RELATED ROUTINES ===== */
 
-/* ===== HASH FUNCTIONALITY ===== */
-#ifndef MISC_HASH_INT
-#define MISC_HASH_INT uint64_t
-#endif
+/*
+TODO:
+1. Hash function impl.
+2. Hash table impl.
+3. Hash entry impl.
+4. HashSet impl.
 
-#if defined(__LP64__) || defined(_WIN64)
-#define MISC_HASH_WORD (2ULL << (64ULL - 1ULL))
-#else
-#define MISC_HASH_WORD (2ULL << (32ULL - 1ULL))
-#endif
+5. Win32/64 Mapping function for arena (still use malloc-family function)
+6. sbrk/brk option for arena
 
-#define MISC_INT_BITS (2 << (sizeof(MISC_HASH_INT) - 1))
-
-#ifndef MISC_COPRIME_NUMBER
-#define MISC_COPRIME_NUMBER (3)
-#elif MISC_COPRIME_NUMBER % 2 == 0
-#undef MISC_COPRIME_NUMBER
-#define MISC_COPRIME_NUMBER (3)
-#endif
-
-static inline MISC_HASH_INT hashFixedLengthInt(MISC_HASH_INT Input) {
-  return (MISC_COPRIME_NUMBER * Input) ^ (MISC_HASH_WORD - MISC_INT_BITS);
-}
-
-/* WARNING @HashStorage must be 8 bytes */
-static inline void hashVariableLength(void *HashStorage, const void *AnyData, size_t Size) {
-  if (HashStorage == NULL || AnyData == NULL || Size < 1)
-    return;
-
-  size_t Remains = Size % sizeof(MISC_HASH_INT);
-  size_t LengthArch;
-
-  if (Remains == 0)
-    LengthArch = Size / sizeof(MISC_HASH_INT);
-  else
-    LengthArch = (Size + Remains) / sizeof(MISC_HASH_INT);
-
-  void *LocalNonHash = MISC_ALLOC(Size + Remains);
-  if (LocalNonHash == NULL)
-    return;
-  memcpy(LocalNonHash, AnyData, Size);
-
-  MISC_HASH_INT *Representation = (MISC_HASH_INT *)LocalNonHash;
-  MISC_HASH_INT *Destination = (MISC_HASH_INT *)HashStorage;
-
-  for (size_t I = 0; I < LengthArch; I++) {
-    if (*Destination == 0)
-      *Destination |= Representation[I];
-    else
-      *Destination &= Representation[I];
-  }
-
-#ifndef MISC_USE_GLOBAL_ALLOCATOR
-  MISC_FREE(LocalNonHash);
-#endif
-}
-
-typedef Vector HashMap;
-
-static inline void hashInsert(HashMap *Map, const void *Key, size_t KeyLength, void *Value);
-static inline void *hashGet(HashMap *Map, const void *Key, size_t KeyLength);
-static inline void *hashRemove(HashMap *Map, const void *Key, size_t KeyLength);
-/* ===== HASH FUNCTIONALITY ===== */
+IMPORTANT:
+7. automaticaly align the memory allocated by arena (i don't think mmap does that)
+*/
 
 #endif

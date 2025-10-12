@@ -29,7 +29,7 @@ library.
 #define CFLAGS                                                           \
   "-Wall", "-Werror", "-Wextra", "-pedantic", "-std=c23", "-ffast-math", \
       "-fomit-frame-pointer", "-funroll-loops", "-march=native",         \
-      "-mtune=native"
+      "-mtune=native", "-Wno-unused-function"
 
 /* ===== EXAMPLES ===== */
 static void exampleCompile(Nob_Cmd *Cmd, Nob_Procs *Procs, char *Input, char *Output);

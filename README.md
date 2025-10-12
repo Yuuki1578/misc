@@ -48,7 +48,7 @@ struct Animal {
 
 int main(void)
 {
-    Vector MyPet = vectorNew(sizeof(struct Animal));
+    Vector MyPet = vectorCreate(sizeof(struct Animal));
     struct Animal ThisCat = {
         .Family = "Feline",
         .IsAlive = 1,
@@ -89,7 +89,7 @@ MT-Safe manual reference counting using `RefCount`.
 int main(void)
 {
     // Create a reference counting object, lifetime now is 1.
-    void* Pool = refcountAlloc(1 << 12);
+    void *Pool = refcountAlloc(1 << 12);
 
     if (Pool != NULL) {
         /* Retain object's lifetime.
@@ -155,6 +155,6 @@ int main(void)
     if (FileContent != NULL)
         printf("%s", FileContent);
 
-    ARENA_DROP(); // Optional
+    ARENA_DROP(); // Optional, let the OS free the memory from process
 }
 ```
