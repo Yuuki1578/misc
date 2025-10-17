@@ -4,7 +4,7 @@ Copyright (c) 2025 Awang Destu Pradhana <destuawang@gmail.com>
 Licensed under MIT License. All right reserved.
 
 ######          ######   ###     #############         ###############
-######          ######   ###   ################     ###################
+######          ######   ###   ################     #####################
 ### ###        ### ###   ###   ###           ###   ###                ###
 ###  ###      ###  ###   ###   ###                 ###
 ###   ###    ###   ###   ###   ###                 ###
@@ -95,7 +95,10 @@ Licensed under MIT License. All right reserved.
 #elif defined(_WIN32) || defined(_WIN64)
 
 #define MISC_WINDOWS_HOST
+
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 
 #include <windows.h>
 #include <winbase.h>
@@ -387,7 +390,11 @@ REQUIRED_MACRO: @MISC_USE_GLOBAL_ALLOCATOR
 #define VECTOR_ALLOC_FREQ ((8ULL) * MISC_WORD_SIZE)
 #endif
 
-#define vector_push_many(vector, ...) vector_push_many_fn(vector, __VA_ARGS__, NULL)
+#define vector_push(vector, TYPE, expr)                  \
+    do {                                                 \
+        TYPE _miscvarname_literal = (expr);              \
+        vector_pushptr((vector), &_miscvarname_literal); \
+    } while (0)
 
 /* Struct Vector, is a dynamicaly allocated structure that behave similar like
 array, it's items is stored in a contigous manner and cache-efficient. However,
@@ -450,7 +457,7 @@ static inline bool vector_resize(Vector *input, size_t into)
         return false;
 
     temporary = (uint8_t *) MISC_REALLOC(input->items, input->item_size * input->capacity, input->item_size * into);
-    if (temporary == 0)
+    if (temporary == NULL)
         return false;
 
     input->items = temporary;
@@ -458,6 +465,12 @@ static inline bool vector_resize(Vector *input, size_t into)
     input->length = into < input->length ? into : input->length;
 
     return true;
+}
+
+static inline bool vector_reserve(Vector *input, size_t additional)
+{
+    return input != NULL ? vector_resize(input, input->capacity + additional)
+                         : false;
 }
 
 static inline bool vector_make_fit(Vector *input)
@@ -490,7 +503,7 @@ static inline void *vector_get_pos(Vector *input, size_t position)
     return NULL;
 }
 
-static inline void vector_push(Vector *input, void *any_data)
+static inline void vector_pushptr(Vector *input, void *any_data)
 {
     uint8_t *increment_ptr;
 
@@ -508,22 +521,6 @@ static inline void vector_push(Vector *input, void *any_data)
 
     increment_ptr = input->items + (input->item_size * input->length++);
     memcpy(increment_ptr, any_data, input->item_size);
-}
-
-static inline void vector_push_many_fn(Vector *input, ...)
-{
-    va_list va;
-    void *arguments;
-
-    if (input == NULL)
-        return;
-
-    va_start(va, input);
-
-    while ((arguments = va_arg(va, void *)) != NULL)
-        vector_push(input, arguments);
-
-    va_end(va);
 }
 
 static inline void vector_free(Vector *input)
@@ -547,9 +544,6 @@ static inline void vector_free(Vector *input)
 #define CSTR(string) ((char *) (string.buffer.items))
 #endif
 
-#define string_push_many(string, ...) string_push_many_fn(string, __VA_ARGS__, '\0')
-#define string_pushstr_many(string, ...) string_pushstr_many_fn(string, __VA_ARGS__, NULL)
-
 typedef struct {
     Vector buffer;
 } String;
@@ -568,15 +562,9 @@ static inline String string_create(void)
 static inline void string_push(String *input, char character)
 {
     /* Inherit */
-    vector_push((Vector *) input, &character);
-}
-
-static inline void string_push_many_fn(String *input, ...)
-{
-    va_list va;
-    va_start(va, input);
-    vector_push_many((Vector *) input, va);
-    va_end(va);
+    vector_push((Vector *) input, char, character);
+    (void) input;
+    (void) character;
 }
 
 static inline void string_pushstr(String *input, char *cstr)
@@ -587,20 +575,14 @@ static inline void string_pushstr(String *input, char *cstr)
         return;
 
     length = strlen(cstr);
-    while (length--)
-        string_push(input, *cstr++);
-}
+    if (length >= input->buffer.capacity) {
+        if (!vector_reserve((Vector *) input, length + MISC_WORD_SIZE /* SAFE AREA */ ))
+            return;
+    }
 
-static inline void string_pushstr_many_fn(String *input, ...)
-{
-    va_list va;
-    char *cstr;
-
-    va_start(va, input);
-    while ((cstr = va_arg(va, char *)) != NULL)
-        string_pushstr(input, cstr);
-
-    va_end(va);
+    void *innerbuf = vector_get_pos((Vector *) input, input->buffer.length);
+    memcpy(innerbuf, cstr, length);
+    input->buffer.length += length;
 }
 
 static inline void string_free(String *input) {
@@ -782,7 +764,7 @@ static inline char *read_from_stream(FILE *stream)
 
 #ifdef MISC_WINDOWS_HOST
     _fseeki64(stream, 0, SEEK_END);
-    offset_max = _ftelli64(file);
+    offset_max = _ftelli64(stream);
     _fseeki64(stream, 0, SEEK_SET);
 #elif defined(MISC_POSIX_HOST)
     fseeko(stream, 0, SEEK_END);
@@ -821,6 +803,8 @@ static inline char *read_from_path(const char *path)
 /* ===== FILE SECTION ===== */
 
 /* ===== LINKED LIST SECTION ===== */
+
+/* WARNING: DEPRECATED / COMPILER SPECIFIC FEATURE */
 #if !defined(ADDRESS_OF) && !defined(__cplusplus) && !defined(MISC_WINDOWS_HOST)
 #define ADDRESS_OF(T) (&(typeof(T)){T})
 #endif
@@ -950,6 +934,14 @@ static inline void forward_list_prepend(ForwardList *input, void *item)
     input->length++;
 }
 
+static inline RawForwardList *forward_list_getentry(ForwardList *input, size_t index)
+{
+    if (input == NULL || input->length >= index)
+        return NULL;
+
+    return r_forward_list_get(input->head, index);
+}
+
 static inline void forward_list_free(ForwardList *input)
 {
     if (input != NULL) {
@@ -1040,7 +1032,7 @@ static inline void r_list_free(RawList *tail)
 #ifndef MISC_USE_GLOBAL_ALLOCATOR
     while (tail != NULL) {
         RawList *prev = tail->prev;
-        free(tail);
+        MISC_FREE(tail);
         tail = prev;
     }
 #else
@@ -1120,6 +1112,32 @@ static inline void list_prepend(List *input, void *item) {
     input->length++;
 }
 
+static inline void *list_popleft(List *input)
+{
+    if (input == NULL || input->length < 1)
+        return NULL;
+
+    void *item = input->head->item;
+    RawList *next = input->head->next;
+
+    input->head = next;
+    input->length--;
+    return item;
+}
+
+static inline void *list_popright(List *input)
+{
+    if (input == NULL || input->length < 1)
+        return NULL;
+
+    void *item = input->tail->item;
+    RawList *prev = input->tail->prev;
+
+    input->tail = prev;
+    input->length--;
+    return item;
+}
+
 static inline void list_free(List *input)
 {
     if (input != NULL) {
@@ -1130,6 +1148,79 @@ static inline void list_free(List *input)
     }
 }
 /* ===== LINKED LIST SECTION ===== */
+
+#define WITH_TYPE(...)
+
+typedef uint64_t HashIndex;
+
+typedef struct {
+    const char *raw_key;
+    size_t length;
+} HashKey; // 16 byte
+
+typedef void *HashValue; // 8 byte
+
+typedef struct {
+    HashKey key;
+    HashValue value;
+} HashEntry; // 24 bytes
+
+typedef ForwardList HashRecords WITH_TYPE(HashEntry);
+
+typedef struct {
+    Vector records WITH_TYPE(HashRecords);
+} HashTable; // 32 byte
+
+/* The simplest FNV implementation */
+#ifndef MISC_FNV_PRIME
+// FNV 64
+#define MISC_FNV_PRIME ((uint64_t){1099511628211})
+#endif
+
+// FNV 32
+#ifndef MISC_FNV_OCTET_BASIS
+#define MISC_FNV_OCTET_BASIS ((uint64_t){2166136261})
+#endif
+
+#ifndef MISC_HTAB_DISTRESS_LIMIT
+#define MISC_HTAB_DISTRESS_LIMIT (MISC_HOST_BITS * MISC_HOST_BITS)
+#endif
+
+HashIndex misc_FNV1a(HashKey key)
+{
+    HashIndex basis = MISC_FNV_OCTET_BASIS;
+    for (size_t i = 0; i < key.length; i++) {
+        basis ^= key.raw_key[i];
+        basis ^= MISC_FNV_PRIME;
+    }
+
+    return basis;
+}
+
+HashTable hashtable_create(void)
+{
+    HashTable htab = {0};
+    if (!vector_reserve((Vector *) &htab, MISC_HTAB_DISTRESS_LIMIT))
+        return (HashTable){0};
+    else
+        return htab;
+}
+
+bool hashtable_insert(HashTable *htab, HashEntry entry)
+{
+    if (htab == NULL || entry.key.raw_key == NULL)
+        return false;
+
+    HashIndex index_records = misc_FNV1a(entry.key);
+    size_t htab_size = htab->records.capacity - htab->records.length; 
+    if (htab_size <= 8) {
+        if (!vector_reserve((Vector *) htab, MISC_HTAB_DISTRESS_LIMIT))
+            return false;
+    }
+
+    index_records %= htab_size;
+    return false;
+}
 
 /*
 TODO:

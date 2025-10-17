@@ -34,7 +34,7 @@ int main(void)
     for (int i = 0; i < 10; i++) {
         thrd_t handle;
         thrd_create(&handle, thread_routine, data);
-        vector_push(&handlers, &handle);
+        vector_push(&handlers, thrd_t, handle);
     }
 
     for (size_t i = 0; i < handlers.length; i++) {

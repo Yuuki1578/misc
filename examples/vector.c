@@ -10,7 +10,7 @@ int main(void) {
   Vector vec = vector_create_with(1, sizeof(size_t));
 
   for (size_t i = 1 << 14; i > 0; i--)
-    vector_push(&vec, &i);
+    vector_push(&vec, size_t, i * 100);
 
   for (size_t i = 0, *current; i < vec.length; i++) {
     current = vector_get(&vec, i);
