@@ -55,13 +55,11 @@ Licensed under MIT License. All right reserved.
 #include <limits.h>
 #include <stdalign.h>
 #include <stdarg.h>
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdnoreturn.h>
 #include <string.h>
 #include <threads.h>
 
@@ -911,7 +909,7 @@ static inline void r_forward_list_free(RawForwardList *head)
     }
 #else
     if (head != NULL)
-        *head = (RawForwardList){};
+        *head = (RawForwardList){0};
 #endif
 }
 
@@ -1047,7 +1045,7 @@ static inline void r_list_free(RawList *tail)
     }
 #else
     if (tail != NULL)
-        *tail = (RawList){};
+        *tail = (RawList){0};
 #endif
 }
 
