@@ -99,8 +99,25 @@ Licensed under MIT License. All right reserved.
 #define MISC_WINDOWS_HOST
 #define WIN32_LEAN_AND_MEAN
 
-#define MISC_BUILTIN_ALLOC(size) malloc(size)
-#define MISC_BUILTIN_FREE(ptr, size) free(ptr)
+#include <windows.h>
+#include <winbase.h>
+#include <memoryapi.h>
+#include <BaseTsd.h>
+#include <WinDef.h>
+#include <WinNT.h>
+
+
+/* If you are using clang on windows, compile it with
+-fms-compatibility flag. */
+#if defined(_MSC_VER) || defined(__clang__)
+#pragma comment(lib, "kernel32.lib")
+#endif
+/* Or, use -lkernel32 flag */
+
+#define MISC_WIN32_PAGE_NAME "MISC PAGES"
+
+#define MISC_BUILTIN_ALLOC(size) MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, size)
+#define MISC_BUILTIN_FREE(ptr, size) UnmapViewOfFile(ptr)
 #define MISC_BUILTIN_ALLOC_FAIL NULL
 
 #else
@@ -190,6 +207,11 @@ typedef struct Arena Arena;
 struct Arena {
     Arena *next;
     size_t total, offset;
+
+#ifdef MISC_WINDOWS_HOST
+    HANDLE handle;
+#endif
+
     uint8_t *data;
 };
 
@@ -203,14 +225,33 @@ static inline Arena *arena_create(size_t size)
     if (size < 1)
         return NULL;
 
-    Arena *head_node = (Arena *)MISC_BUILTIN_ALLOC(sizeof *head_node + size);
+#ifdef MISC_WINDOWS_HOST
+    HANDLE handle = (HANDLE) CreateFileMapping(
+        INVALID_HANDLE_VALUE,
+        NULL,
+        PAGE_READWRITE,
+        0,
+        size,
+        MISC_WIN32_PAGE_NAME
+    );
+
+    if (handle == NULL)
+        return NULL;
+#endif
+
+    Arena *head_node = (Arena *) MISC_BUILTIN_ALLOC(sizeof *head_node + size);
     if (head_node == MISC_BUILTIN_ALLOC_FAIL)
         return NULL;
 
     head_node->next = NULL;
     head_node->total = size;
     head_node->offset = 0;
-    head_node->data = ((uint8_t *)head_node) + sizeof *head_node;
+    head_node->data = ((uint8_t *) head_node) + sizeof *head_node;
+
+#ifdef MISC_WINDOWS_HOST
+    head_node->handle = handle;
+#endif
+
     return head_node;
 }
 
@@ -239,7 +280,7 @@ static inline void *arena_alloc(Arena *input, size_t size)
     int found;
     size_t size_required;
 
-    if (!input || !size)
+    if (input == NULL || size < 1)
         return NULL;
 
     suitable = arena_find_suitable(input, size, &found);
@@ -284,8 +325,18 @@ static inline void arena_free(Arena *input)
 {
     while (input) {
         Arena *temporary = input->next;
-        size_t total = input->total;
+
+#ifdef MISC_WINDOWS_HOST
+        HANDLE handle = input->handle;
+#endif
+
+        size_t total = input->total + sizeof *input;
         MISC_BUILTIN_FREE(input, total);
+
+#ifdef MISC_WINDOWS_HOST
+        CloseHandle(handle);
+#endif
+
         input = temporary;
     }
 }
@@ -378,7 +429,7 @@ static inline Vector vector_create_with(size_t init_capacity, size_t item_size)
     else if (init_capacity == 0)
         return new_vector;
 
-    new_vector.items = (uint8_t *)MISC_CALLOC(init_capacity, item_size);
+    new_vector.items = (uint8_t *) MISC_CALLOC(init_capacity, item_size);
     if (new_vector.items == 0)
         return new_vector;
     else
@@ -400,7 +451,7 @@ static inline bool vector_resize(Vector *input, size_t into)
     if (input == NULL || input->capacity == into || input->item_size == 0)
         return false;
 
-    temporary = (uint8_t *)MISC_REALLOC(input->items, input->item_size * input->capacity, input->item_size * into);
+    temporary = (uint8_t *) MISC_REALLOC(input->items, input->item_size * input->capacity, input->item_size * into);
     if (temporary == 0)
         return false;
 
@@ -486,6 +537,7 @@ static inline void vector_free(Vector *input)
 #else
             input->items = NULL;
 #endif
+
         input->capacity = 0;
         input->length = 0;
     }
@@ -494,7 +546,7 @@ static inline void vector_free(Vector *input)
 
 /* ===== STRING SECTION ===== */
 #ifndef CSTR
-#define CSTR(string) ((char *)(string.buffer.items))
+#define CSTR(string) ((char *) (string.buffer.items))
 #endif
 
 #define string_push_many(string, ...) string_push_many_fn(string, __VA_ARGS__, '\0')
@@ -518,14 +570,14 @@ static inline String string_create(void)
 static inline void string_push(String *input, char character)
 {
     /* Inherit */
-    vector_push((Vector *)input, &character);
+    vector_push((Vector *) input, &character);
 }
 
 static inline void string_push_many_fn(String *input, ...)
 {
     va_list va;
     va_start(va, input);
-    vector_push_many((Vector *)input, va);
+    vector_push_many((Vector *) input, va);
     va_end(va);
 }
 
@@ -556,9 +608,9 @@ static inline void string_pushstr_many_fn(String *input, ...)
 static inline void string_free(String *input) {
     /* Inherit */
 #ifndef MISC_USE_GLOBAL_ALLOCATOR
-    vector_free((Vector *)input);
+    vector_free((Vector *) input);
 #else
-    (void)input;
+    (void) input;
 #endif
 }
 
@@ -627,8 +679,8 @@ static inline bool refcount_lock(mtx_t *mutex)
 
 static inline void *refcount_get(void *object)
 {
-    const uint8_t *MemoryPadding = (uint8_t *)object;
-    return (void *)(MemoryPadding - sizeof(Refcount));
+    const uint8_t *padded = (uint8_t *) object;
+    return (void *) (padded - sizeof(Refcount));
 }
 
 static inline void *refcount_alloc(size_t size)
@@ -636,7 +688,7 @@ static inline void *refcount_alloc(size_t size)
     Refcount *obj_template;
     uint8_t *slice_bytes;
 
-    if ((obj_template = (Refcount *)calloc(1, sizeof *obj_template + size)) == NULL)
+    if ((obj_template = (Refcount *) calloc(1, sizeof *obj_template + size)) == NULL)
         return NULL;
 
     if (mtx_init(&obj_template->mutex, mtx_plain) != thrd_success) {
@@ -645,11 +697,11 @@ static inline void *refcount_alloc(size_t size)
     }
 
     obj_template->count = 1;
-    slice_bytes = (uint8_t *)obj_template;
+    slice_bytes = (uint8_t *) obj_template;
     slice_bytes = slice_bytes + sizeof *obj_template;
     obj_template->data = slice_bytes;
 
-    return (void *)slice_bytes;
+    return (void *) slice_bytes;
 }
 
 static inline bool refcount_upgrade(void **object)
@@ -658,7 +710,7 @@ static inline bool refcount_upgrade(void **object)
     if (object == NULL || *object == NULL)
         return false;
 
-    as_refcount = (Refcount *)refcount_get(*object);
+    as_refcount = (Refcount *) refcount_get(*object);
     if (refcount_lock(&as_refcount->mutex)) {
         as_refcount->count++;
         mtx_unlock(&as_refcount->mutex);
@@ -675,7 +727,7 @@ static inline bool refcount_degrade(void **object) {
     if (object == NULL || *object == NULL)
         return false;
 
-    as_refcount = (Refcount *)refcount_get(*object);
+    as_refcount = (Refcount *) refcount_get(*object);
     mark_free = false;
 
     if (refcount_lock(&as_refcount->mutex)) {
@@ -712,7 +764,7 @@ static inline size_t refcount_lifetime(void **object)
     if (object == NULL || *object == NULL)
         return 0;
 
-    as_refcount = (Refcount *)refcount_get(*object);
+    as_refcount = (Refcount *) refcount_get(*object);
     if (refcount_lock(&as_refcount->mutex)) {
         object_lifetime = as_refcount->count;
         mtx_unlock(&as_refcount->mutex);
@@ -730,7 +782,7 @@ static inline char *read_from_stream(FILE *stream)
 {
     int64_t offset_max = 0;
 
-#if defined(_WIN32) || defined(_WIN64)
+#ifdef MISC_WINDOWS_HOST
     _fseeki64(stream, 0, SEEK_END);
     offset_max = _ftelli64(file);
     _fseeki64(stream, 0, SEEK_SET);
@@ -743,7 +795,7 @@ static inline char *read_from_stream(FILE *stream)
 #endif
 
     if (offset_max > 0) {
-        char *buffer = (char *)MISC_ALLOC(offset_max + 1);
+        char *buffer = (char *) MISC_ALLOC(offset_max + 1);
         if (buffer == NULL)
             return NULL;
 
@@ -771,7 +823,7 @@ static inline char *read_from_path(const char *path)
 /* ===== FILE SECTION ===== */
 
 /* ===== LINKED LIST SECTION ===== */
-#if !defined(ADDRESS_OF) && !defined(__cplusplus)
+#if !defined(ADDRESS_OF) && !defined(__cplusplus) && !defined(MISC_WINDOWS_HOST)
 #define ADDRESS_OF(T) (&(typeof(T)){T})
 #endif
 
@@ -792,12 +844,12 @@ static inline RawForwardList *r_forward_list_create(void *item, size_t size)
     if (item == NULL || size < 1)
         return NULL;
 
-    uint8_t *buffer = (uint8_t *)MISC_ALLOC(sizeof(RawForwardList) + size);
+    uint8_t *buffer = (uint8_t *) MISC_ALLOC(sizeof(RawForwardList) + size);
     if (buffer == NULL)
         return NULL;
 
     RawForwardList *rfl = (RawForwardList *)(buffer + 0);
-    rfl->item = (void *)(buffer + sizeof(RawForwardList));
+    rfl->item = (void *) (buffer + sizeof(RawForwardList));
     rfl->next = NULL;
     memcpy(rfl->item, item, size);
 
@@ -926,10 +978,10 @@ static inline RawList *r_list_create(void *item, size_t size)
         return NULL;
 
     RawList *newer = NULL;
-    uint8_t *as_bytes = (uint8_t *)MISC_ALLOC(sizeof(RawList) + size);
+    uint8_t *as_bytes = (uint8_t *) MISC_ALLOC(sizeof(RawList) + size);
 
     if (as_bytes != NULL) {
-        newer = (RawList *)(as_bytes + 0);
+        newer = (RawList *) (as_bytes + 0);
         newer->prev = NULL;
         newer->next = NULL;
         newer->item = as_bytes + sizeof(RawList);
@@ -995,7 +1047,7 @@ static inline void r_list_free(RawList *tail)
     }
 #else
     if (tail != NULL)
-        *tail = (RawList){0};
+        *tail = (RawList){};
 #endif
 }
 
@@ -1080,30 +1132,6 @@ static inline void list_free(List *input)
     }
 }
 /* ===== LINKED LIST SECTION ===== */
-
-/* ===== PROCESS RELATED ROUTINES ===== */
-#ifdef MISC_POSIX_HOST
-
-typedef int (*ThreadTask)(void *args);
-
-static inline bool spawn_process(ThreadTask routine, void *args)
-{
-    switch (fork()) {
-    case -1:
-        return false;
-
-    case 0:
-        exit(routine(args));
-
-    default:
-        break;
-    }
-
-    return true;
-}
-
-#endif
-/* ===== PROCESS RELATED ROUTINES ===== */
 
 /*
 TODO:

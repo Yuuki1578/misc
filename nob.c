@@ -42,7 +42,8 @@ void example_compile_all_cpp(Nob_Cmd *cmd, Nob_Procs *procs);
 void source_format(Nob_Cmd *cmd);
 /* ===== MISC ===== */
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
     NOB_GO_REBUILD_URSELF(argc, argv);
 
     Nob_Cmd cmd = {0};
