@@ -2,5 +2,4 @@ build/
 .cache/
 .clangd/
 compile_commands.json
-Nob
-Nob.old
+nob
