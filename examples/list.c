@@ -9,7 +9,7 @@ int main(void) {
     };
 
     for (int i = 1; i <= 1 << 12; i++) {
-        char buf[64] = {};
+        char buf[64] = {0};
         sprintf(buf, "iteration: %d", i);
         list_append(&list, buf);
     }
