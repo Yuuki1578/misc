@@ -28,7 +28,6 @@ IF (NOT MSVC)
     -fsanitize=address)
 ENDIF ()
 
-ADD_EXECUTABLE(list_binding examples/list_binding.cpp)
 ADD_EXECUTABLE(list examples/list.c)
 ADD_EXECUTABLE(file examples/file.c)
 ADD_EXECUTABLE(file_reading examples/file_reading.c)
