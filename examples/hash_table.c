@@ -4,17 +4,25 @@
 int main(void)
 {
     HashTable table = hashtable_create();
-    size_t index;
 
-    printf("%zu\n", (index = misc_FNV1a(HTAB_KEY("Fuck", 4)) % 63));
+    hashtable_insert(&table, (HashEntry){
+        .key.key = "Halo!",
+        .key.length = 5,
+        .value = &table,
+    });
 
-    HTAB_INSERT(&table, HTAB_KEY("Hello", 5), 0xAB0BA);
-    HTAB_INSERT(&table, HTAB_KEY("Fuck", 4), 67);
-    HTAB_INSERT(&table, HTAB_KEY("Shit", 4), 69);
+    char *static_key = "Howdy rowdy, hash table's here!";
+    int value = 67;
 
-    HashRecords *records = vector_get_pos((Vector *) &table, index);
-    int *data = records->head->item;
-    printf("%x\n", *data);
+    HashEntry entry = {
+        .key.key = static_key,
+        .key.length = strlen(static_key),
+        .value = &value,
+    };
 
-    (void) table;
+    HashIndex hashed = misc_FNV1a(entry.key);
+    printf("%zu\n", hashed % table.buckets.capacity);
+    hashtable_insert(&table, entry);
+
+    return 0;
 }

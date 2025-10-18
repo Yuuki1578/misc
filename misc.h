@@ -380,7 +380,7 @@ REQUIRED_MACRO: @MISC_USE_GLOBAL_ALLOCATOR
 #define MISC_ALLOC(size) arena_alloc(_misc_global_allocator, (size))
 #define MISC_CALLOC(count, size) arena_alloc(_misc_global_allocator, (count) * (size))
 #define MISC_REALLOC(ptr, old_size, new_size) arena_realloc(_misc_global_allocator, (ptr), (old_size), (new_size))
-#define MISC_FREE(ptr)
+#define MISC_FREE(ptr) (void)0
 
 #endif
 /* ===== ARENA SECTION ===== */
@@ -1149,23 +1149,6 @@ static inline void list_free(List *input)
 }
 /* ===== LINKED LIST SECTION ===== */
 
-/* The simplest FNV implementation */
-#ifndef MISC_FNV_PRIME
-// FNV 64
-#define MISC_FNV_PRIME ((uint64_t){1099511628211})
-#endif
-
-// FNV 32
-#ifndef MISC_FNV_OCTET_BASIS
-#define MISC_FNV_OCTET_BASIS ((uint64_t){2166136261})
-#endif
-
-#ifndef MISC_HTAB_DISTRESS_LIMIT
-#define MISC_HTAB_DISTRESS_LIMIT (64)
-#endif
-
-#define MISC_HTAB_MIN_LENGTH (8)
-
 #if __STDC_VERSION__ >= 202000L
 
 /* GENERIC TYPES */
@@ -1222,6 +1205,7 @@ static inline void list_free(List *input)
     } while (0)
 
 #define VECTOR_MAKE_FIT(v) VECTOR_RESIZE(v, (v).length)
+#define VECTOR_REMAIN(v) ((v).capacity - (v).length)
 
 #define FWLIST(T)                                \
     struct {                                     \
@@ -1308,25 +1292,66 @@ ComplicatedType {                             24 bytes
 
 #if __STDC_VERSION__ >= 202000L
 
+#ifndef MISC_FNV_PRIME
+// FNV 64
+#define MISC_FNV_PRIME ((uint64_t){1099511628211})
+#endif
+
+// FNV 32
+#ifndef MISC_FNV_OCTET_BASIS
+#define MISC_FNV_OCTET_BASIS ((uint64_t){2166136261})
+#endif
+
+#ifndef MISC_HTAB_DISTRESS_LIMIT
+#define MISC_HTAB_DISTRESS_LIMIT (64)
+#endif
+
+#define MISC_HTAB_MIN_LENGTH (8)
+#define MISC_HTAB_COLLISION_INIT (8)
+
 typedef struct {
     const char *key;
     size_t length;
 } HashKey;
 
-#define HTAB_ENTRY(V) \
-    struct {          \
-        HashKey key;  \
-        V value;      \
-    }
+typedef struct {
+    HashKey key;
+    void *value;
+} HashEntry;
 
-#define HASH_TABLE(V)                          \
-    struct {                                   \
-        VECTOR(FWLIST(HTAB_ENTRY(V))) buckets; \
-    }
+typedef VECTOR(HashEntry) Bucket;
+typedef VECTOR(Bucket) HashRoom;
+
+typedef struct {
+    HashRoom buckets;
+    size_t coll_count, coll_cap;
+} HashTable;
+
+static inline int bucket_comparator(const void *lhs, const void *rhs)
+{
+    const HashEntry *e_lhs = (const HashEntry *) lhs;
+    const HashEntry *e_rhs = (const HashEntry *) rhs;
+
+    int x = e_lhs->key.length > e_rhs->key.length;
+    int y = e_lhs->key.length < e_rhs->key.length;
+
+    return x - y;
+}
+
+static inline void bucket_sort(Bucket *bucket)
+{
+    qsort((void *) bucket->items, bucket->length, sizeof(*(bucket->items)), bucket_comparator);
+}
+
+static inline HashEntry *bucket_find(Bucket *bucket, const HashEntry signature)
+{
+    bucket_sort(bucket);
+    return (HashEntry *) bsearch((const void *) &signature, (void *) bucket->items, bucket->length, sizeof(*(bucket->items)), bucket_comparator);
+}
 
 typedef uint64_t HashIndex;
 
-HashIndex misc_FNV1a(HashKey key)
+static inline HashIndex misc_FNV1a(HashKey key)
 {
     HashIndex basis = MISC_FNV_OCTET_BASIS;
     for (size_t i = 0; i < key.length; i++) {
@@ -1335,6 +1360,54 @@ HashIndex misc_FNV1a(HashKey key)
     }
 
     return basis;
+}
+
+static inline HashTable hashtable_create(void)
+{
+    HashTable table = {
+        .coll_count = 0,
+        .coll_cap = MISC_HTAB_COLLISION_INIT,
+    };
+
+    VECTOR_RESERVE(table.buckets, MISC_HTAB_DISTRESS_LIMIT);
+    if (!table.buckets.capacity)
+        return (HashTable){0};
+
+    return table;
+}
+
+static inline bool hashtable_insert(HashTable *htab, HashEntry entry)
+{
+    if (htab == NULL || entry.value == NULL || entry.key.key == NULL)
+        return false;
+
+    HashRoom *buckets = &htab->buckets;
+
+    if (htab->coll_count == htab->coll_cap || VECTOR_REMAIN(*buckets) <= MISC_HTAB_MIN_LENGTH) {
+       size_t save = buckets->capacity; 
+       VECTOR_RESERVE(*buckets, MISC_HTAB_DISTRESS_LIMIT);
+
+       if (save == buckets->capacity)
+           return false;
+    }
+
+    HashIndex hash = misc_FNV1a(entry.key) % buckets->capacity;
+    Bucket *bucket = &buckets->items[hash];
+
+    if (bucket->length != 0) {
+        VECTOR_PUSH(*bucket, entry);
+        htab->coll_count++;
+    } else {
+        size_t tmpcap = bucket->capacity;
+        VECTOR_RESERVE(*bucket, MISC_HTAB_COLLISION_INIT);
+
+        if (tmpcap == bucket->capacity)
+            return false;
+
+        bucket->items[0] = entry;
+    }
+
+    return true;
 }
 
 #endif
