@@ -26,10 +26,8 @@ library.
 #error Compiler must be either gcc or clang
 #endif
 
-#define CFLAGS                                                             \
-    "-Wall", "-Werror", "-Wextra", "-pedantic", "-std=c23", "-ffast-math", \
-    "-fomit-frame-pointer", "-funroll-loops", "-march=native",             \
-    "-mtune=native", "-Wno-unused-function", "-O0", "-ggdb"
+#define CFLAGS \
+    "-Wall", "-Werror", "-Wextra", "-pedantic", "-Wno-unused-function", "-ggdb", "-std=c23"
 
 /* ===== EXAMPLES ===== */
 void example_compile(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char *output);
@@ -108,6 +106,7 @@ void example_compile_all(Nob_Cmd *cmd, Nob_Procs *procs)
     example_compile(cmd, procs, "examples/string.c", "build/examples/string");
     example_compile(cmd, procs, "examples/vector.c", "build/examples/vector");
     example_compile(cmd, procs, "examples/arena.c", "build/examples/arena");
+    example_compile(cmd, procs, "examples/hash_table.c", "build/examples/hash_table");
 
 }
 
@@ -138,6 +137,7 @@ void source_format(Nob_Cmd *cmd)
     FORMAT_FILE("examples/string.c");
     FORMAT_FILE("examples/vector.c");
     FORMAT_FILE("examples/arena.c");
+    FORMAT_FILE("examples/hash_table.c");
 
     FORMAT_FILE("misc.h");
     FORMAT_FILE("nob.c");

@@ -380,7 +380,7 @@ REQUIRED_MACRO: @MISC_USE_GLOBAL_ALLOCATOR
 #define MISC_ALLOC(size) arena_alloc(_misc_global_allocator, (size))
 #define MISC_CALLOC(count, size) arena_alloc(_misc_global_allocator, (count) * (size))
 #define MISC_REALLOC(ptr, old_size, new_size) arena_realloc(_misc_global_allocator, (ptr), (old_size), (new_size))
-#define MISC_FREE(ptr) arena_free(_misc_global_allocator)
+#define MISC_FREE(ptr)
 
 #endif
 /* ===== ARENA SECTION ===== */
@@ -830,7 +830,7 @@ static inline RawForwardList *r_forward_list_create(void *item, size_t size)
     if (buffer == NULL)
         return NULL;
 
-    RawForwardList *rfl = (RawForwardList *)(buffer + 0);
+    RawForwardList *rfl = (RawForwardList *) (buffer + 0);
     rfl->item = (void *) (buffer + sizeof(RawForwardList));
     rfl->next = NULL;
     memcpy(rfl->item, item, size);
@@ -1149,28 +1149,6 @@ static inline void list_free(List *input)
 }
 /* ===== LINKED LIST SECTION ===== */
 
-#define WITH_TYPE(...)
-
-typedef uint64_t HashIndex;
-
-typedef struct {
-    const char *raw_key;
-    size_t length;
-} HashKey; // 16 byte
-
-typedef void *HashValue; // 8 byte
-
-typedef struct {
-    HashKey key;
-    HashValue value;
-} HashEntry; // 24 bytes
-
-typedef ForwardList HashRecords WITH_TYPE(HashEntry);
-
-typedef struct {
-    Vector records WITH_TYPE(HashRecords);
-} HashTable; // 32 byte
-
 /* The simplest FNV implementation */
 #ifndef MISC_FNV_PRIME
 // FNV 64
@@ -1183,44 +1161,183 @@ typedef struct {
 #endif
 
 #ifndef MISC_HTAB_DISTRESS_LIMIT
-#define MISC_HTAB_DISTRESS_LIMIT (MISC_HOST_BITS * MISC_HOST_BITS)
+#define MISC_HTAB_DISTRESS_LIMIT (64)
 #endif
+
+#define MISC_HTAB_MIN_LENGTH (8)
+
+#if __STDC_VERSION__ >= 202000L
+
+/* GENERIC TYPES */
+#define VECTOR(T)        \
+    struct {             \
+        T *items;        \
+        size_t capacity; \
+        size_t length;   \
+    }
+
+#define VECTOR_FREE(v)            \
+    do {                          \
+        if ((v).items != NULL)    \
+            MISC_FREE((v).items); \
+        (v).items = NULL;         \
+        (v).capacity = 0;         \
+        (v).length = 0;           \
+    } while (0);
+
+#define VECTOR_PUSH(v, val)                                        \
+    do {                                                           \
+        if ((v).items == NULL || (v).capacity - (v).length <= 1) { \
+            size_t tmpcapacity = (v).capacity;                     \
+            VECTOR_RESERVE(v, VECTOR_ALLOC_FREQ);                  \
+            if ((v).capacity == tmpcapacity)                       \
+                break;                                             \
+        }                                                          \
+        (v).items[(v).length++] = (val);                           \
+    } while (0)
+
+#define VECTOR_RESIZE(v, into)                                                                                             \
+    do {                                                                                                                   \
+        if (!(into))                                                                                                       \
+            VECTOR_FREE(v);                                                                                                \
+        if ((v).items == NULL || !(v).capacity) {                                                                          \
+            if (((v).items = MISC_ALLOC(VECTOR_ALLOC_FREQ * sizeof *(v).items)) == NULL)                                   \
+                break;                                                                                                     \
+            (v).capacity = VECTOR_ALLOC_FREQ;                                                                              \
+            (v).length = 0;                                                                                                \
+        } else {                                                                                                           \
+            typeof((v).items) tmp = MISC_REALLOC((v).items, (v).capacity * sizeof *(v).items, (into) * sizeof *(v).items); \
+            if (tmp == NULL)                                                                                               \
+                break;                                                                                                     \
+            (v).items = tmp;                                                                                               \
+            (v).capacity = (into);                                                                                         \
+        }                                                                                                                  \
+    } while (0)
+
+#define VECTOR_RESERVE(v, how_much)                  \
+    do {                                             \
+        if ((how_much) <= (v).capacity)              \
+            break;                                   \
+        VECTOR_RESIZE(v, (v).capacity + (how_much)); \
+    } while (0)
+
+#define VECTOR_MAKE_FIT(v) VECTOR_RESIZE(v, (v).length)
+
+#define FWLIST(T)                                \
+    struct {                                     \
+        struct __private_inner_FWLIST {          \
+            struct __private_inner_FWLIST *next; \
+            T item;                              \
+        } *head, *tail;                          \
+        size_t length;                           \
+    }
+
+#define FWLIST_APPEND(fw, val)                             \
+    do {                                                   \
+        typeof((fw).head) latter = MISC_ALLOC(sizeof(fw)); \
+        if (latter == NULL) break;                         \
+        latter->next = NULL;                               \
+        latter->item = (val);                              \
+        if ((fw).head == NULL || !((fw).length)) {         \
+            (fw).head = latter;                            \
+            (fw).tail = latter;                            \
+        } else {                                           \
+            (fw).tail->next = latter;                      \
+            (fw).tail = latter;                            \
+        }                                                  \
+        (fw).length++;                                     \
+    } while (0)
+
+#define FWLIST_PREPEND(fw, val)                            \
+    do {                                                   \
+        typeof((fw).head) latter = MISC_ALLOC(sizeof(fw)); \
+        if (latter == NULL) break;                         \
+        latter->next = NULL;                               \
+        latter->item = (val);                              \
+        if ((fw).head == NULL || !((fw).length)) {         \
+            (fw).head = latter;                            \
+            (fw).tail = latter;                            \
+        } else {                                           \
+            latter->next = (fw).head;                      \
+            (fw).head = latter;                            \
+        }                                                  \
+        (fw).length++;                                     \
+    } while (0)
+
+#define FWLIST_POPLEFT(fw, stored_in)                           \
+    do {                                                        \
+        if ((fw).head == NULL || !((fw).length)) break;         \
+        typeof((fw).head) popped = (fw).head;                   \
+        (stored_in) = popped->item;                             \
+        (fw).head = (fw).head->next;                            \
+        (fw).length--;                                          \
+        MISC_FREE(popped);                                      \
+    } while (0)
+
+#define FWLIST_FREE(fw)             \
+    do {                            \
+        typeof((fw).head->item) _i; \
+        FWLIST_POPLEFT(fw, _i);     \
+    } while ((fw).length != 0)
+
+#endif
+
+#ifdef MISC_SEE_EASTER_EGG
+typedef VECTOR(FWLIST(int)) ComplicatedType;
+/*
+
+ComplicatedType {                             24 bytes
+    .items = struct * {
+        .head = __private_inner_FWLIST * {    8 bytes
+            .next = __private_inner_FWLIST *, 8 bytes
+            .item = int,                      4 bytes
+        },
+        .tail = __private_inner_FWLIST * {    8 bytes
+            .next = __private_inner_FWLIST *, 8 bytes
+            .item = int,                      4 bytes
+        },
+        .length = size_t,                     8 bytes
+    },
+    .capacity = size_t,                       8 bytes
+    .length = size_t,                         8 bytes
+};
+
+*/
+
+#endif
+
+#if __STDC_VERSION__ >= 202000L
+
+typedef struct {
+    const char *key;
+    size_t length;
+} HashKey;
+
+#define HTAB_ENTRY(V) \
+    struct {          \
+        HashKey key;  \
+        V value;      \
+    }
+
+#define HASH_TABLE(V)                          \
+    struct {                                   \
+        VECTOR(FWLIST(HTAB_ENTRY(V))) buckets; \
+    }
+
+typedef uint64_t HashIndex;
 
 HashIndex misc_FNV1a(HashKey key)
 {
     HashIndex basis = MISC_FNV_OCTET_BASIS;
     for (size_t i = 0; i < key.length; i++) {
-        basis ^= key.raw_key[i];
+        basis ^= key.key[i];
         basis ^= MISC_FNV_PRIME;
     }
 
     return basis;
 }
 
-HashTable hashtable_create(void)
-{
-    HashTable htab = {0};
-    if (!vector_reserve((Vector *) &htab, MISC_HTAB_DISTRESS_LIMIT))
-        return (HashTable){0};
-    else
-        return htab;
-}
-
-bool hashtable_insert(HashTable *htab, HashEntry entry)
-{
-    if (htab == NULL || entry.key.raw_key == NULL)
-        return false;
-
-    HashIndex index_records = misc_FNV1a(entry.key);
-    size_t htab_size = htab->records.capacity - htab->records.length; 
-    if (htab_size <= 8) {
-        if (!vector_reserve((Vector *) htab, MISC_HTAB_DISTRESS_LIMIT))
-            return false;
-    }
-
-    index_records %= htab_size;
-    return false;
-}
+#endif
 
 /*
 TODO:
