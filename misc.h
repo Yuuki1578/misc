@@ -63,7 +63,7 @@ Licensed under MIT License. All right reserved.
 #include <string.h>
 #include <threads.h>
 
-#if __STDC_VERSION__ >= 201700L
+#if __STDC_VERSION__ >= 202000L
 
 #define MISC_SWAP(lhs, rhs)               \
     do {                                  \
@@ -345,7 +345,7 @@ static inline void arena_free(Arena *input)
 #ifndef MISC_USE_GLOBAL_ALLOCATOR
 
 #ifndef MISC_ALLOC
-#define MISC_ALLOC(size) malloc((size))
+#define MISC_ALLOC(size) calloc((size), 1)
 #endif
 
 #ifndef MISC_CALLOC
@@ -366,16 +366,16 @@ static inline void arena_free(Arena *input)
 IMPORTANT: This macro shall be called in every main function.
 REQUIRED_MACRO: @MISC_USE_GLOBAL_ALLOCATOR
 */
-#define ARENA_INIT()                                                     \
-  do {                                                                   \
-      _misc_global_allocator = arena_create(MISC_GLOBAL_ALLOCATOR_PAGING); \
-  } while (0)
+#define ARENA_INIT()                                                         \
+    do {                                                                     \
+        _misc_global_allocator = arena_create(MISC_GLOBAL_ALLOCATOR_PAGING); \
+    } while (0)
 
-#define ARENA_DEINIT()                    \
-  do {                                    \
-      arena_free(_misc_global_allocator); \
-      _misc_global_allocator = NULL;      \
-  } while (0)
+#define ARENA_DEINIT()                      \
+    do {                                    \
+        arena_free(_misc_global_allocator); \
+        _misc_global_allocator = NULL;      \
+    } while (0)
 
 #define MISC_ALLOC(size) arena_alloc(_misc_global_allocator, (size))
 #define MISC_CALLOC(count, size) arena_alloc(_misc_global_allocator, (count) * (size))
@@ -1303,11 +1303,15 @@ ComplicatedType {                             24 bytes
 #endif
 
 #ifndef MISC_HTAB_DISTRESS_LIMIT
-#define MISC_HTAB_DISTRESS_LIMIT (64)
+#define MISC_HTAB_DISTRESS_LIMIT (1ULL << 8ULL)
 #endif
 
 #define MISC_HTAB_MIN_LENGTH (8)
-#define MISC_HTAB_COLLISION_INIT (8)
+#define MISC_HTAB_COLLISION_INIT MISC_HTAB_DISTRESS_LIMIT
+
+#ifndef MISC_HENT_MIN_LENGTH
+#define MISC_HENT_MIN_LENGTH (64)
+#endif
 
 typedef struct {
     const char *key;
@@ -1329,13 +1333,16 @@ typedef struct {
 
 static inline int bucket_comparator(const void *lhs, const void *rhs)
 {
-    const HashEntry *e_lhs = (const HashEntry *) lhs;
+    const HashKey *e_lhs = (const HashKey *) lhs;
     const HashEntry *e_rhs = (const HashEntry *) rhs;
+    size_t length_used;
 
-    int x = e_lhs->key.length > e_rhs->key.length;
-    int y = e_lhs->key.length < e_rhs->key.length;
+    if (e_lhs->length <= e_rhs->key.length)
+        length_used = e_lhs->length;
+    else
+        length_used = e_rhs->key.length;
 
-    return x - y;
+    return strncmp(e_lhs->key, e_rhs->key.key, length_used);
 }
 
 static inline void bucket_sort(Bucket *bucket)
@@ -1343,10 +1350,39 @@ static inline void bucket_sort(Bucket *bucket)
     qsort((void *) bucket->items, bucket->length, sizeof(*(bucket->items)), bucket_comparator);
 }
 
-static inline HashEntry *bucket_find(Bucket *bucket, const HashEntry signature)
+static inline HashEntry *bucket_find(Bucket *bucket, const HashKey signature)
 {
     bucket_sort(bucket);
     return (HashEntry *) bsearch((const void *) &signature, (void *) bucket->items, bucket->length, sizeof(*(bucket->items)), bucket_comparator);
+}
+
+static inline bool hashkey_verify(HashKey lhs, HashKey rhs)
+{
+    size_t length_used;
+    if (lhs.length <= rhs.length)
+        length_used = lhs.length;
+    else
+        length_used = rhs.length;
+
+    if (strncmp(lhs.key, rhs.key, length_used) == 0)
+        return true;
+
+    return false;
+}
+
+/* NOT INTENDED FOR PUBLIC USE */
+static inline bool bucket_find_manual(Bucket *bucket,
+                                            const HashKey signature,
+                                            HashEntry **storage)
+{
+    for (size_t i = 0; i < bucket->length; i++) {
+        if (hashkey_verify(bucket->items[i].key, signature)) {
+            *storage = bucket->items + i;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 typedef uint64_t HashIndex;
@@ -1405,9 +1441,48 @@ static inline bool hashtable_insert(HashTable *htab, HashEntry entry)
             return false;
 
         bucket->items[0] = entry;
+        bucket->length++;
     }
 
     return true;
+}
+
+static inline HashEntry *hashtable_get(HashTable *htab, HashKey key)
+{
+    if (htab == NULL || key.key == NULL || !key.length)
+        return (HashEntry *) NULL;
+
+    HashIndex hash = misc_FNV1a(key) % htab->buckets.capacity;
+    Bucket *bucket = htab->buckets.items + hash;
+
+    if (!bucket->length)
+        return NULL;
+    else if (bucket->length == 1)
+        return bucket->items + 0;
+
+    HashEntry *incase_found = NULL;
+    if (bucket->length <= MISC_HENT_MIN_LENGTH) {
+        if (bucket_find_manual(bucket, key, &incase_found))
+            return incase_found;
+
+        return NULL;
+    } else {
+        return bucket_find(bucket, key);
+    }
+}
+
+static inline void hashtable_free(HashTable *htab)
+{
+    if (htab != NULL) {
+        for (size_t i = 0; i < htab->buckets.length; i++) {
+            Bucket *bucket = &htab->buckets.items[i];
+            VECTOR_FREE(*bucket);
+        }
+
+        VECTOR_FREE(htab->buckets);
+        htab->coll_count = 0;
+        htab->coll_cap = MISC_HTAB_COLLISION_INIT;
+    }
 }
 
 #endif

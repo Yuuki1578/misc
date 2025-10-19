@@ -12,7 +12,7 @@ CFLAGS = \
     -mtune=native \
     -Wno-unused-function \
     -Wno-overlength-strings \
-    -std=c17 \
+    -std=c23 \
     -O0 \
     -ggdb \
     
@@ -30,6 +30,7 @@ SOURCES = \
 	examples/string.c \
 	examples/vector.c \
 	examples/arena.c \
+	examples/hash_table.c \
 
 $(shell test -d build || mkdir build)
 $(shell test -d build/examples || mkdir build/examples)

@@ -3,7 +3,7 @@ PROJECT(misc
   DESCRIPTION "Non-standard C23 header only library"
   LANGUAGES C)
 
-SET(CMAKE_C_STANDARD 17)
+SET(CMAKE_C_STANDARD 23)
 SET(CMAKE_C_STANDARD_REQUIRED TRUE)
 SET(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -39,4 +39,5 @@ ADD_EXECUTABLE(refcount examples/refcount.c)
 ADD_EXECUTABLE(string examples/string.c)
 ADD_EXECUTABLE(vector examples/vector.c)
 ADD_EXECUTABLE(arena examples/arena.c)
+ADD_EXECUTABLE(hash_table examples/hash_table.c)
 
