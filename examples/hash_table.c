@@ -1,41 +1,39 @@
+#define MISC_USE_GLOBAL_ALLOCATOR
 #include "../misc.h"
 
 
+void exit_hook(void)
+{
+    printf("DONE\n");
+    ARENA_DEINIT();
+}
+
 int main(void)
 {
+    ARENA_INIT();
+    atexit(exit_hook);
+
     HashTable table = hashtable_create();
     HashEntry entry = {
-        .key.key = "Halo!",
+        .key.key = "Batak",
         .key.length = 5,
-        .value = &table,
+        .value = MISC_ALLOC(64),
     };
-    hashtable_insert(&table, entry);
 
-    entry.key.key = "Howdy rowdy, hash table's here!";
-    entry.key.length = strlen(entry.key.key);
-    int value = 67;
-    entry.value = &value;
-    hashtable_insert(&table, entry);
+    strcpy(entry.value, "Hello, world!");
+    if (!hashtable_insert(&table, entry))
+        return 1;
 
-    HashEntry *getent = hashtable_get(&table, entry.key);
-    if (getent != NULL)
-        printf("%s\n", getent->key.key);
+    HashEntry *getter = hashtable_get(&table, entry.key);
+    if (getter == NULL)
+        return 2;
 
-    entry.key.key = "Halo!";
-    entry.key.length = strlen(entry.key.key);
-    entry.value = MISC_ALLOC(64);
+    char *buf = (char *) getter->value;
+    printf("%s\n", buf);
 
-    int *feedme = (int *) entry.value;
-    *feedme = 0xfeedface;
+    if (hashtable_delete(&table, entry.key))
+        if (!hashtable_get(&table, entry.key))
+            printf("DELETED!\n");
 
-    hashtable_insert(&table, entry);
-
-    getent = hashtable_get(&table, entry.key);
-    if (getent != NULL) {
-        int *repr = (int *) getent->value;
-        *repr = 0xbadface;
-        printf("%x\n", *repr);
-    }
-
-    return 0;
+    ARENA_DEINIT();
 }

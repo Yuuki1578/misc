@@ -1471,6 +1471,16 @@ static inline HashEntry *hashtable_get(HashTable *htab, HashKey key)
     }
 }
 
+static inline bool hashtable_delete(HashTable *htab, HashKey key)
+{
+    HashEntry *entry = hashtable_get(htab, key);
+    if (entry == NULL)
+        return false;
+
+    memset(entry, 0, sizeof *entry);
+    return true;
+}
+
 static inline void hashtable_free(HashTable *htab)
 {
     if (htab != NULL) {
@@ -1489,16 +1499,11 @@ static inline void hashtable_free(HashTable *htab)
 
 /*
 TODO:
-1. Hash function impl.
-2. Hash table impl.
-3. Hash entry impl.
-4. HashSet impl.
-
-5. Win32/64 Mapping function for arena (still use malloc-family function)
-6. sbrk/brk option for arena
+1. Win32/64 Mapping function for arena (still use malloc-family function)
+2. sbrk/brk option for arena
 
 IMPORTANT:
-7. automaticaly align the memory allocated by arena (i don't think mmap does that)
+3. automaticaly align the memory allocated by arena (i don't think mmap does that)
 */
 
 #endif
