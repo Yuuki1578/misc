@@ -366,11 +366,19 @@ static inline void arena_free(Arena *input)
 IMPORTANT: This macro shall be called in every main function.
 REQUIRED_MACRO: @MISC_USE_GLOBAL_ALLOCATOR
 */
+
+static inline void _misc_atexit_hook(void)
+{
+    ARENA_DEINIT();
+}
+
 #define ARENA_INIT()                                                         \
     do {                                                                     \
         _misc_global_allocator = arena_create(MISC_GLOBAL_ALLOCATOR_PAGING); \
+        atexit(_misc_exit_hook);                                             \
     } while (0)
 
+// Never call this explicitly
 #define ARENA_DEINIT()                      \
     do {                                    \
         arena_free(_misc_global_allocator); \

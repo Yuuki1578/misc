@@ -2,16 +2,9 @@
 #include "../misc.h"
 
 
-void exit_hook(void)
-{
-    printf("DONE\n");
-    ARENA_DEINIT();
-}
-
 int main(void)
 {
     ARENA_INIT();
-    atexit(exit_hook);
 
     HashTable table = table_create();
     HashEntry entry = entry_create("Batak", MISC_ALLOC(64));

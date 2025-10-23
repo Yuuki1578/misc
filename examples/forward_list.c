@@ -39,5 +39,4 @@ int main(void)
     }
 
     printf("%zu\n", square_list.length);
-    ARENA_DEINIT();
 }
