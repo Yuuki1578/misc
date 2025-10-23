@@ -219,7 +219,7 @@ worst case might be `O(64)` on chained key, using the `bsearc()`
 would rise up to `O(log n)`. The best case is `O(1)` with the
 average of `O(log n)`.
 
-Also note that this feature is only available on C23. It requires
+Also note that this feature is only available on C23 and maybe GCC extension. It requires
 the `typeof()` operator.
 
 ```c
@@ -228,24 +228,58 @@ the `typeof()` operator.
 
 int main(void)
 {
-    HashTable table = hashtable_create();
+    HashTable table = table_create();
     unsigned data = 67;
+    HashEntry entry_join = entry_create("Six seven!!!", &data);
 
-    HashEntry entry_join = {
-        .key.key = "Six Seven!!!",
-        .key.length = 12,
-        ..value = &data,
-    };
-
-    if (!hashtable_insert(&table, entry_join))
+    if (!table_insert(&table, entry_join))
         return 1;
 
-    HashEntry *entry_retrieve = hashtable_get(&table, entry_join.key);
+    HashEntry *entry_retrieve = table_get(&table, entry_join.key);
     if (entry_retrieve != NULL) {
         unsigned *repr = entry_retrieve->value;
         printf("%u\n", *repr);
     }
 
-    hashtable_free(&table);
+    table_free(&table);
+}
+```
+
+## Style guide
+This project mostly using the **K&R** C syntax with the following rules:
+1. Identifier (variable, function name) must use a `snake_case`.
+2. Type name must use a `PascalCase` or `ProperCase`.
+3. Macro name must use `ALL_CAPS_WITH_UNDERSCORE` syntax.
+4. Break line after parameter list in function definition.
+
+### Example
+```c
+int valid_variable_name = 10;
+char *invalidVariableName = "no!";
+
+extern void alsoInvalidFunctionName(void);
+const char *MaybePascalCaseInFuture(void);
+
+typedef struct {
+    unsigned int field_1:32;
+} ValidTypeName;
+
+// Almost looks like variable
+typedef union invalid_type_name_t invalid_type_name;
+
+#define MS_TO_SEC(ms) ((ms) / 1000.0)
+#define invalidMacroName(...) // Don't do this
+
+void println(const char *fmt, ...)
+{   // break after parameter list
+    va_list va;
+    va_start(va, fmt);
+    printf(fmt, va);
+    puthcar('\n');
+    va_end(va);
+}
+
+void invalid_function_name(...) {
+    // Don't do this
 }
 ```

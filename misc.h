@@ -1309,8 +1309,8 @@ ComplicatedType {                             24 bytes
 #define MISC_HTAB_MIN_LENGTH (8)
 #define MISC_HTAB_COLLISION_INIT MISC_HTAB_DISTRESS_LIMIT
 
-#ifndef MISC_HENT_MIN_LENGTH
-#define MISC_HENT_MIN_LENGTH (64)
+#ifndef MISC_ENTR_MIN_LENGTH
+#define MISC_ENTR_MIN_LENGTH (64)
 #endif
 
 typedef struct {
@@ -1330,6 +1330,60 @@ typedef struct {
     HashRoom buckets;
     size_t coll_count, coll_cap;
 } HashTable;
+
+typedef uint64_t HashIndex;
+
+static inline HashIndex misc_FNV1a(HashKey key)
+{
+    HashIndex basis = MISC_FNV_OCTET_BASIS;
+    for (size_t i = 0; i < key.length; i++) {
+        basis ^= key.key[i];
+        basis ^= MISC_FNV_PRIME;
+    }
+
+    return basis;
+}
+
+static inline bool key_verify(HashKey lhs, HashKey rhs)
+{
+    size_t length_used;
+    if (lhs.length <= rhs.length)
+        length_used = lhs.length;
+    else
+        length_used = rhs.length;
+
+    if (strncmp(lhs.key, rhs.key, length_used) == 0)
+        return true;
+
+    return false;
+}
+
+HashKey key_create_raw(const char *key, const size_t length)
+{
+    return (HashKey){key, length};
+}
+
+HashKey key_create(const char *key)
+{
+    return key_create_raw(key, strlen(key));
+}
+
+HashIndex key_to_hash(const char *term_key)
+{
+    return misc_FNV1a(key_create(term_key));
+}
+
+HashEntry entry_create_raw(const char *key,
+                           const size_t key_length,
+                           void *value)
+{
+    return (HashEntry){.key = key_create_raw(key, key_length), .value = value};
+}
+
+HashEntry entry_create(const char *key, void *value)
+{
+    return (HashEntry){key_create(key), value};
+}
 
 static inline int bucket_comparator(const void *lhs, const void *rhs)
 {
@@ -1356,27 +1410,13 @@ static inline HashEntry *bucket_find(Bucket *bucket, const HashKey signature)
     return (HashEntry *) bsearch((const void *) &signature, (void *) bucket->items, bucket->length, sizeof(*(bucket->items)), bucket_comparator);
 }
 
-static inline bool hashkey_verify(HashKey lhs, HashKey rhs)
-{
-    size_t length_used;
-    if (lhs.length <= rhs.length)
-        length_used = lhs.length;
-    else
-        length_used = rhs.length;
-
-    if (strncmp(lhs.key, rhs.key, length_used) == 0)
-        return true;
-
-    return false;
-}
-
 /* NOT INTENDED FOR PUBLIC USE */
 static inline bool bucket_find_manual(Bucket *bucket,
-                                            const HashKey signature,
-                                            HashEntry **storage)
+                                      const HashKey signature,
+                                      HashEntry **storage)
 {
     for (size_t i = 0; i < bucket->length; i++) {
-        if (hashkey_verify(bucket->items[i].key, signature)) {
+        if (key_verify(bucket->items[i].key, signature)) {
             *storage = bucket->items + i;
             return true;
         }
@@ -1385,20 +1425,7 @@ static inline bool bucket_find_manual(Bucket *bucket,
     return false;
 }
 
-typedef uint64_t HashIndex;
-
-static inline HashIndex misc_FNV1a(HashKey key)
-{
-    HashIndex basis = MISC_FNV_OCTET_BASIS;
-    for (size_t i = 0; i < key.length; i++) {
-        basis ^= key.key[i];
-        basis ^= MISC_FNV_PRIME;
-    }
-
-    return basis;
-}
-
-static inline HashTable hashtable_create(void)
+static inline HashTable table_create(void)
 {
     HashTable table = {
         .coll_count = 0,
@@ -1412,13 +1439,12 @@ static inline HashTable hashtable_create(void)
     return table;
 }
 
-static inline bool hashtable_insert(HashTable *htab, HashEntry entry)
+static inline bool table_insert(HashTable *htab, HashEntry entry)
 {
     if (htab == NULL || entry.value == NULL || entry.key.key == NULL)
         return false;
 
     HashRoom *buckets = &htab->buckets;
-
     if (htab->coll_count == htab->coll_cap || VECTOR_REMAIN(*buckets) <= MISC_HTAB_MIN_LENGTH) {
        size_t save = buckets->capacity; 
        VECTOR_RESERVE(*buckets, MISC_HTAB_DISTRESS_LIMIT);
@@ -1447,7 +1473,37 @@ static inline bool hashtable_insert(HashTable *htab, HashEntry entry)
     return true;
 }
 
-static inline HashEntry *hashtable_get(HashTable *htab, HashKey key)
+static inline bool table_delete(HashTable *htab, HashKey key)
+{
+    if (htab == NULL || htab->buckets.capacity < MISC_HTAB_DISTRESS_LIMIT || key.key == NULL || !key.length)
+        return false;
+
+    HashIndex hash = misc_FNV1a(key) % htab->buckets.capacity;
+    Bucket *bucket = htab->buckets.items + hash;
+
+    if (!bucket->length) // not found
+        return false;
+
+    HashEntry *incase_found = NULL;
+
+    if (bucket->length <= MISC_ENTR_MIN_LENGTH) {
+        bucket_sort(bucket);
+        if (!bucket_find_manual(bucket, key, &incase_found))
+            return false;
+    } else {
+        incase_found = bucket_find(bucket, key);
+        if (incase_found == NULL)
+            return false;
+    }
+
+    // Duh, don't free it, i'm saving memory here
+    incase_found->value = NULL;
+    memset(incase_found, 0, sizeof *incase_found);
+    bucket->length--;
+    return true;
+}
+
+static inline HashEntry *table_get(HashTable *htab, HashKey key)
 {
     if (htab == NULL || key.key == NULL || !key.length)
         return (HashEntry *) NULL;
@@ -1458,10 +1514,10 @@ static inline HashEntry *hashtable_get(HashTable *htab, HashKey key)
     if (!bucket->length)
         return NULL;
     else if (bucket->length == 1)
-        return bucket->items + 0;
+        return bucket->items;
 
     HashEntry *incase_found = NULL;
-    if (bucket->length <= MISC_HENT_MIN_LENGTH) {
+    if (bucket->length <= MISC_ENTR_MIN_LENGTH) {
         if (bucket_find_manual(bucket, key, &incase_found))
             return incase_found;
 
@@ -1471,17 +1527,16 @@ static inline HashEntry *hashtable_get(HashTable *htab, HashKey key)
     }
 }
 
-static inline bool hashtable_delete(HashTable *htab, HashKey key)
+static inline void *table_getvalue(HashTable *htab, const HashKey key)
 {
-    HashEntry *entry = hashtable_get(htab, key);
-    if (entry == NULL)
-        return false;
+    HashEntry *entry = table_get(htab, key);
+    if (entry == NULL || entry->value == NULL)
+        return NULL;
 
-    memset(entry, 0, sizeof *entry);
-    return true;
+    return entry->value;
 }
 
-static inline void hashtable_free(HashTable *htab)
+static inline void table_free(HashTable *htab)
 {
     if (htab != NULL) {
         for (size_t i = 0; i < htab->buckets.length; i++) {
