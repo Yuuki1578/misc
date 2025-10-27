@@ -367,15 +367,10 @@ IMPORTANT: This macro shall be called in every main function.
 REQUIRED_MACRO: @MISC_USE_GLOBAL_ALLOCATOR
 */
 
-static inline void _misc_atexit_hook(void)
-{
-    ARENA_DEINIT();
-}
-
 #define ARENA_INIT()                                                         \
     do {                                                                     \
         _misc_global_allocator = arena_create(MISC_GLOBAL_ALLOCATOR_PAGING); \
-        atexit(_misc_exit_hook);                                             \
+        atexit(_misc_atexit_hook);                                             \
     } while (0)
 
 // Never call this explicitly
@@ -384,6 +379,11 @@ static inline void _misc_atexit_hook(void)
         arena_free(_misc_global_allocator); \
         _misc_global_allocator = NULL;      \
     } while (0)
+
+static inline void _misc_atexit_hook(void)
+{
+    ARENA_DEINIT();
+}
 
 #define MISC_ALLOC(size) arena_alloc(_misc_global_allocator, (size))
 #define MISC_CALLOC(count, size) arena_alloc(_misc_global_allocator, (count) * (size))
