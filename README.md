@@ -36,13 +36,13 @@ Arena is just an already allocated region that placed next to each other in a li
 If you allocate from arena, the arena will just chop a chunk from a region and return it to you.
 That operation is almost happen in a constant time (if the arena can fulfill the size requirement).
 
-If your system support POSIX API, it's likely that the allocator will use mmap(2) and munmap(2) to
-allocate/deallocate the memory. And it's more fast, like so FAST compared to traditional malloc(3)/free(3).
+If your system support POSIX API, it's likely that the allocator will use `mmap(2)` and `munmap(2)` to
+allocate/deallocate the memory. And it's more fast, like so FAST compared to traditional `malloc(3)`/`free(3)`.
 I think it does that because there is no overhead for something like hook function for malloc(3) like
-__malloc_hook or option for malloc(3) like mallopt.
+`__malloc_hook` or option for `malloc(3)` like `mallopt`.
 
-On windows, it uses CreateFileMapping() for creating a handle to a mapped memory, MapViewOfFile() and UnmapViewOfFile()
-for exposing the memory to the user. If you on POSIX, the struct Arena doesn't contain the HANDLE member, it's windows specific.
+On windows, it uses `CreateFileMapping()` for creating a handle to a mapped memory, `MapViewOfFile()` and `UnmapViewOfFile()`
+for exposing the memory to the user. If you on POSIX, the struct Arena doesn't contain the `HANDLE` member, it's windows specific.
 ```c
 #include "misc.h"
 
@@ -235,10 +235,10 @@ int main(void)
     if (!table_insert(&table, entry_join))
         return 1;
 
-    HashEntry *entry_retrieve = table_get(&table, entry_join.key);
-    if (entry_retrieve != NULL) {
-        unsigned *repr = entry_retrieve->value;
-        printf("%u\n", *repr);
+    unsigned *retrieve = table_get_value(&table, entry_join.key);
+    if (retrieve != NULL) {
+        printf("%u\n", *retrieve);
+        *retrieve += 2;
     }
 
     table_free(&table);
@@ -279,7 +279,16 @@ void println(const char *fmt, ...)
     va_end(va);
 }
 
-void invalid_function_name(...) {
+void invalid_function_style(...) {
     // Don't do this
 }
 ```
+
+## References
+1. [Region based allocator](https://en.wikipedia.org/wiki/Region-based_memory_management).
+2. [Reference counting](https://en.wikipedia.org/wiki/Reference_counting).
+3. [jeraymond/refcount](https://github.com/jeraymond/refcount.git).
+4. [Hash table](https://en.wikipedia.org/wiki/Hash_table).
+5. [Hash function](https://en.wikipedia.org/wiki/Hash_function).
+6. [Hash collision](https://en.wikipedia.org/wiki/Hash_collision).
+7. [Fowler/Noll/Vo hash function](https://www.ietf.org/archive/id/draft-eastlake-fnv-21.html).
