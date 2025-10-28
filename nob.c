@@ -107,7 +107,7 @@ void example_compile_all(Nob_Cmd *cmd, Nob_Procs *procs)
     example_compile(cmd, procs, "examples/vector.c", "build/examples/vector");
     example_compile(cmd, procs, "examples/arena.c", "build/examples/arena");
     example_compile(cmd, procs, "examples/hash_table.c", "build/examples/hash_table");
-
+    example_compile(cmd, procs, "examples/word_counter.c", "build/examples/word_counter");
 }
 
 void example_compile_all_cpp(Nob_Cmd *cmd, Nob_Procs *procs)
@@ -138,6 +138,7 @@ void source_format(Nob_Cmd *cmd)
     FORMAT_FILE("examples/vector.c");
     FORMAT_FILE("examples/arena.c");
     FORMAT_FILE("examples/hash_table.c");
+    FORMAT_FILE("examples/word_counter.c");
 
     FORMAT_FILE("misc.h");
     FORMAT_FILE("nob.c");
