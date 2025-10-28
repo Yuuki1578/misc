@@ -275,7 +275,8 @@ static inline Arena *arena_find_suitable(Arena *base_arena,
     return last_nonnull;
 }
 
-static inline void *arena_alloc(Arena *input, size_t size)
+static inline void *arena_alloc(Arena *input,
+                                size_t size)
 {
     Arena *suitable;
     int found;
@@ -1157,6 +1158,8 @@ static inline void list_free(List *input)
 }
 /* ===== LINKED LIST SECTION ===== */
 
+#if __STDC_VERSION__ >= 202000L
+
 /* GENERIC TYPES */
 #define VECTOR(T)        \
     struct {             \
@@ -1209,7 +1212,7 @@ static inline void list_free(List *input)
             void *tmp = MISC_REALLOC((v).items, (v).capacity * sizeof *(v).items, (into) * sizeof *(v).items);             \
             if (tmp == NULL)                                                                                               \
                 break;                                                                                                     \
-            (v).items = tmp;                                                                                               \
+            (v).items = (typeof((v).items)) tmp;                                                                           \
             (v).capacity = (into);                                                                                         \
         }                                                                                                                  \
     } while (0)
@@ -1223,8 +1226,6 @@ static inline void list_free(List *input)
 
 #define VECTOR_MAKE_FIT(v) VECTOR_RESIZE(v, (v).length)
 #define VECTOR_REMAIN(v) ((v).capacity - (v).length)
-
-#if __STDC_VERSION__ >= 202000L
 
 #define FWLIST(T)                                \
     struct {                                     \
@@ -1308,6 +1309,8 @@ ComplicatedType {                             24 bytes
 */
 
 #endif
+
+#if __STDC_VERSION__ >= 202000L
 
 #ifndef MISC_FNV_PRIME
 // FNV 64
@@ -1547,7 +1550,7 @@ static inline HashSuperPosition table_get(HashTable *htab,
     HashSuperPosition not_found = {.place = HP_NotFound};
 
     if (htab == NULL || !htab->buckets.capacity || !key.length)
-        not_found;
+        return not_found;
 
     HashRoom *room = &htab->buckets;
     HashIndex hash = misc_FNV1a(key) % room->capacity;
@@ -1589,14 +1592,14 @@ static inline HashEntry *table_get_entry(HashTable *htab,
     HashSuperPosition position = table_get(htab, key);
 
     switch (position.place) {
-    case HP_NotFound:
-        return NULL;
-
     case HP_InBuckets:
         return &position.in_buckets.bucket->items[0];
 
     case HP_InEntries:
         return position.in_entries.entry;
+
+    default:
+        return NULL;
     }
 }
 
@@ -1653,6 +1656,8 @@ static inline void table_free(HashTable *htab)
         htab->coll_cap = MISC_HTAB_COLLISION_INIT;
     }
 }
+
+#endif
 
 /*
 
