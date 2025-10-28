@@ -2,6 +2,12 @@
 #include "../misc.h"
 
 
+const char *place[] = {
+    [HP_InBuckets] = "InBuckets",
+    [HP_InEntries] = "InEntries",
+    [HP_NotFound] = "NotFound",
+};
+
 int main(void)
 {
     ARENA_INIT();
@@ -13,16 +19,18 @@ int main(void)
     if (!table_insert(&table, entry))
         return 1;
 
-    HashEntry *getter = table_get(&table, entry.key);
-    if (getter == NULL)
-        return 2;
+    char *value = (char *) table_get_value(&table, entry.key);
+    if (value != NULL) {
+        printf("%s\n", value);
 
-    char *buf = (char *) getter->value;
-    printf("%s\n", buf);
+        // No need to free it, since it managed by arena.
+        // free(value);
+    }
 
-    if (table_delete(&table, entry.key))
-        if (!table_getvalue(&table, entry.key))
-            printf("DELETED!\n");
+    table_remove(&table, entry.key);
+    value = (char *) table_get_value(&table, entry.key);
+    if (value == NULL)
+        printf("DELETED!\n");
 
     return 0;
 }

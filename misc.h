@@ -1157,8 +1157,6 @@ static inline void list_free(List *input)
 }
 /* ===== LINKED LIST SECTION ===== */
 
-#if __STDC_VERSION__ >= 202000L
-
 /* GENERIC TYPES */
 #define VECTOR(T)        \
     struct {             \
@@ -1187,6 +1185,17 @@ static inline void list_free(List *input)
         (v).items[(v).length++] = (val);                           \
     } while (0)
 
+#define VECTOR_REMOVE(v, idx)                                        \
+    do {                                                             \
+        if ((v).length <= (idx))                                     \
+            break;                                                   \
+        for (size_t i = idx; i < (v).length - 1; i++) {              \
+            (v).items[i] = (v).items[i + 1];                         \
+        }                                                            \
+        memset((v).items + ((v).length - 1), 0, sizeof(*(v).items)); \
+        (v).length--;                                                \
+    } while (0)
+
 #define VECTOR_RESIZE(v, into)                                                                                             \
     do {                                                                                                                   \
         if (!(into))                                                                                                       \
@@ -1197,7 +1206,7 @@ static inline void list_free(List *input)
             (v).capacity = VECTOR_ALLOC_FREQ;                                                                              \
             (v).length = 0;                                                                                                \
         } else {                                                                                                           \
-            typeof((v).items) tmp = MISC_REALLOC((v).items, (v).capacity * sizeof *(v).items, (into) * sizeof *(v).items); \
+            void *tmp = MISC_REALLOC((v).items, (v).capacity * sizeof *(v).items, (into) * sizeof *(v).items);             \
             if (tmp == NULL)                                                                                               \
                 break;                                                                                                     \
             (v).items = tmp;                                                                                               \
@@ -1214,6 +1223,8 @@ static inline void list_free(List *input)
 
 #define VECTOR_MAKE_FIT(v) VECTOR_RESIZE(v, (v).length)
 #define VECTOR_REMAIN(v) ((v).capacity - (v).length)
+
+#if __STDC_VERSION__ >= 202000L
 
 #define FWLIST(T)                                \
     struct {                                     \
@@ -1298,8 +1309,6 @@ ComplicatedType {                             24 bytes
 
 #endif
 
-#if __STDC_VERSION__ >= 202000L
-
 #ifndef MISC_FNV_PRIME
 // FNV 64
 #define MISC_FNV_PRIME ((uint64_t){1099511628211})
@@ -1321,24 +1330,69 @@ ComplicatedType {                             24 bytes
 #define MISC_ENTR_MIN_LENGTH (64)
 #endif
 
+/* Unique key to a value in entries */
 typedef struct {
     const char *key;
     size_t length;
 } HashKey;
 
+/* A cell of pair that contain key and value */
 typedef struct {
     HashKey key;
     void *value;
 } HashEntry;
 
+/* Contains many @HashEntry */
 typedef VECTOR(HashEntry) Bucket;
+
+/* Contains many @Bucket */
 typedef VECTOR(Bucket) HashRoom;
 
+/*
+Special tag for union,
+need this for retrieving value from @HashTable.
+
+NOTE: Not intended for direct use
+*/
+typedef enum {
+    HP_InBuckets, // If found in @Bucket from @HashRoom
+    HP_InEntries, // If found in @HashEntry from @Bucket
+    HP_NotFound,  // If not found
+} HashPlace;
+
+/*
+Tagged union, represent many different path for finding
+the entry of a value inside @HashTable
+*/
+typedef union {
+    HashPlace place;     // Single value, for matching with other variant
+
+    struct {
+        HashPlace place;
+        Bucket *bucket;
+    } in_buckets;        // If found in @Bucket from @HashRoom
+
+    struct {
+        HashPlace place;
+        Bucket *bucket;
+        HashEntry *entry;
+    } in_entries;        // If found in @HashEntry from @Bucket
+} HashSuperPosition;
+
+/*
+The hash table, simply an array of array or matrix.
+Not fast enough, using a chaining mechanism for storing a pair of
+@HashKey and @VAL, where @VAL is abstract type represent by void*.
+
+I still want to optimize it by using quadratic method, but i don't
+know how (YET).
+*/
 typedef struct {
     HashRoom buckets;
     size_t coll_count, coll_cap;
 } HashTable;
 
+/* Index to an element */
 typedef uint64_t HashIndex;
 
 static inline HashIndex misc_FNV1a(HashKey key)
@@ -1352,7 +1406,8 @@ static inline HashIndex misc_FNV1a(HashKey key)
     return basis;
 }
 
-static inline bool key_verify(HashKey lhs, HashKey rhs)
+static inline bool key_verify(HashKey lhs,
+                              HashKey rhs)
 {
     size_t length_used;
     if (lhs.length <= rhs.length)
@@ -1366,34 +1421,37 @@ static inline bool key_verify(HashKey lhs, HashKey rhs)
     return false;
 }
 
-HashKey key_create_raw(const char *key, const size_t length)
+static inline HashKey key_create_raw(const char *key,
+                                     const size_t length)
 {
     return (HashKey){key, length};
 }
 
-HashKey key_create(const char *key)
+static inline HashKey key_create(const char *key)
 {
     return key_create_raw(key, strlen(key));
 }
 
-HashIndex key_to_hash(const char *term_key)
+static inline HashIndex key_to_hash(const char *term_key)
 {
     return misc_FNV1a(key_create(term_key));
 }
 
-HashEntry entry_create_raw(const char *key,
-                           const size_t key_length,
-                           void *value)
+static inline HashEntry entry_create_raw(const char *key,
+                                         const size_t key_length,
+                                         void *value)
 {
     return (HashEntry){.key = key_create_raw(key, key_length), .value = value};
 }
 
-HashEntry entry_create(const char *key, void *value)
+static inline HashEntry entry_create(const char *key,
+                                     void *value)
 {
     return (HashEntry){key_create(key), value};
 }
 
-static inline int bucket_comparator(const void *lhs, const void *rhs)
+static inline int bucket_comparator(const void *lhs,
+                                    const void *rhs)
 {
     const HashKey *e_lhs = (const HashKey *) lhs;
     const HashEntry *e_rhs = (const HashEntry *) rhs;
@@ -1447,7 +1505,8 @@ static inline HashTable table_create(void)
     return table;
 }
 
-static inline bool table_insert(HashTable *htab, HashEntry entry)
+static inline bool table_insert(HashTable *htab,
+                                HashEntry entry)
 {
     if (htab == NULL || entry.value == NULL || entry.key.key == NULL)
         return false;
@@ -1455,6 +1514,7 @@ static inline bool table_insert(HashTable *htab, HashEntry entry)
     HashRoom *buckets = &htab->buckets;
     if (htab->coll_count == htab->coll_cap || VECTOR_REMAIN(*buckets) <= MISC_HTAB_MIN_LENGTH) {
        size_t save = buckets->capacity; 
+       htab->coll_cap *= 2;
        VECTOR_RESERVE(*buckets, MISC_HTAB_DISTRESS_LIMIT);
 
        if (save == buckets->capacity)
@@ -1481,67 +1541,103 @@ static inline bool table_insert(HashTable *htab, HashEntry entry)
     return true;
 }
 
-static inline bool table_delete(HashTable *htab, HashKey key)
+static inline HashSuperPosition table_get(HashTable *htab,
+                                          const HashKey key)
 {
-    if (htab == NULL || htab->buckets.capacity < MISC_HTAB_DISTRESS_LIMIT || key.key == NULL || !key.length)
-        return false;
+    HashSuperPosition not_found = {.place = HP_NotFound};
 
-    HashIndex hash = misc_FNV1a(key) % htab->buckets.capacity;
-    Bucket *bucket = htab->buckets.items + hash;
+    if (htab == NULL || !htab->buckets.capacity || !key.length)
+        not_found;
 
-    if (!bucket->length) // not found
-        return false;
-
-    HashEntry *incase_found = NULL;
-
-    if (bucket->length <= MISC_ENTR_MIN_LENGTH) {
-        bucket_sort(bucket);
-        if (!bucket_find_manual(bucket, key, &incase_found))
-            return false;
-    } else {
-        incase_found = bucket_find(bucket, key);
-        if (incase_found == NULL)
-            return false;
-    }
-
-    // Duh, don't free it, i'm saving memory here
-    incase_found->value = NULL;
-    memset(incase_found, 0, sizeof *incase_found);
-    bucket->length--;
-    return true;
-}
-
-static inline HashEntry *table_get(HashTable *htab, HashKey key)
-{
-    if (htab == NULL || key.key == NULL || !key.length)
-        return (HashEntry *) NULL;
-
-    HashIndex hash = misc_FNV1a(key) % htab->buckets.capacity;
-    Bucket *bucket = htab->buckets.items + hash;
+    HashRoom *room = &htab->buckets;
+    HashIndex hash = misc_FNV1a(key) % room->capacity;
+    Bucket *bucket = &room->items[hash];
 
     if (!bucket->length)
-        return NULL;
-    else if (bucket->length == 1)
-        return bucket->items;
-
-    HashEntry *incase_found = NULL;
-    if (bucket->length <= MISC_ENTR_MIN_LENGTH) {
-        if (bucket_find_manual(bucket, key, &incase_found))
-            return incase_found;
-
-        return NULL;
+        return not_found;
+    else if (bucket->length == 1) {
+        return (HashSuperPosition){
+            .in_buckets = {
+                .place = HP_InBuckets,
+                .bucket = bucket,
+            },
+        };
     } else {
-        return bucket_find(bucket, key);
+        HashEntry *incase_found = NULL;
+        if (bucket->length <= 64) {
+            bucket_find_manual(bucket, key, &incase_found);
+        } else {
+            incase_found = bucket_find(bucket, key);
+        }
+
+        if (incase_found == NULL)
+            return not_found;
+
+        return (HashSuperPosition){
+            .in_entries = {
+                .place = HP_InEntries,
+                .bucket = bucket,
+                .entry = incase_found,
+            },
+        };
     }
 }
 
-static inline void *table_getvalue(HashTable *htab, const HashKey key)
+static inline HashEntry *table_get_entry(HashTable *htab,
+                                         HashKey key)
 {
-    HashEntry *entry = table_get(htab, key);
+    HashSuperPosition position = table_get(htab, key);
+
+    switch (position.place) {
+    case HP_NotFound:
+        return NULL;
+
+    case HP_InBuckets:
+        return &position.in_buckets.bucket->items[0];
+
+    case HP_InEntries:
+        return position.in_entries.entry;
+    }
+}
+
+static inline void *table_get_value(HashTable *htab,
+                                   const HashKey key)
+{
+    HashEntry *entry = table_get_entry(htab, key);
     if (entry == NULL || entry->value == NULL)
         return NULL;
 
     return entry->value;
+}
+
+static inline bool table_remove(HashTable *htab,
+                                const HashKey key)
+{
+    HashSuperPosition position = table_get(htab, key);
+    Bucket *bucket;
+    HashEntry *entry;
+
+    switch (position.place) {
+    case HP_NotFound:
+        return false;
+
+    case HP_InBuckets:
+        bucket = position.in_buckets.bucket;
+        VECTOR_REMOVE(*bucket, 0);
+        break;
+
+    case HP_InEntries:
+        bucket = position.in_entries.bucket;
+        entry = position.in_entries.entry;
+
+        memset(entry, 0, sizeof *entry);
+        bucket_sort(bucket);
+
+        bucket->length--;
+        break;
+    }
+
+    return true;
 }
 
 static inline void table_free(HashTable *htab)
@@ -1558,15 +1654,26 @@ static inline void table_free(HashTable *htab)
     }
 }
 
-#endif
-
 /*
+
 TODO:
 1. Win32/64 Mapping function for arena (still use malloc-family function)
-2. sbrk/brk option for arena
+   NOTE: IMPLEMENTED
+   STATUS: NOT TESTED
 
-IMPORTANT:
-3. automaticaly align the memory allocated by arena (i don't think mmap does that)
+2. sbrk/brk option for arena
+   NOTE: NOT IMPLEMENTED YET
+   STATUS: NOT TESTED
+
+3. Make the hash function use a fixed length to minimize iteration.
+   Altough this will make the hash function create more collisions.
+   NOTE: NOT IMPLEMENTED YET
+   STATUS: NOT TESTED
+
+4. Dedicated arena allocator in @HashTable for better caching.
+   NOTE: NOT IMPLEMENTED YET
+   STATUS: NOT TESTED
+
 */
 
 #endif
