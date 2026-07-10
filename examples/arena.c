@@ -1,40 +1,29 @@
+#define MISC_IMPL
 #include "../misc.h"
-#include <stdio.h>
-#include <string.h>
 
+uint8_t stackBuffer[1024 + sizeof(Arena)];
+uint8_t copyBuffer[1024 + sizeof(Arena)];
 
 int main(void)
 {
-    Arena *base_arena = arena_create(ARENA_PAGE);
-    char *cstr = arena_alloc(base_arena, 32);
-    strcpy(cstr, "Hello, world!");
-    printf("%s\n", cstr);
+    Arena *arena = CreateArena(sizeof stackBuffer, MISC_ARSTACK | MISC_ARNOGROW, stackBuffer);
+    assert(arena != NULL);
 
-    cstr = arena_realloc(base_arena, cstr, 32, 10);
-    cstr[9] = '\0';
-    printf("%s\n", cstr);
+    void *buf = ArenaAlloc(arena, 128);
+    assert(buf != NULL);
+    memset(buf, 100, 128);
 
-    char *large_buf = arena_alloc(base_arena, ARENA_PAGE * 2);
-    if (large_buf != NULL) {
-        memset(large_buf, 'E', ARENA_PAGE * 2 - 1);
-        printf("%s\n", large_buf);
-        printf("Size: %zu\n", base_arena->next->total);
-        printf("Offset: %zu\n", base_arena->next->offset);
-        printf("Remains: %zu\n", REMAIN_OF(base_arena->next));
-        putchar('\n');
-    }
+    buf = ArenaAlloc(arena, 128);
+    assert(buf != NULL);
+    memset(buf, 200, 128);
 
-    arena_alloc(base_arena, ARENA_PAGE);
-    printf("Size: %zu\n", base_arena->next->total);
-    printf("Offset: %zu\n", base_arena->next->offset);
-    printf("Remains: %zu\n", REMAIN_OF(base_arena->next));
-    putchar('\n');
+    buf = ArenaAlloc(arena, 128);
+    assert(buf != NULL);
+    memset(buf, 'A', 128);
 
-    arena_alloc(base_arena, ARENA_PAGE + 1);
-    printf("Size: %zu\n", base_arena->next->next->total);
-    printf("Offset: %zu\n", base_arena->next->next->offset);
-    printf("Remains: %zu\n", REMAIN_OF(base_arena->next->next));
-    putchar('\n');
+    buf = ArenaAlloc(arena, 1024);
+    assert(buf == NULL);
 
-    arena_free(base_arena);
+    DestroyArena(arena);
+    assert(memcmp(stackBuffer, copyBuffer, sizeof stackBuffer) == 0);
 }
