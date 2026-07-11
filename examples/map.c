@@ -3,55 +3,30 @@
 
 int main(void)
 {
-    Map *map = CreateMap();
-    assert(map != NULL);
+    hashmap_t map = { 0 };
+    const int K = 1024 << 2;
+    hashkey_t key = {
+        .key = (void*) &K,
+        .len = sizeof K,
+    };
 
-    int k, v, *val;
-    MapKey key;
+    bool ok = hashmap_put(
+        &map,
+        key,
+        &key,
+        sizeof key);
+    assert(ok);
 
-    k = 1;
-    v = k * 100;
-    key.key = (void *)&k;
-    key.len = sizeof k;
-    assert(PutIntoMap(map, key, &v, sizeof v));
+    hashentry_t *entry = hashmap_get_entry(
+        &map,
+        key);
+    if (entry != NULL) {
+        hashkey_t *keyptr = entry->value;
+        printf(
+            "key size: %zu, hash: %zu\n",
+            keyptr->len,
+            keyptr->hash);
+    }
 
-    k = 2;
-    v = k * 100;
-    key.key = (void *)&k;
-    key.len = sizeof k;
-    assert(PutIntoMap(map, key, &v, sizeof v));
-
-    k = 3;
-    v = k * 100;
-    key.key = (void *)&k;
-    key.len = sizeof k;
-    assert(PutIntoMap(map, key, &v, sizeof v));
-
-    k = 1;
-    key.key = (void *)&k;
-    key.len = sizeof k;
-    val = GetFromMap(map, key);
-    assert(val);
-    printf("%d\n", *val);
-
-    k = 2;
-    key.key = (void *)&k;
-    key.len = sizeof k;
-    val = GetFromMap(map, key);
-    assert(val);
-    printf("%d\n", *val);
-
-    k = 3;
-    key.key = (void *)&k;
-    key.len = sizeof k;
-    assert(DeleteFromMap(map, key));
-
-    k = 3;
-    key.key = (void *)&k;
-    key.len = sizeof k;
-    val = GetFromMap(map, key);
-    assert(val == NULL);
-
-    FreeMap(map);
-    map = NULL;
+    return 0;
 }

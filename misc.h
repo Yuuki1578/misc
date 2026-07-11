@@ -31,7 +31,6 @@ Licensed under the MIT License. All rights reserved.
 #include <stdlib.h>
 #include <string.h>
 
-#define RemainsOfArena(a)   ((a)->total - (a)->offset)
 #define MISC_VOIDPTR(expr)  ((void *)(expr))
 #define MISC_ARENA_PAGESIZE (1ULL << 12ULL)
 #define MISC_ARSTACK        (0x1)
@@ -39,32 +38,38 @@ Licensed under the MIT License. All rights reserved.
 #define MISC_ARNOGROW       (0x100)
 #define MISC_ARDEFAULT      (MISC_ARHEAP)
 
-typedef struct Arena Arena;
-struct Arena {
-    Arena   *next;
+typedef struct arena arena_t;
+struct arena {
+    arena_t *next;
     uint32_t total, offset, flags;
 };
 
+#define  arena_remains(a) ((a)->total - (a)->offset)
+arena_t *arena_init(size_t size, uint32_t flags, ...);
+void    *arena_alloc(arena_t *arena, size_t size, ...);
+void    *arena_realloc(arena_t *arena, void *ptr, size_t old_size, size_t new_size, ...);
+void     arena_free(arena_t *arena);
+
 #define MISC_ARRAY_RESERVE (8)
 
-#define Array(Type) \
+#define array_t(type) \
     struct { \
-        Type *items; \
+        type *items; \
         uint32_t cap; \
         uint32_t len; \
     }
 
-#define IsArrayEmpty(array)   ((array) != NULL ? ((array)->items == NULL && !(array)->cap) : 0)
-#define RemainsOfArray(array) ((array) != NULL ? ((array)->cap - (array)->len) : 0)
+#define array_is_empty(array) ((array) != NULL ? ((array)->items == NULL && !(array)->cap) : 0)
+#define array_remains(array) ((array) != NULL ? ((array)->cap - (array)->len) : 0)
 
-#define ResizeArrayCheck(array, N, ok) \
+#define array_try_resize(array, N, ok) \
     do { \
         if ((N) <= 0) { \
             free((array)->items); \
             (array)->items = NULL; \
-            (array)->cap   = 0; \
-            (array)->len   = 0; \
-            *(ok)          = 1; \
+            (array)->cap = 0; \
+            (array)->len = 0; \
+            *(ok) = 1; \
         } else { \
             void *tmp; \
             if ((array)->items == NULL) { \
@@ -73,9 +78,9 @@ struct Arena {
                 tmp = realloc((array)->items, (N) * sizeof *(array)->items); \
             } \
             if (tmp != NULL) { \
-                *(ok)          = 1; \
+                *(ok) = 1; \
                 (array)->items = tmp; \
-                (array)->cap   = (N); \
+                (array)->cap = (N); \
                 if ((N) < (array)->len) { \
                     (array)->len = (N); \
                 } \
@@ -85,26 +90,26 @@ struct Arena {
         } \
     } while (0)
 
-#define AppendArrayCheck(array, item, ok) \
+#define array_try_append(array, item, ok) \
     do { \
         if ((array)->cap <= (array)->len) { \
-            ResizeArrayCheck(array, (array)->cap + MISC_ARRAY_RESERVE, ok); \
+            array_try_resize(array, (array)->cap + MISC_ARRAY_RESERVE, ok); \
         } \
         if (*(ok)) { \
             (array)->items[(array)->len++] = (item); \
         } \
     } while (0)
 
-#define ExtendArrayCheck(array, manyPtr, N, ok) \
+#define array_try_extend(array, many_ptr, N, ok) \
     do { \
-        if ((manyPtr) != NULL && (N) > 0) { \
-            if (IsArrayEmpty(array) || RemainsOfArray(array) <= (N)) { \
-                ResizeArrayCheck(array, (array)->cap + (N) + MISC_ARRAY_RESERVE, ok); \
+        if ((many_ptr) != NULL && (N) > 0) { \
+            if (array_is_empty(array) || array_remains(array) <= (N)) { \
+                array_try_resize(array, (array)->cap + (N) + MISC_ARRAY_RESERVE, ok); \
                 if (!*(ok)) { \
                     break; \
                 } \
             } \
-            memmove((array)->items + (array)->len, (manyPtr), (N) * sizeof *(array)->items); \
+            memmove((array)->items + (array)->len, (many_ptr), (N) * sizeof *(array)->items); \
             (array)->len += (N); \
             *(ok) = 1; \
         } else { \
@@ -112,34 +117,34 @@ struct Arena {
         } \
     } while (0)
 
-#define ResizeArray(array, N) \
+#define array_resize(array, N) \
     do { \
         bool ok; \
-        ResizeArrayCheck(array, N, &ok); \
+        array_try_resize(array, N, &ok); \
         if (!ok) { \
             abort(); \
         } \
     } while (0)
 
-#define AppendArray(array, item)\
+#define array_append(array, item)\
     do { \
         bool ok; \
-        AppendArrayCheck(array, item, &ok); \
+        array_try_append(array, item, &ok); \
         if (!ok) { \
             abort(); \
         } \
     } while (0)
 
-#define ExtendArray(array, manyPtr, N) \
+#define array_extend(array, many_ptr, N) \
     do { \
         bool ok; \
-        ExtendArrayCheck(array, manyPtr, N, &ok); \
+        array_try_extend(array, many_ptr, N, &ok); \
         if (!ok) { \
             abort(); \
         } \
     } while (0)
 
-#define RemoveFromArray(array, index) \
+#define array_remove_at(array, index) \
     do { \
         if ((array)->len > 1 && (index) < (array)->len) { \
             for (uint32_t i = (index); i < (array)->len - 1; i++) { \
@@ -150,263 +155,208 @@ struct Arena {
         } \
     } while (0)
 
-#define FreeArray(array) ResizeArray(array, 0)
+#define array_free(array) array_resize(array, 0)
 
-#if __STDC_VERSION__ >= 202300L || defined(__GNUC__)
-
-#define AppendManyArray(array, ...) \
-    do { \
-        typeof(*(array)->items) tmp[] = {__VA_ARGS__}; \
-        for (size_t i = 0; i < sizeof tmp / sizeof tmp[0]; i++) { \
-            AppendArray(array, tmp[i]); \
-        } \
-    } while (0)
-
-#endif
-
-#define MISC_MAP_DEPTH_0    (0)
-#define MISC_MAP_DEPTH_1    (1)
-#define MISC_FNV_BASIS      (0xcbf29ce484222325ULL)
-#define MISC_FNV_PRIME      (0x100000001b3ULL)
-#define MISC_FNV_LIMIT      (32)
-#define MISC_MAP_N_RESERVE  (32)
-#define MISC_MAP_N_CONFLICT (MISC_MAP_N_RESERVE / 2)
+#define MISC_FNV_BASIS         (0xcbf29ce484222325ULL)
+#define MISC_FNV_PRIME         (0x100000001b3ULL)
+#define MISC_FNV_LIMIT         (64)
+#define MISC_HASHMAP_INITCAP   (16)
+#define MISC_HASHMAP_THRESHOLD (MISC_HASHMAP_INITCAP * 2)
 
 typedef struct {
+    uint64_t hash;
     const uint8_t *key;
     size_t len;
-} MapKey;
+} hashkey_t;
 
-typedef struct {
-    MapKey key;
+typedef struct hashentry {
+    hashkey_t key;
     void *value;
-} MapEntry;
-
-typedef Array(MapEntry) MapBucket;
+    struct hashentry *next;
+} hashentry_t;
 
 typedef struct {
-    Array(MapBucket) buckets;
-    size_t failCount, failLimit;
-} Map;
+    array_t(hashentry_t) table;
+    uint32_t collide, threshold;
+    // TODO: Add load factor for better performance tracking
+} hashmap_t;
 
-uint64_t  CreateFNVHash(const void *ptr, const size_t size);
-int       VerifyFNVKey(const MapKey *lhs, const MapKey *rhs);
+uint64_t     fnv_init(const void *ptr, const size_t size);
+int          fnv_memcmp(const void *left, const size_t left_len, const void *right, const size_t right_len);
+bool         hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size);
+hashentry_t *hashmap_get_entry(const hashmap_t *map, const hashkey_t key);
+void        *hashmap_get(const hashmap_t *map, const hashkey_t key);
+bool         hashmap_delete_at(hashmap_t *map, const hashkey_t key);
+void         hashmap_free(hashmap_t *map);
 
-Map      *CreateMap(void);
-bool      PutIntoMap(Map *map, const MapKey key, void *value, const size_t size);
-MapEntry *GetEntryFromMap(Map *map, const MapKey key);
-void     *GetFromMap(Map *map, const MapKey key);
-bool      DeleteFromMap(Map *map, const MapKey key);
-void      FreeMap(Map *map);
-
-Arena    *CreateArena(size_t size, uint32_t flags, ...);
-void     *ArenaAlloc(Arena *arena, size_t size, ...);
-void     *ArenaRealloc(Arena *arena, void *ptr, size_t oldSize, size_t newSize, ...);
-void      DestroyArena(Arena *arena);
-
-#ifndef MISC_IMPL
-#else
-
-uint64_t CreateFNVHash(const void *ptr, const size_t size)
+#ifdef MISC_IMPL
+uint64_t fnv_init(const void *ptr, const size_t size)
 {
     const uint8_t *bytes = ptr;
-    uint64_t baseNum = MISC_FNV_BASIS;
+    uint64_t base_number = MISC_FNV_BASIS;
 
     if (size <= MISC_FNV_LIMIT) {
         for (size_t i = 0; i < size; i++) {
-            baseNum *= MISC_FNV_PRIME;
-            baseNum ^= bytes[i];
+            base_number *= MISC_FNV_PRIME;
+            base_number ^= bytes[i];
         }
     } else {
         for (size_t i = 0; i < MISC_FNV_LIMIT / 2; i++) {
-            baseNum *= MISC_FNV_PRIME;
-            baseNum ^= bytes[i];
+            base_number *= MISC_FNV_PRIME;
+            base_number ^= bytes[i];
         }
         for (size_t i = 0, j = size - 1; i < MISC_FNV_LIMIT / 2; i++, j--) {
-            baseNum *= MISC_FNV_PRIME;
-            baseNum ^= bytes[j];
+            base_number *= MISC_FNV_PRIME;
+            base_number ^= bytes[j];
         }
     }
 
-    return baseNum;
+    return base_number;
 }
 
-int VerifyFNVKey(const MapKey *lhs, const MapKey *rhs)
+int fnv_memcmp(const void *left, const size_t left_len, const void *right, const size_t right_len)
 {
-    uint64_t hleft = CreateFNVHash(lhs->key, lhs->len);
-    uint64_t hright = CreateFNVHash(rhs->key, rhs->len);
-    size_t smallest = lhs->len > rhs->len ? rhs->len : lhs->len;
-    int result = 0;
+    size_t smallest = left_len > right_len ? right_len : left_len;
+    int result;
 
-    if (hleft == hright && (result = memcmp(lhs, rhs, smallest)) == 0) {
+    if ((result = memcmp(left, right, smallest)) == 0)
         return 0;
-    }
+
     return result;
 }
 
-int CompareEntry(const void *lhs, const void *rhs)
+bool hashentry_is_empty(const hashentry_t *entry)
 {
-    return VerifyFNVKey(lhs, rhs);
+    return entry->key.key == NULL || entry->key.len == 0;
 }
 
-void *FindOnBucket(MapBucket *bucket, const MapKey *signature)
+hashentry_t *hashentry_find_tail(hashentry_t *head, size_t *loop_count)
 {
-    if (bucket->len <= MISC_ARRAY_RESERVE) {
-        for (size_t i = 0; i < bucket->len; i++) {
-            MapEntry *entry = &bucket->items[i];
-            if (VerifyFNVKey(&entry->key, signature) == 0) {
-                return entry;
+    while (head != NULL) {
+        if (head->next == NULL) return head;
+        head = head->next;
+        loop_count != NULL ? *loop_count += 1 : 0;
+    }
+    return NULL;
+}
+
+void hashmap_rehash(hashmap_t* map)
+{
+    // TODO rehash all invalid hash value
+    array_t(hashentry_t) *table = (void*) &map->table;
+
+    for (size_t i = 0; i < table->cap; i++) {
+        hashentry_t *entry = &table->items[i];
+
+        if (!hashentry_is_empty(entry)) {
+            uint64_t new_index = entry->key.hash & (table->cap - 1);
+            hashentry_t *new_entry = &table->items[new_index];
+
+            if (!hashentry_is_empty(new_entry)) {
+                hashentry_t *tail = hashentry_find_tail(entry, NULL);
+                tail->next = entry;
+            } else {
+                memset(new_entry, 0, sizeof *new_entry);
+                memmove(new_entry, entry, sizeof *entry);
             }
         }
-        return NULL;
-    } else {
-        qsort(bucket->items, bucket->len, sizeof *bucket->items, CompareEntry);
-        return bsearch(signature, bucket->items, bucket->len, sizeof *bucket->items, CompareEntry);
     }
 }
 
-Map *CreateMap(void)
+bool hashmap_try_reserve(hashmap_t *map)
 {
-    Map *map = calloc(1, sizeof *map);
-    if (map == NULL) {
-        return NULL;
-    }
-
-    map->failCount = 0;
-    map->failLimit = MISC_MAP_N_CONFLICT;
-
+    array_t(hashentry_t) *table = (void*) &map->table;
     bool ok;
-    ResizeArrayCheck(&map->buckets, MISC_MAP_N_RESERVE, &ok);
-    if (!ok) {
-        free(map);
-        return NULL;
-    }
 
-    return map;
+    if (table->cap < MISC_HASHMAP_INITCAP) {
+        array_try_resize(table, MISC_HASHMAP_INITCAP, &ok);
+        if (!ok) return false;
+    }
+    if (map->collide >= map->threshold) {
+        array_try_resize(table, table->cap * 2, &ok);
+        if (!ok) return false;
+        hashmap_rehash(map);
+        map->threshold *= 2;
+    }
+    return true;
 }
 
-bool MakeSureMapIsFilled(Map *map)
+hashentry_t *hashentry_init(hashkey_t key, void *value)
 {
-    bool ok = true;
-    if (map->buckets.cap < 1) {
-        ResizeArrayCheck(&map->buckets, MISC_ARRAY_RESERVE, &ok);
-    } else if (map->failCount >= map->failLimit) {
-        ResizeArrayCheck(&map->buckets, map->buckets.cap * 2, &ok);
-    }
-    return ok;
+    hashentry_t *entry = malloc(sizeof *entry);
+    if (entry == NULL) return NULL;
+    entry->key = key;
+    entry->value = value;
+    entry->next = NULL;
+    return entry;
 }
 
-bool PutIntoMap(Map *map, const MapKey key, void *value, const size_t size)
+hashentry_t *hashentry_find_exact(hashentry_t *head, const hashkey_t key)
 {
-    if (map == NULL || key.key == NULL) { return false; }
-    if (!MakeSureMapIsFilled(map))      { return false; }
+    uint64_t hash = fnv_init(key.key, key.len);
+    while (head != NULL) {
+        if (head->key.hash == hash) return head;
+        head = head->next;
+    }
+    return NULL;
+}
 
-    MapEntry entry = {
+bool hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size)
+{
+    if (map->threshold < MISC_HASHMAP_THRESHOLD)
+        map->threshold = MISC_HASHMAP_THRESHOLD;
+
+    if (!hashmap_try_reserve(map)) return false;
+
+    array_t(hashentry_t) *table = (void*) &map->table;
+    key.hash = fnv_init(key.key, key.len);
+    uint64_t index = key.hash & (table->cap - 1);
+    hashentry_t *entry = &table->items[index];
+    hashentry_t appended = {
         .key = key,
         .value = value,
+        .next = NULL,
     };
 
-    uint64_t index = CreateFNVHash(key.key, key.len) % map->buckets.cap;
-    MapBucket *bucket = &map->buckets.items[index];
-    bool ok = true;
-
-    if (value != NULL && size > 1) {
-        entry.value = malloc(size);
-        if (entry.value == NULL) { return false; };
-        memmove(entry.value, value, size);
+    if (value != NULL && size > 0) {
+        appended.value = malloc(size);
+        if (appended.value == NULL) return false;
+        memmove(appended.value, value, size);
     }
 
-    if (bucket->len > 1) {
-        map->failCount++;
-    }
+    // Jackpot
+    if (hashentry_is_empty(entry)) {
+        memmove(entry, &appended, sizeof appended);
 
-    AppendArrayCheck(bucket, entry, &ok);
-    return ok;
+    // Not so lucky
+    } else {
+        size_t loop_count = 0;
+        hashentry_t *tail = hashentry_find_tail(entry, &loop_count);
+        if (tail == NULL) return false;
+
+        hashentry_t *end = hashentry_init(key, appended.value);
+        if (end == NULL) return false;
+
+        tail->next = end;
+        map->collide++;
+        if (loop_count > MISC_HASHMAP_THRESHOLD) map->collide++;
+    }
+    return true;
 }
 
-MapBucket *GetBucketFromMap(Map *map, const MapKey key)
+hashentry_t *hashmap_get_entry(const hashmap_t *map, const hashkey_t key)
 {
-    if (map == NULL || key.key == NULL) { return NULL; }
-    uint64_t index = CreateFNVHash(key.key, key.len) % map->buckets.cap;
-    MapBucket *bucket = &map->buckets.items[index];
-    switch (bucket->len) {
-    case 0:
-        return NULL;
-    default:
-        return bucket;
-    }
+    array_t(hashentry_t) *table = (void*) &map->table;
+    uint64_t hash = fnv_init(key.key, key.len);
+    uint64_t index = hash & (table->cap - 1);
+    hashentry_t *entry = &table->items[index];
+    
+    if (hashentry_is_empty(entry)) return NULL;
+    if (entry->next == NULL) return entry; /* Jackpot */
+    return hashentry_find_exact(entry, key);
 }
 
-MapEntry *GetEntryFromMap(Map *map, const MapKey key)
-{
-    MapBucket *bucket = GetBucketFromMap(map, key);
-    if (bucket == NULL) return NULL;
-
-    switch (bucket->len) {
-    case 1:
-        return &bucket->items[0];
-    default:
-        return FindOnBucket(bucket, &key);
-    }
-    // if (map == NULL || key.key == NULL) { return NULL; }
-    // uint64_t index = CreateFNVHash(key.key, key.len) % map->buckets.cap;
-    // MapBucket *bucket = &map->buckets.items[index];
-    // switch (bucket->len) {
-    // case 0:
-    //     return NULL;
-    // case 1:
-    //     return &bucket->items[0];
-    // default:
-    //     return FindOnBucket(bucket, &key);
-    // }
-}
-
-void *GetFromMap(Map *map, const MapKey key)
-{
-    MapEntry *entry = GetEntryFromMap(map, key);
-    if (entry == NULL) return NULL;
-    return entry->value;
-}
-
-
-bool DeleteFromMap(Map *map, const MapKey key)
-{
-    MapBucket *bucket = GetBucketFromMap(map, key);
-    if (bucket == NULL) return false;
-
-    MapEntry *target = GetEntryFromMap(map, key);
-    if (target == NULL) return false;
-
-    if (bucket->len < 2) {
-        FreeArray(bucket);
-        return true;
-    }
-
-    for (uint32_t i = 0; i < bucket->len; i++) {
-        if (VerifyFNVKey(&bucket->items[i].key, &key) == 0) {
-            RemoveFromArray(bucket, i);
-            printf("%u\n", i);
-            return true;
-        }
-    }
-
-    return false;
-}
-void FreeMap(Map *map)
-{
-    if (map != NULL) {
-        for (uint32_t i = 0; i < map->buckets.len; i++) {
-            if (map->buckets.items[i].cap != 0)
-                FreeArray(&map->buckets.items[i]);
-        }
-        FreeArray(&map->buckets);
-        map->failCount = 0;
-        map->failLimit = 0;
-        free(map);
-    }
-}
-
-/* Arena: linear allocator.
+/* arena_t: linear allocator.
  * this data structure is usually used to reduce
  * the call of malloc/realloc by preallocating
  * some amount of bytes into it's buffer, and simply
@@ -418,8 +368,8 @@ void FreeMap(Map *map)
  * - MISC_ARDEFAULT: / MISC_ARHEAP: When this used, the buffer
  *   capacity is exactly `n` bytes, and it uses malloc/realloc
  *   to do that.
- * - MISC_ARSTACK: Use stack buffer at exactly `n` - sizeof Arena,
- *   so the size should be atleast sizeof Arena + 1, if it isn't,
+ * - MISC_ARSTACK: Use stack buffer at exactly `n` - sizeof arena_t,
+ *   so the size should be atleast sizeof arena_t + 1, if it isn't,
  *   return NULL. The buffer is passed as third argument.
  * - MISC_ARNOGROW: If this flag is set, the arena doesn't grow
  *   exponentially, if the buffer is full, it cannot allocate anymore
@@ -429,71 +379,71 @@ void FreeMap(Map *map)
  * provide additional buffer in the third argument.
  * */
 
-Arena *CreateArena(size_t size, uint32_t flags, ...)
+arena_t *arena_init(size_t size, uint32_t flags, ...)
 {
-    Arena *headNode = NULL;
+    arena_t *head_node = NULL;
     va_list va;
     va_start(va, flags);
 
-    if (flags & MISC_ARSTACK && size < sizeof *headNode + 1) {
+    if (flags & MISC_ARSTACK && size < sizeof *head_node + 1) {
         return NULL;
     }
 
     switch (flags) {
     case MISC_ARDEFAULT:
     case MISC_ARDEFAULT | MISC_ARNOGROW:
-        headNode = malloc(sizeof *headNode + size);
+        head_node = malloc(sizeof *head_node + size);
         break;
     case MISC_ARSTACK:
     case MISC_ARSTACK | MISC_ARNOGROW:
-        headNode = va_arg(va, void *);
+        head_node = va_arg(va, void *);
         break;
     default:
         goto none;
     }
 
-    if (!headNode) {
+    if (!head_node) {
         goto none;
     }
 
-    headNode->next = NULL;
-    headNode->total = flags & MISC_ARSTACK ? size - sizeof *headNode : size;
-    headNode->offset = 0;
-    headNode->flags = flags;
+    head_node->next = NULL;
+    head_node->total = flags & MISC_ARSTACK ? size - sizeof *head_node : size;
+    head_node->offset = 0;
+    head_node->flags = flags;
 
 none:
     va_end(va);
-    return headNode;
+    return head_node;
 }
 
-static Arena *FindCapableArena(Arena *arena, size_t size, int *onFound)
+static arena_t *arena_find_exact(arena_t *arena, size_t size, int *found)
 {
-    Arena *visitor = arena, *lastNonnull = NULL;
+    arena_t *visitor = arena, *last_nonnull = NULL;
     if (visitor->flags & MISC_ARNOGROW) {
-        if (RemainsOfArena(arena) >= size) {
-            *onFound = 1;
+        if (arena_remains(arena) >= size) {
+            *found = 1;
         } else {
-            *onFound = 0;
+            *found = 0;
         }
         return visitor;
     }
 
     while (visitor) {
-        if (RemainsOfArena(visitor) >= size) {
-            *onFound = 1;
+        if (arena_remains(visitor) >= size) {
+            *found = 1;
             return visitor;
         }
-        lastNonnull = visitor;
+        last_nonnull = visitor;
         visitor = visitor->next;
     }
 
-    *onFound = 0;
-    return lastNonnull;
+    *found = 0;
+    return last_nonnull;
 }
 
-void *ArenaAlloc(Arena *arena, size_t size, ...)
+void *arena_alloc(arena_t *arena, size_t size, ...)
 {
-    Arena *suitable;
+    arena_t *suitable;
     va_list va;
     int found = 0;
     void *result = NULL;
@@ -502,8 +452,8 @@ void *ArenaAlloc(Arena *arena, size_t size, ...)
         return NULL;
 
     va_start(va, size);
-    if (size > RemainsOfArena(arena)) {
-        suitable = FindCapableArena(arena, size, &found);
+    if (size > arena_remains(arena)) {
+        suitable = arena_find_exact(arena, size, &found);
     } else {
         suitable = arena, found = 1;
     }
@@ -518,7 +468,7 @@ void *ArenaAlloc(Arena *arena, size_t size, ...)
             optional = va_arg(va, void *);
         }
 
-        suitable->next = CreateArena(size + suitable->total, suitable->flags, optional);
+        suitable->next = arena_init(size + suitable->total, suitable->flags, optional);
         if (!suitable->next) {
             goto none;
         }
@@ -526,8 +476,8 @@ void *ArenaAlloc(Arena *arena, size_t size, ...)
         suitable = suitable->next;
     }
 
-    uint8_t *offsetPtr = (uint8_t *)MISC_VOIDPTR(suitable) + sizeof *suitable;
-    result = offsetPtr + suitable->offset;
+    uint8_t *offset_ptr = (uint8_t *)MISC_VOIDPTR(suitable) + sizeof *suitable;
+    result = offset_ptr + suitable->offset;
     suitable->offset = suitable->offset + size;
 
 none:
@@ -535,7 +485,7 @@ none:
     return result;
 }
 
-void *ArenaRealloc(Arena *arena, void *ptr, size_t oldSize, size_t newSize, ...)
+void *arena_realloc(arena_t *arena, void *ptr, size_t old_size, size_t new_size, ...)
 {
     void *optional = NULL;
     void *result = NULL;
@@ -545,28 +495,28 @@ void *ArenaRealloc(Arena *arena, void *ptr, size_t oldSize, size_t newSize, ...)
         goto none;
     }
 
-    va_start(va, newSize);
+    va_start(va, new_size);
     if (arena->flags & MISC_ARSTACK) {
         optional = va_arg(va, void *);
     }
 
-    result = ArenaAlloc(arena, newSize, optional);
+    result = arena_alloc(arena, new_size, optional);
     if (result == NULL) {
         goto none;
     } else if (ptr == NULL) {
         goto none;
     }
 
-    memmove(result, ptr, oldSize > newSize ? newSize : oldSize);
+    memmove(result, ptr, old_size > new_size ? new_size : old_size);
 none:
     va_end(va);
     return result;
 }
 
-void DestroyArena(Arena *arena)
+void arena_free(arena_t *arena)
 {
     while (arena) {
-        Arena *tmp = arena->next;
+        arena_t *tmp = arena->next;
         if (arena->flags & MISC_ARHEAP) {
             free(arena);
         } else {
