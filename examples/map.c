@@ -4,29 +4,29 @@
 int main(void)
 {
     hashmap_t map = { 0 };
-    const int K = 1024 << 2;
-    hashkey_t key = {
-        .key = (void*) &K,
-        .len = sizeof K,
-    };
+    for (size_t i = 0; i < 1024; i++) {
+        const size_t K = i << 4;
+        hashkey_t key = {
+            .key = (void*) &K,
+            .len = sizeof K,
+        };
 
-    bool ok = hashmap_put(
-        &map,
-        key,
-        &key,
-        sizeof key);
-    assert(ok);
+        bool ok = hashmap_put(
+            &map,
+            key,
+            &i,
+            sizeof i);
+        assert(ok);
 
-    hashentry_t *entry = hashmap_get_entry(
-        &map,
-        key);
-    if (entry != NULL) {
-        hashkey_t *keyptr = entry->value;
-        printf(
-            "key size: %zu, hash: %zu\n",
-            keyptr->len,
-            keyptr->hash);
+        size_t *value = hashmap_get(
+            &map,
+            key);
+
+        if (value != NULL) {
+            printf("[%zu]: value is: %zu\n", i, *value);
+        }
     }
 
+    hashmap_free(&map);
     return 0;
 }

@@ -165,7 +165,7 @@ void     arena_free(arena_t *arena);
 
 typedef struct {
     uint64_t hash;
-    const uint8_t *key;
+    uint8_t *key;
     size_t len;
 } hashkey_t;
 
@@ -186,7 +186,7 @@ int          fnv_memcmp(const void *left, const size_t left_len, const void *rig
 bool         hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size);
 hashentry_t *hashmap_get_entry(const hashmap_t *map, const hashkey_t key);
 void        *hashmap_get(const hashmap_t *map, const hashkey_t key);
-bool         hashmap_delete_at(hashmap_t *map, const hashkey_t key);
+bool         hashmap_delete_at(hashmap_t *map, const hashkey_t key); // TODO
 void         hashmap_free(hashmap_t *map);
 
 #ifdef MISC_IMPL
@@ -227,19 +227,19 @@ int fnv_memcmp(const void *left, const size_t left_len, const void *right, const
 
 bool hashentry_is_empty(const hashentry_t *entry)
 {
-    return entry->key.key == NULL || entry->key.len == 0;
+    hashentry_t zeroed = { 0 };
+    return memcmp(entry, &zeroed, sizeof zeroed) == 0;
 }
 
-hashentry_t *hashentry_find_tail(hashentry_t *head, size_t *loop_count)
+hashentry_t *hashentry_find_tail(hashentry_t *head)
 {
-    while (head != NULL) {
-        if (head->next == NULL) return head;
-        head = head->next;
-        loop_count != NULL ? *loop_count += 1 : 0;
-    }
-    return NULL;
+    if (head == NULL) return NULL;
+    hashentry_t *current = head;
+    while (current->next != NULL) current = current->next;
+    return current;
 }
 
+// HELL
 void hashmap_rehash(hashmap_t* map)
 {
     // TODO rehash all invalid hash value
@@ -247,19 +247,22 @@ void hashmap_rehash(hashmap_t* map)
 
     for (size_t i = 0; i < table->cap; i++) {
         hashentry_t *entry = &table->items[i];
+        if (hashentry_is_empty(entry)) continue;
 
-        if (!hashentry_is_empty(entry)) {
-            uint64_t new_index = entry->key.hash & (table->cap - 1);
-            hashentry_t *new_entry = &table->items[new_index];
+        uint64_t new_index = entry->key.hash % table->cap;
+        hashentry_t *new_entry = &table->items[new_index];
 
-            if (!hashentry_is_empty(new_entry)) {
-                hashentry_t *tail = hashentry_find_tail(entry, NULL);
-                tail->next = entry;
-            } else {
-                memset(new_entry, 0, sizeof *new_entry);
-                memmove(new_entry, entry, sizeof *entry);
-            }
+        if (hashentry_is_empty(new_entry)) {
+            *new_entry = *entry;
+        } else {
+            hashentry_t *tail = hashentry_find_tail(new_entry);
+            /* this happen when it supposed to be null, like for fuck sake
+             * the allocator API is not zeroing it out dude
+             * */
+            if (tail->next != NULL) abort();
+            tail->next = entry;
         }
+        memset(entry, 0, sizeof *entry);
     }
 }
 
@@ -285,6 +288,7 @@ hashentry_t *hashentry_init(hashkey_t key, void *value)
 {
     hashentry_t *entry = malloc(sizeof *entry);
     if (entry == NULL) return NULL;
+    memset(entry, 0, sizeof *entry);
     entry->key = key;
     entry->value = value;
     entry->next = NULL;
@@ -295,10 +299,18 @@ hashentry_t *hashentry_find_exact(hashentry_t *head, const hashkey_t key)
 {
     uint64_t hash = fnv_init(key.key, key.len);
     while (head != NULL) {
-        if (head->key.hash == hash) return head;
+        size_t smallest = head->key.len > key.len ? key.len : head->key.len;
+        if (head->key.hash == hash && memcmp(head->key.key, key.key, smallest) == 0)
+            return head;
+
         head = head->next;
     }
     return NULL;
+}
+
+bool hashentry_is_head(hashentry_t *maybe_head)
+{
+    return maybe_head->next == NULL;
 }
 
 bool hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size)
@@ -310,13 +322,17 @@ bool hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size)
 
     array_t(hashentry_t) *table = (void*) &map->table;
     key.hash = fnv_init(key.key, key.len);
-    uint64_t index = key.hash & (table->cap - 1);
+    uint64_t index = key.hash % table->cap;
     hashentry_t *entry = &table->items[index];
     hashentry_t appended = {
         .key = key,
         .value = value,
         .next = NULL,
     };
+    appended.key.key = malloc(key.len);
+    if (appended.key.key == NULL) return false;
+    memmove(appended.key.key, key.key, key.len);
+
 
     if (value != NULL && size > 0) {
         appended.value = malloc(size);
@@ -326,12 +342,11 @@ bool hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size)
 
     // Jackpot
     if (hashentry_is_empty(entry)) {
-        memmove(entry, &appended, sizeof appended);
+        *entry = appended;
 
     // Not so lucky
     } else {
-        size_t loop_count = 0;
-        hashentry_t *tail = hashentry_find_tail(entry, &loop_count);
+        hashentry_t *tail = hashentry_find_tail(entry);
         if (tail == NULL) return false;
 
         hashentry_t *end = hashentry_init(key, appended.value);
@@ -339,7 +354,6 @@ bool hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size)
 
         tail->next = end;
         map->collide++;
-        if (loop_count > MISC_HASHMAP_THRESHOLD) map->collide++;
     }
     return true;
 }
@@ -348,12 +362,45 @@ hashentry_t *hashmap_get_entry(const hashmap_t *map, const hashkey_t key)
 {
     array_t(hashentry_t) *table = (void*) &map->table;
     uint64_t hash = fnv_init(key.key, key.len);
-    uint64_t index = hash & (table->cap - 1);
+    uint64_t index = hash % table->cap;
     hashentry_t *entry = &table->items[index];
     
     if (hashentry_is_empty(entry)) return NULL;
-    if (entry->next == NULL) return entry; /* Jackpot */
+    if (hashentry_is_head(entry)) return entry; /* Jackpot */
     return hashentry_find_exact(entry, key);
+}
+
+void *hashmap_get(const hashmap_t *map, const hashkey_t key)
+{
+    hashentry_t *entry = hashmap_get_entry(map, key);
+    if (entry != NULL) return entry->value;
+    return NULL;
+}
+
+void hashmap_free(hashmap_t *map)
+{
+    for (size_t i = 0; i < map->table.cap; i++) {
+        hashentry_t *entry = &map->table.items[i];
+        if (hashentry_is_empty(entry)) continue;
+
+        hashentry_t
+            *node = entry,
+            *next = NULL;
+
+        while (node != NULL) {
+            if (node->value != NULL) free(node->value);
+            if (node->key.key != NULL) free(node->key.key);
+            next = node->next;
+
+            /* if node == entry, which is the head, skip free
+             * because it's managed by array_* API
+             * */
+            if (node != entry) free(node); /* Not head */
+            node = next;
+        }
+    }
+    array_free(&map->table);
+    map->collide = 0, map->threshold = 0;
 }
 
 /* arena_t: linear allocator.
