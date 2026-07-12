@@ -15,23 +15,24 @@ library.
 #include "third_party/nob.h/nob.h"
 
 #ifdef __clang__
-#define CC  "clang"
+#define CC "clang"
 #define CXX "clang++"
+// clang-tools-extra
 #define FMT "clang-format"
 #elif !defined(__clang__) && defined(__GNUC__)
-#define CC  "gcc"
+#define CC "gcc"
 #define CXX "g++"
 #else
 #error Compiler must be either gcc or clang
 #endif
 
-#define CFLAGS "-O3", "-ffast-math", "-march=native", "-Wall", "-Werror", "-Wextra", "-pedantic", "-Wno-unused-function", "-std=c99"
+#define CFLAGS "-Wall", "-Werror", "-Wextra", "-pedantic", "-std=c99", "-ggdb"
 
-void example_cc(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char *output);
-void example_cc_all(Nob_Cmd *cmd, Nob_Procs *procs);
-void source_format(Nob_Cmd *cmd);
+void example_cc(Nob_Cmd* cmd, Nob_Procs* procs, char* input, char* output);
+void example_cc_all(Nob_Cmd* cmd, Nob_Procs* procs);
+void source_format(Nob_Cmd* cmd);
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     NOB_GO_REBUILD_URSELF(argc, argv);
 
@@ -44,15 +45,13 @@ int main(int argc, char **argv)
     }
 
 #ifdef __clang__
-    if (argc > 1 && strcmp(argv[1], "fmt")) {
-        source_format(&cmd);
-    }
+    // source_format(&cmd);
 #endif
 
     return 0;
 }
 
-void example_cc(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char *output)
+void example_cc(Nob_Cmd* cmd, Nob_Procs* procs, char* input, char* output)
 {
     nob_cmd_append(cmd, CC, CFLAGS);
     nob_cc_inputs(cmd, input);
@@ -60,7 +59,7 @@ void example_cc(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char *output)
     nob_da_append(procs, nob_cmd_run_async_and_reset(cmd));
 }
 
-void example_cc_all(Nob_Cmd *cmd, Nob_Procs *procs)
+void example_cc_all(Nob_Cmd* cmd, Nob_Procs* procs)
 {
     nob_mkdir_if_not_exists("build");
     nob_mkdir_if_not_exists("build/examples");
@@ -72,17 +71,20 @@ void example_cc_all(Nob_Cmd *cmd, Nob_Procs *procs)
 
 #ifdef __clang__
 
-#define FORMAT_FILE(file)                                                                                              \
-    do {                                                                                                               \
-        nob_cmd_append(cmd, FMT, file, "-i");                                                                          \
-        nob_cmd_run_async_and_reset(cmd);                                                                              \
+#define FORMAT_FILE(file)                     \
+    do {                                      \
+        nob_cmd_append(cmd, FMT, file, "-i"); \
+        nob_cmd_run_async_and_reset(cmd);     \
     } while (0);
 
-void source_format(Nob_Cmd *cmd)
+void source_format(Nob_Cmd* cmd)
 {
     FORMAT_FILE("misc.h");
     FORMAT_FILE("nob.c");
     FORMAT_FILE("examples/array.c");
+    FORMAT_FILE("examples/arena.c");
+    FORMAT_FILE("examples/map.c");
+    FORMAT_FILE("examples/map.cpp");
 }
 
 #endif

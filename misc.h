@@ -31,30 +31,30 @@ Licensed under the MIT License. All rights reserved.
 #include <stdlib.h>
 #include <string.h>
 
-#define MISC_VOIDPTR(expr)  ((void *)(expr))
+#define MISC_VOIDPTR(expr) ((void*)(expr))
 #define MISC_ARENA_PAGESIZE (1ULL << 12ULL)
-#define MISC_ARSTACK        (0x1)
-#define MISC_ARHEAP         (0x10)
-#define MISC_ARNOGROW       (0x100)
-#define MISC_ARDEFAULT      (MISC_ARHEAP)
+#define MISC_ARSTACK (0x1)
+#define MISC_ARHEAP (0x10)
+#define MISC_ARNOGROW (0x100)
+#define MISC_ARDEFAULT (MISC_ARHEAP)
 
 typedef struct arena arena_t;
 struct arena {
-    arena_t *next;
+    arena_t* next;
     uint32_t total, offset, flags;
 };
 
-#define  arena_remains(a) ((a)->total - (a)->offset)
-arena_t *arena_init(size_t size, uint32_t flags, ...);
-void    *arena_alloc(arena_t *arena, size_t size, ...);
-void    *arena_realloc(arena_t *arena, void *ptr, size_t old_size, size_t new_size, ...);
-void     arena_free(arena_t *arena);
+#define arena_remains(a) ((a)->total - (a)->offset)
+arena_t* arena_init(size_t size, uint32_t flags, ...);
+void* arena_alloc(arena_t* arena, size_t size, ...);
+void* arena_realloc(arena_t* arena, void* ptr, size_t old_size, size_t new_size, ...);
+void arena_free(arena_t* arena);
 
 #define MISC_ARRAY_RESERVE (8)
 
 #define array_t(type) \
-    struct { \
-        type *items; \
+    struct {          \
+        type* items;  \
         uint32_t cap; \
         uint32_t len; \
     }
@@ -62,109 +62,122 @@ void     arena_free(arena_t *arena);
 #define array_is_empty(array) ((array) != NULL ? ((array)->items == NULL && !(array)->cap) : 1)
 #define array_remains(array) ((array) != NULL ? ((array)->cap - (array)->len) : 0)
 
-#define array_try_resize(array, N, ok) \
-    do { \
-        if ((N) <= 0) { \
-            free((array)->items); \
-            (array)->items = NULL; \
-            (array)->cap = 0; \
-            (array)->len = 0; \
-            *(ok) = 1; \
-        } else { \
-            void *tmp; \
-            if ((array)->items == NULL) { \
-                tmp = calloc((N), sizeof *(array)->items); \
-            } else { \
+#define array_try_resize(array, N, ok)                                       \
+    do {                                                                     \
+        if ((N) <= 0) {                                                      \
+            free((array)->items);                                            \
+            (array)->items = NULL;                                           \
+            (array)->cap = 0;                                                \
+            (array)->len = 0;                                                \
+            *(ok) = 1;                                                       \
+        } else {                                                             \
+            void* tmp;                                                       \
+            if ((array)->items == NULL) {                                    \
+                tmp = calloc((N), sizeof *(array)->items);                   \
+            } else {                                                         \
                 tmp = realloc((array)->items, (N) * sizeof *(array)->items); \
-            } \
-            if (tmp != NULL) { \
-                *(ok) = 1; \
-                (array)->items = tmp; \
-                (array)->cap = (N); \
-                if ((N) < (array)->len) { \
-                    (array)->len = (N); \
-                } \
-            } else { \
-                *(ok) = 0; \
-            } \
-        } \
+            }                                                                \
+            if (tmp != NULL) {                                               \
+                *(ok) = 1;                                                   \
+                (array)->items = tmp;                                        \
+                (array)->cap = (N);                                          \
+                if ((N) < (array)->len) {                                    \
+                    (array)->len = (N);                                      \
+                }                                                            \
+            } else {                                                         \
+                *(ok) = 0;                                                   \
+            }                                                                \
+        }                                                                    \
     } while (0)
 
-#define array_try_append(array, item, ok) \
-    do { \
-        if ((array)->cap <= (array)->len) { \
+#define array_try_append(array, item, ok)                                   \
+    do {                                                                    \
+        if ((array)->cap <= (array)->len) {                                 \
             array_try_resize(array, (array)->cap + MISC_ARRAY_RESERVE, ok); \
-        } \
-        if (*(ok)) { \
-            (array)->items[(array)->len++] = (item); \
-        } \
+        }                                                                   \
+        if (*(ok)) {                                                        \
+            (array)->items[(array)->len++] = (item);                        \
+        }                                                                   \
     } while (0)
 
-#define array_try_extend(array, many_ptr, N, ok) \
-    do { \
-        if ((many_ptr) != NULL && (N) > 0) { \
-            if (array_is_empty(array) || array_remains(array) <= (N)) { \
+#define array_try_extend(array, many_ptr, N, ok)                                      \
+    do {                                                                              \
+        if ((many_ptr) != NULL && (N) > 0) {                                          \
+            if (array_is_empty(array) || array_remains(array) <= (N)) {               \
                 array_try_resize(array, (array)->cap + (N) + MISC_ARRAY_RESERVE, ok); \
-                if (!*(ok)) { \
-                    break; \
-                } \
-            } \
-            memmove((array)->items + (array)->len, (many_ptr), (N) * sizeof *(array)->items); \
-            (array)->len += (N); \
-            *(ok) = 1; \
-        } else { \
-            *(ok) = 0; \
-        } \
+                if (!*(ok)) {                                                         \
+                    break;                                                            \
+                }                                                                     \
+            }                                                                         \
+            memmove((array)->items + (array)->len, (many_ptr),                        \
+                (N) * sizeof *(array)->items);                                        \
+            (array)->len += (N);                                                      \
+            *(ok) = 1;                                                                \
+        } else {                                                                      \
+            *(ok) = 0;                                                                \
+        }                                                                             \
     } while (0)
 
-#define array_resize(array, N) \
-    do { \
-        bool ok; \
+#define array_resize(array, N)           \
+    do {                                 \
+        bool ok;                         \
         array_try_resize(array, N, &ok); \
-        if (!ok) { \
-            abort(); \
-        } \
+        if (!ok) {                       \
+            abort();                     \
+        }                                \
     } while (0)
 
-#define array_append(array, item)\
-    do { \
-        bool ok; \
+#define array_append(array, item)           \
+    do {                                    \
+        bool ok;                            \
         array_try_append(array, item, &ok); \
-        if (!ok) { \
-            abort(); \
-        } \
+        if (!ok) {                          \
+            abort();                        \
+        }                                   \
     } while (0)
 
-#define array_extend(array, many_ptr, N) \
-    do { \
-        bool ok; \
+#define array_extend(array, many_ptr, N)           \
+    do {                                           \
+        bool ok;                                   \
         array_try_extend(array, many_ptr, N, &ok); \
-        if (!ok) { \
-            abort(); \
-        } \
+        if (!ok) {                                 \
+            abort();                               \
+        }                                          \
     } while (0)
 
-#define array_remove_at(array, index) \
-    do { \
-        if ((array)->len > 1 && (index) < (array)->len) { \
-            for (uint32_t i = (index); i < (array)->len - 1; i++) { \
-                (array)->items[i] = (array)->items[i + 1]; \
-            } \
+#define array_remove_at(array, index)                                             \
+    do {                                                                          \
+        if ((array)->len > 1 && (index) < (array)->len) {                         \
+            for (uint32_t i = (index); i < (array)->len - 1; i++) {               \
+                (array)->items[i] = (array)->items[i + 1];                        \
+            }                                                                     \
             memset(&(array)->items[(array)->len - 1], 0, sizeof *(array)->items); \
-            (array)->len--; \
-        } \
+            (array)->len--;                                                       \
+        }                                                                         \
     } while (0)
 
 #define array_free(array) array_resize(array, 0)
 
-#define MISC_FNV_BASIS         (0xcbf29ce484222325ULL)
-#define MISC_FNV_PRIME         (0x100000001b3ULL)
-#define MISC_FNV_LIMIT         (64)
+typedef array_t(char) string_t;
+
+/*
+Legends:
+    function with prefixes str_* is going to use traditional char*
+    function with prefixes string_* is going to use string_t
+*/
+
+#define string_fmt(string) (int)(string).len, (string).items
+char* str_printf(arena_t* allocator, const char* fmt, ...);
+string_t string_printf(const char* fmt, ...);
+
+#define MISC_FNV_BASIS (0xcbf29ce484222325ULL)
+#define MISC_FNV_PRIME (0x100000001b3ULL)
+#define MISC_FNV_LIMIT (64)
 #ifndef MISC_HASHMAP_INITCAP
-#define MISC_HASHMAP_INITCAP   (16)
+#define MISC_HASHMAP_INITCAP (64)
 #endif
 #ifndef MISC_HASHMAP_THRESHOLD
-#define MISC_HASHMAP_THRESHOLD (MISC_HASHMAP_INITCAP * 8)
+#define MISC_HASHMAP_THRESHOLD (MISC_HASHMAP_INITCAP)
 #endif
 
 #define MISC_HASHMAP_GETINDEX(hash, table_cap) ((hash) % (table_cap))
@@ -174,14 +187,14 @@ void     arena_free(arena_t *arena);
 
 typedef struct {
     uint64_t hash;
-    uint8_t *key;
+    uint8_t* key;
     size_t len;
 } hashkey_t;
 
 typedef struct hashentry {
     hashkey_t key;
-    void *value;
-    struct hashentry *next;
+    void* value;
+    struct hashentry* next;
 } hashentry_t;
 
 typedef struct {
@@ -190,43 +203,88 @@ typedef struct {
     // TODO: Add load factor for better performance tracking
 } hashmap_t;
 
-uint64_t     fnv_init(const void *ptr, const size_t size);
-int          fnv_memcmp(const void *left, const size_t left_len, const void *right, const size_t right_len);
-bool         hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size);
-void        *hashmap_get(const hashmap_t *map, const hashkey_t key);
-bool         hashmap_delete_at(hashmap_t *map, const hashkey_t key); // TODO
-void         hashmap_free(hashmap_t *map);
+uint64_t fnv_init(const void* ptr, const size_t size);
+int fnv_memcmp(const void* left, const size_t left_len, const void* right, const size_t right_len);
+bool hashmap_put(hashmap_t* map, hashkey_t key, void* value, const size_t size);
+void* hashmap_get(const hashmap_t* map, const hashkey_t key);
+bool hashmap_delete_at(hashmap_t* map, const hashkey_t key);
+void hashmap_free(hashmap_t* map);
 
 #if __STDC_VERSION__ >= 202300L || (defined(__GNUC__) && __STDC_VERSION__ >= 201700L)
 
 // K and V can be immediate expression, but K cannot be string
-#define hashmap_insert(map, K, V, ok) \
-    do { \
-        typeof((K)) _k = (K); \
-        typeof((V)) _v = (V); \
-        hashkey_t key = { \
-            .key = (void *) &_k, \
-            .len = sizeof _k, \
-        }; \
+#define hashmap_insert(map, K, V, ok)                  \
+    do {                                               \
+        typeof((K)) _k = (K);                          \
+        typeof((V)) _v = (V);                          \
+        hashkey_t key = {                              \
+            .key = (void*)&_k,                         \
+            .len = sizeof _k,                          \
+        };                                             \
         *(ok) = hashmap_put(map, key, &_v, sizeof _v); \
     } while (0)
 
-#define hashmap_retrieve(map, K, ok) \
-    do { \
-        typeof((K)) _k = (K); \
-        hashkey_t key = { \
-            .key = (void *) &_k, \
-            .len = sizeof _k, \
-        }; \
+#define hashmap_retrieve(map, K, ok)   \
+    do {                               \
+        typeof((K)) _k = (K);          \
+        hashkey_t key = {              \
+            .key = (void*)&_k,         \
+            .len = sizeof _k,          \
+        };                             \
         *(ok) = hashmap_get(map, key); \
     } while (0)
 
 #endif
 
 #ifdef MISC_IMPL
-uint64_t fnv_init(const void *ptr, const size_t size)
+char* str_printf(arena_t* allocator, const char* fmt, ...)
 {
-    const uint8_t *bytes = ptr;
+    char* buf = NULL;
+    va_list va;
+
+    va_start(va, fmt);
+    int size = vsnprintf(NULL, 0, fmt, va);
+    va_end(va);
+
+    if (size > 0) {
+        if ((buf = arena_alloc(allocator, (size_t)size + 1)) == NULL)
+            goto end;
+
+        va_start(va, fmt);
+        vsnprintf(buf, (size_t)size + 1, fmt, va);
+        va_end(va);
+    }
+
+end:;
+    return buf;
+}
+
+string_t string_printf(const char* fmt, ...)
+{
+    string_t string = { 0 };
+    va_list va;
+    va_start(va, fmt);
+    int size = vsnprintf(NULL, 0, fmt, va);
+    va_end(va);
+
+    if (size > 0) {
+        bool ok;
+        array_try_resize(&string, (size_t)size + 1, &ok);
+        if (!ok)
+            return string;
+
+        va_start(va, fmt);
+        size = vsnprintf(string.items, string.cap, fmt, va);
+        va_end(va);
+        string.len += size > 0 ? size : 0;
+    }
+
+    return string;
+}
+
+uint64_t fnv_init(const void* ptr, const size_t size)
+{
+    const uint8_t* bytes = ptr;
     uint64_t base_number = MISC_FNV_BASIS;
     for (size_t i = 0; i < size; i++) {
         base_number *= MISC_FNV_PRIME;
@@ -235,7 +293,7 @@ uint64_t fnv_init(const void *ptr, const size_t size)
     return base_number;
 }
 
-int fnv_memcmp(const void *left, const size_t left_len, const void *right, const size_t right_len)
+int fnv_memcmp(const void* left, const size_t left_len, const void* right, const size_t right_len)
 {
     size_t smallest = left_len > right_len ? right_len : left_len;
     int result;
@@ -246,68 +304,79 @@ int fnv_memcmp(const void *left, const size_t left_len, const void *right, const
     return result;
 }
 
-bool hashentry_is_empty(const hashentry_t *entry)
+static bool hashentry_is_empty(const hashentry_t* entry)
 {
     hashentry_t zeroed = { 0 };
     return memcmp(entry, &zeroed, sizeof zeroed) == 0;
 }
 
-hashentry_t *hashentry_find_tail(hashentry_t *head)
+static hashentry_t* hashentry_find_tail(hashentry_t* head)
 {
-    if (head == NULL) return NULL;
-    hashentry_t *current = head;
-    while (current->next != NULL) current = current->next;
+    if (head == NULL)
+        return NULL;
+
+    hashentry_t* current = head;
+    while (current->next != NULL)
+        current = current->next;
+
     return current;
 }
 
 // HELL
-void hashmap_rehash(hashmap_t* map)
+static void hashmap_rehash(hashmap_t* map)
 {
     // TODO rehash all invalid hash value
-    array_t(hashentry_t) *table = (void*) &map->table;
+    array_t(hashentry_t)* table = (void*)&map->table;
 
     for (size_t i = 0; i < table->cap; i++) {
-        hashentry_t *entry = &table->items[i];
-        if (hashentry_is_empty(entry)) continue;
+        hashentry_t* entry = &table->items[i];
+        if (hashentry_is_empty(entry))
+            continue;
 
         uint64_t new_index = MISC_HASHMAP_GETINDEX(entry->key.hash, table->cap);
-        hashentry_t *new_entry = &table->items[new_index];
+        hashentry_t* new_entry = &table->items[new_index];
 
         if (hashentry_is_empty(new_entry)) {
             *new_entry = *entry;
         } else {
-            hashentry_t *tail = hashentry_find_tail(new_entry);
-            /* this happen when it supposed to be null, like for fuck sake
-             * the allocator API is not zeroing it out dude
-             * */
+            hashentry_t* tail = hashentry_find_tail(new_entry);
+            /*
+            This is technichally impossible to be null,
+            if it is, just let it crash lmao
+            */
             tail->next = entry;
         }
         memset(entry, 0, sizeof *entry);
     }
 }
 
-bool hashmap_try_reserve(hashmap_t *map)
+static bool hashmap_try_reserve(hashmap_t* map)
 {
-    array_t(hashentry_t) *table = (void*) &map->table;
+    array_t(hashentry_t)* table = (void*)&map->table;
     bool ok;
 
     if (table->cap < MISC_HASHMAP_INITCAP) {
         array_try_resize(table, MISC_HASHMAP_INITCAP, &ok);
-        if (!ok) return false;
+        if (!ok)
+            return false;
     }
     if (map->collide >= map->threshold) {
         array_try_resize(table, table->cap * 2, &ok);
-        if (!ok) return false;
+        if (!ok)
+            return false;
+
         hashmap_rehash(map);
         map->threshold *= 2;
     }
     return true;
 }
 
-hashentry_t *hashentry_init(hashkey_t key, void *value)
+static hashentry_t* hashentry_init(hashkey_t key, void* value)
 {
-    hashentry_t *entry = malloc(sizeof *entry);
-    if (entry == NULL) return NULL;
+    hashentry_t* entry = malloc(sizeof *entry);
+    if (entry == NULL)
+        return NULL;
+
     memset(entry, 0, sizeof *entry);
     entry->key = key;
     entry->value = value;
@@ -315,32 +384,36 @@ hashentry_t *hashentry_init(hashkey_t key, void *value)
     return entry;
 }
 
-hashentry_t *hashentry_find_exact(hashentry_t *head, const hashkey_t key)
+static hashentry_t* hashentry_find_exact(hashentry_t* head, const hashkey_t key)
 {
     uint64_t hash = fnv_init(key.key, key.len);
     while (head != NULL) {
-        if (head->key.hash == hash) return head;
+        if (head->key.hash == hash)
+            return head;
+
         head = head->next;
     }
     return NULL;
 }
 
-bool hashentry_is_head(hashentry_t *maybe_head)
+static bool hashentry_is_head(hashentry_t* maybe_head)
 {
     return maybe_head->next == NULL;
 }
 
-bool hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size)
+bool hashmap_put(hashmap_t* map, hashkey_t key, void* value,
+    const size_t size)
 {
     if (map->threshold < MISC_HASHMAP_THRESHOLD)
         map->threshold = MISC_HASHMAP_THRESHOLD;
 
-    if (!hashmap_try_reserve(map)) return false;
+    if (!hashmap_try_reserve(map))
+        return false;
 
-    array_t(hashentry_t) *table = (void*) &map->table;
+    array_t(hashentry_t)* table = (void*)&map->table;
     key.hash = fnv_init(key.key, key.len);
     uint64_t index = MISC_HASHMAP_GETINDEX(key.hash, table->cap);
-    hashentry_t *entry = &table->items[index];
+    hashentry_t* entry = &table->items[index];
     hashentry_t appended = {
         .key = key,
         .value = value,
@@ -349,12 +422,16 @@ bool hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size)
     bool alloc_key = false, alloc_value = false;
     if (key.key != NULL && key.len > 0) {
         appended.key.key = malloc(key.len);
-        if (appended.key.key == NULL) return false;
+        if (appended.key.key == NULL)
+            return false;
+
         memmove(appended.key.key, key.key, key.len), alloc_key = true;
     }
     if (value != NULL && size > 0) {
         appended.value = malloc(size);
-        if (appended.value == NULL) return false;
+        if (appended.value == NULL)
+            return false;
+
         memmove(appended.value, value, size), alloc_value = true;
     }
 
@@ -362,15 +439,19 @@ bool hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size)
     if (hashentry_is_empty(entry)) {
         *entry = appended;
 
-    // Not so lucky
+        // Not so lucky
     } else {
-        hashentry_t *tail = hashentry_find_tail(entry);
-        if (tail == NULL) return false;
+        hashentry_t* tail = hashentry_find_tail(entry);
+        if (tail == NULL)
+            return false;
 
-        hashentry_t *end = hashentry_init(appended.key, appended.value);
+        hashentry_t* end = hashentry_init(appended.key, appended.value);
         if (end == NULL) {
-            if (alloc_key) free(appended.key.key);
-            if (alloc_value) free(appended.value);
+            if (alloc_key)
+                free(appended.key.key);
+            if (alloc_value)
+                free(appended.value);
+
             return false;
         }
 
@@ -380,13 +461,13 @@ bool hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size)
     return true;
 }
 
-hashentry_t *hashmap_get_entry(const hashmap_t *map, hashentry_t **head, const hashkey_t key, int *found_status)
+static hashentry_t* hashmap_get_entry(const hashmap_t* map, hashentry_t** head, const hashkey_t key, int* found_status)
 {
-    array_t(hashentry_t) *table = (void*) &map->table;
+    array_t(hashentry_t)* table = (void*)&map->table;
     uint64_t hash = fnv_init(key.key, key.len);
     uint64_t index = MISC_HASHMAP_GETINDEX(hash, table->cap);
-    hashentry_t *entry = &table->items[index];
-    
+    hashentry_t* entry = &table->items[index];
+
     if (hashentry_is_empty(entry)) {
         *head = NULL;
         *found_status = MISC_HASHMAP_FOUND_NULL;
@@ -401,59 +482,80 @@ hashentry_t *hashmap_get_entry(const hashmap_t *map, hashentry_t **head, const h
     return hashentry_find_exact(entry, key);
 }
 
-void *hashmap_get(const hashmap_t *map, const hashkey_t key)
+void* hashmap_get(const hashmap_t* map, const hashkey_t key)
 {
     int found;
-    hashentry_t *head;
-    hashentry_t *entry = hashmap_get_entry(map, &head, key, &found);
-    if (entry != NULL) return entry->value;
+    hashentry_t* head;
+    hashentry_t* entry = hashmap_get_entry(map, &head, key, &found);
+    if (entry != NULL)
+        return entry->value;
+
     return NULL;
 }
 
-bool hashmap_delete_at(hashmap_t *map, const hashkey_t key)
+bool hashmap_delete_at(hashmap_t* map, const hashkey_t key)
 {
     int found;
-    hashentry_t *head;
-    hashentry_t *entry = hashmap_get_entry(map, &head, key, &found);
-    if (entry == NULL) return false;
+    hashentry_t* head;
+    hashentry_t* entry = hashmap_get_entry(map, &head, key, &found);
+    if (entry == NULL)
+        return false;
     /* In case of the entry is a head of a list, do a memset 0 instead of free */
     if (found == MISC_HASHMAP_FOUND_HEAD) {
-        if (entry->value != NULL) free(entry->value);
-        if (entry->key.key != NULL && entry->key.len > 0) free(entry->key.key);
+        if (entry->value != NULL)
+            free(entry->value);
+        if (entry->key.key != NULL && entry->key.len > 0)
+            free(entry->key.key);
+
+        /*
+        TODO: Calculate the pointer diff (entry - map->table.items) if entry is the head
+        of a list to use that as an index to an entry target in an array, remove that from
+        the array, reduce the capacity of the array, and rehash the entire table.
+        PRO: Minimize memory usage
+        CONS: Maybe slower because i need to rehash on 2 different context:
+            1. When the table's capacity increase
+            2. When i need to remove an entry from the array (if only it's a head of a list)
+        */
         memset(entry, 0, sizeof *entry);
         return true;
     }
 
-    /* looping through head until head->next become entry, saving the entry parent node in head */
-    hashentry_t *entry_child = entry->next;
-    if (entry->value != NULL) free(entry->value);
-    if (entry->key.key != NULL && entry->key.len > 0) free(entry->key.key);
-    while (head->next != entry) head = head->next;
+    /* looping through head until head->next become entry, saving the entry parent
+     * node in head */
+    hashentry_t* entry_child = entry->next;
+    if (entry->value != NULL)
+        free(entry->value);
+    if (entry->key.key != NULL && entry->key.len > 0)
+        free(entry->key.key);
+    while (head->next != entry)
+        head = head->next;
 
     head->next = entry_child;
     free(entry);
     return true;
 }
 
-void hashmap_free(hashmap_t *map)
+void hashmap_free(hashmap_t* map)
 {
     for (size_t i = 0; i < map->table.cap; i++) {
-        hashentry_t *entry = &map->table.items[i];
-        if (hashentry_is_empty(entry)) continue;
+        hashentry_t* entry = &map->table.items[i];
+        if (hashentry_is_empty(entry))
+            continue;
 
-        hashentry_t
-            *node = entry,
-            *next = NULL;
-
+        hashentry_t *node = entry, *next = NULL;
         while (node != NULL) {
-            if (node->value != NULL) free(node->value);
-            if (node->key.key != NULL && node->key.len > 0) free(node->key.key);
+            if (node->value != NULL)
+                free(node->value);
+            if (node->key.key != NULL && node->key.len > 0)
+                free(node->key.key);
+
             next = node->next;
 
             /* if node == entry, which is the head, skip free
              * because it's managed by array_* API
              * */
-            if (node != entry) free(node); /* Not head */
+            if (node != entry)
+                free(node); /* Not head */
             node = next;
         }
     }
@@ -484,15 +586,14 @@ void hashmap_free(hashmap_t *map)
  * provide additional buffer in the third argument.
  * */
 
-arena_t *arena_init(size_t size, uint32_t flags, ...)
+arena_t* arena_init(size_t size, uint32_t flags, ...)
 {
-    arena_t *head_node = NULL;
+    arena_t* head_node = NULL;
     va_list va;
     va_start(va, flags);
 
-    if (flags & MISC_ARSTACK && size < sizeof *head_node + 1) {
+    if (flags & MISC_ARSTACK && size < sizeof *head_node + 1)
         return NULL;
-    }
 
     switch (flags) {
     case MISC_ARDEFAULT:
@@ -501,15 +602,14 @@ arena_t *arena_init(size_t size, uint32_t flags, ...)
         break;
     case MISC_ARSTACK:
     case MISC_ARSTACK | MISC_ARNOGROW:
-        head_node = va_arg(va, void *);
+        head_node = va_arg(va, void*);
         break;
     default:
         goto none;
     }
 
-    if (!head_node) {
+    if (!head_node)
         goto none;
-    }
 
     head_node->next = NULL;
     head_node->total = flags & MISC_ARSTACK ? size - sizeof *head_node : size;
@@ -521,15 +621,15 @@ none:
     return head_node;
 }
 
-static arena_t *arena_find_exact(arena_t *arena, size_t size, int *found)
+static arena_t* arena_find_exact(arena_t* arena, size_t size, int* found)
 {
     arena_t *visitor = arena, *last_nonnull = NULL;
     if (visitor->flags & MISC_ARNOGROW) {
-        if (arena_remains(arena) >= size) {
+        if (arena_remains(arena) >= size)
             *found = 1;
-        } else {
+        else
             *found = 0;
-        }
+
         return visitor;
     }
 
@@ -546,12 +646,12 @@ static arena_t *arena_find_exact(arena_t *arena, size_t size, int *found)
     return last_nonnull;
 }
 
-void *arena_alloc(arena_t *arena, size_t size, ...)
+void* arena_alloc(arena_t* arena, size_t size, ...)
 {
-    arena_t *suitable;
+    arena_t* suitable;
     va_list va;
     int found = 0;
-    void *result = NULL;
+    void* result = NULL;
 
     if (arena == NULL || size == 0)
         return NULL;
@@ -564,24 +664,21 @@ void *arena_alloc(arena_t *arena, size_t size, ...)
     }
 
     if (!found) {
-        void *optional = NULL;
-        if (suitable->flags & MISC_ARNOGROW) {
+        void* optional = NULL;
+        if (suitable->flags & MISC_ARNOGROW)
             goto none;
-        }
 
-        if (suitable->flags & MISC_ARSTACK) {
-            optional = va_arg(va, void *);
-        }
+        if (suitable->flags & MISC_ARSTACK)
+            optional = va_arg(va, void*);
 
         suitable->next = arena_init(size + suitable->total, suitable->flags, optional);
-        if (!suitable->next) {
+        if (!suitable->next)
             goto none;
-        }
 
         suitable = suitable->next;
     }
 
-    uint8_t *offset_ptr = (uint8_t *)MISC_VOIDPTR(suitable) + sizeof *suitable;
+    uint8_t* offset_ptr = (uint8_t*)MISC_VOIDPTR(suitable) + sizeof *suitable;
     result = offset_ptr + suitable->offset;
     suitable->offset = suitable->offset + size;
 
@@ -590,27 +687,24 @@ none:
     return result;
 }
 
-void *arena_realloc(arena_t *arena, void *ptr, size_t old_size, size_t new_size, ...)
+void* arena_realloc(arena_t* arena, void* ptr, size_t old_size, size_t new_size, ...)
 {
-    void *optional = NULL;
-    void *result = NULL;
+    void* optional = NULL;
+    void* result = NULL;
     va_list va;
 
-    if (!arena) {
+    if (!arena)
         goto none;
-    }
 
     va_start(va, new_size);
-    if (arena->flags & MISC_ARSTACK) {
-        optional = va_arg(va, void *);
-    }
+    if (arena->flags & MISC_ARSTACK)
+        optional = va_arg(va, void*);
 
     result = arena_alloc(arena, new_size, optional);
-    if (result == NULL) {
+    if (result == NULL)
         goto none;
-    } else if (ptr == NULL) {
+    else if (ptr == NULL)
         goto none;
-    }
 
     memmove(result, ptr, old_size > new_size ? new_size : old_size);
 none:
@@ -618,15 +712,14 @@ none:
     return result;
 }
 
-void arena_free(arena_t *arena)
+void arena_free(arena_t* arena)
 {
     while (arena) {
-        arena_t *tmp = arena->next;
-        if (arena->flags & MISC_ARHEAP) {
+        arena_t* tmp = arena->next;
+        if (arena->flags & MISC_ARHEAP)
             free(arena);
-        } else {
+        else
             memset(arena, 0, arena->total + sizeof *arena);
-        }
 
         arena = tmp;
     }

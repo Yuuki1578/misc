@@ -6,10 +6,10 @@ uint8_t copy_buffer[1024 + sizeof(arena_t)];
 
 int main(void)
 {
-    arena_t *arena = arena_init(sizeof stack_buffer, MISC_ARSTACK | MISC_ARNOGROW, stack_buffer);
+    arena_t* arena = arena_init(sizeof stack_buffer, MISC_ARSTACK | MISC_ARNOGROW, stack_buffer);
     assert(arena != NULL);
 
-    void *buf = arena_alloc(arena, 128);
+    void* buf = arena_alloc(arena, 128);
     assert(buf != NULL);
     memset(buf, 100, 128);
 

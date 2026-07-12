@@ -7,7 +7,7 @@ int main(void)
     for (int i = 1; i <= 25; i++)
         array_append(&ints, i * 100);
 
-    int additional[] = {-1, -2, -3};
+    int additional[] = { -1, -2, -3 };
     array_extend(&ints, additional, 3);
     array_remove_at(&ints, 0);
     array_remove_at(&ints, 1);
