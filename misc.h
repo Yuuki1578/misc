@@ -189,6 +189,32 @@ void        *hashmap_get(const hashmap_t *map, const hashkey_t key);
 bool         hashmap_delete_at(hashmap_t *map, const hashkey_t key); // TODO
 void         hashmap_free(hashmap_t *map);
 
+#if __STDC_VERSION__ >= 202300L || (defined(__GNUC__) && __STDC_VERSION__ >= 201700L)
+
+// K and V can be immediate expression, but K cannot be string
+#define hashmap_insert(map, K, V, ok) \
+    do { \
+        typeof((K)) _k = (K); \
+        typeof((V)) _v = (V); \
+        hashkey_t key = { \
+            .key = (void *) &_k, \
+            .len = sizeof _k, \
+        }; \
+        *(ok) = hashmap_put(map, key, &_v, sizeof _v); \
+    } while (0)
+
+#define hashmap_retrieve(map, K, ok) \
+    do { \
+        typeof((K)) _k = (K); \
+        hashkey_t key = { \
+            .key = (void *) &_k, \
+            .len = sizeof _k, \
+        }; \
+        *(ok) = hashmap_get(map, key); \
+    } while (0)
+
+#endif
+
 #ifdef MISC_IMPL
 uint64_t fnv_init(const void *ptr, const size_t size)
 {
@@ -299,8 +325,8 @@ hashentry_t *hashentry_find_exact(hashentry_t *head, const hashkey_t key)
 {
     uint64_t hash = fnv_init(key.key, key.len);
     while (head != NULL) {
-        size_t smallest = head->key.len > key.len ? key.len : head->key.len;
-        if (head->key.hash == hash && memcmp(head->key.key, key.key, smallest) == 0)
+        // size_t smallest = head->key.len > key.len ? key.len : head->key.len;
+        if (head->key.hash == hash /* && memcmp(head->key.key, key.key, smallest) == 0 */ )
             return head;
 
         head = head->next;
@@ -349,7 +375,7 @@ bool hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size)
         hashentry_t *tail = hashentry_find_tail(entry);
         if (tail == NULL) return false;
 
-        hashentry_t *end = hashentry_init(key, appended.value);
+        hashentry_t *end = hashentry_init(appended.key, appended.value);
         if (end == NULL) return false;
 
         tail->next = end;
@@ -389,7 +415,7 @@ void hashmap_free(hashmap_t *map)
 
         while (node != NULL) {
             if (node->value != NULL) free(node->value);
-            if (node->key.key != NULL) free(node->key.key);
+            if (node->key.key != NULL && node->key.len > 0) free(node->key.key);
             next = node->next;
 
             /* if node == entry, which is the head, skip free

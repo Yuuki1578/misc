@@ -25,7 +25,7 @@ library.
 #error Compiler must be either gcc or clang
 #endif
 
-#define CFLAGS "-Wall", "-Werror", "-Wextra", "-pedantic", "-Wno-unused-function", "-ggdb", "-std=c99"
+#define CFLAGS "-Wall", "-Werror", "-Wextra", "-pedantic", "-Wno-unused-function", "-ggdb", "-std=c23"
 
 void CompileExample(Nob_Cmd * cmd, Nob_Procs * procs, char *input, char *output);
 void CompileAllExample(Nob_Cmd * cmd, Nob_Procs * procs);

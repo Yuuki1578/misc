@@ -1,4 +1,4 @@
-# C99 library for my daily usage
+# Simple C library for my personal use
 
 This library provide some basic functionality that C doesn't have.
 
@@ -30,12 +30,12 @@ cc nob.c -o nob
 int main(void)
 {
     // See the header file for all available flags
-    Arena *allocator = CreateArena(1024, MISC_ARHEAP); // 4096
-    void *memory = ArenaAlloc(allocator, 1024); // 1024 - 1024 = 0
-    memory = ArenaAlloc(allocator, 1024); // new node
-    memory = ArenaAlloc(allocator,1024); // new node
+    arena_t *allocator = arena_init(1024, MISC_ARHEAP); // 4096
+    void *memory = arena_alloc(allocator, 1024); // 1024 - 1024 = 0
+    memory = arena_alloc(allocator, 1024); // new node
+    memory = arena_alloc(allocator,1024); // new node
 
-    DestroyArena(allocator); // Free it all at once
+    arena_free(allocator); // Free it all at once
 }
 ```
 
@@ -45,22 +45,50 @@ int main(void)
 
 typedef struct {
     const char *family;
-    int isAlive;
-} Animal;
+    int is_alive;
+} animal_t;
 
 int main(void)
 {
-    Array(Animal) animals = {0};
-    AppendArray(&animals, (Animal){
+    array_t(animal_t) animals = { 0 };
+    array_append(&animals, (animal_t){
         .family = "feline",
-        .isAlive = true,
+        .is_alive = true,
     });
 
     for (uint32_t i = 0; i < animals.len; i++)
         printf("Family: %s, is alive: %d\n",
             animals.items[i].family,
-            animals.items[i].isAlive);
+            animals.items[i].is_alive);
 
-    FreeArray(&animals);
+    array_free(&animals);
 }
+```
+
+### Hashmap (C23)
+```c
+#include "misc.h"
+
+int main(void)
+{
+    hashmap_t map = { 0 };
+    size_t fail = 0;
+    for (size_t i = 0; i < 1024 * 50; i++) {
+        const size_t K = i << 4;
+        bool ok;
+        hashmap_insert(&map, K, i, &ok);
+        assert(ok);
+
+        size_t *value;
+        hashmap_retrieve(&map, K, &value);
+        if (value != NULL) {
+            printf("[%zu] key: %zu, value: %zu\n", i, K, *value);
+        } else {
+            fail++;
+        }
+    }
+
+    printf("retrieve failed count: %zu\n", fail);
+    hashmap_free(&map);
+    return 0;
 ```
