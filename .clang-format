@@ -1,6 +1,0 @@
-IndentWidth: 4
-BreakBeforeBraces: WebKit
-AlignConsecutiveDeclarations: true
-AlignConsecutiveAssignments: true
-AlignConsecutiveMacros: true
-ColumnLimit: 120

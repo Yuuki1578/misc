@@ -59,7 +59,7 @@ void     arena_free(arena_t *arena);
         uint32_t len; \
     }
 
-#define array_is_empty(array) ((array) != NULL ? ((array)->items == NULL && !(array)->cap) : 0)
+#define array_is_empty(array) ((array) != NULL ? ((array)->items == NULL && !(array)->cap) : 1)
 #define array_remains(array) ((array) != NULL ? ((array)->cap - (array)->len) : 0)
 
 #define array_try_resize(array, N, ok) \
@@ -160,8 +160,17 @@ void     arena_free(arena_t *arena);
 #define MISC_FNV_BASIS         (0xcbf29ce484222325ULL)
 #define MISC_FNV_PRIME         (0x100000001b3ULL)
 #define MISC_FNV_LIMIT         (64)
+#ifndef MISC_HASHMAP_INITCAP
 #define MISC_HASHMAP_INITCAP   (16)
-#define MISC_HASHMAP_THRESHOLD (MISC_HASHMAP_INITCAP * 2)
+#endif
+#ifndef MISC_HASHMAP_THRESHOLD
+#define MISC_HASHMAP_THRESHOLD (MISC_HASHMAP_INITCAP * 8)
+#endif
+
+#define MISC_HASHMAP_GETINDEX(hash, table_cap) ((hash) % (table_cap))
+#define MISC_HASHMAP_FOUND_NULL (0)
+#define MISC_HASHMAP_FOUND_HEAD (1)
+#define MISC_HASHMAP_FOUND_LIST (2)
 
 typedef struct {
     uint64_t hash;
@@ -184,7 +193,6 @@ typedef struct {
 uint64_t     fnv_init(const void *ptr, const size_t size);
 int          fnv_memcmp(const void *left, const size_t left_len, const void *right, const size_t right_len);
 bool         hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size);
-hashentry_t *hashmap_get_entry(const hashmap_t *map, const hashkey_t key);
 void        *hashmap_get(const hashmap_t *map, const hashkey_t key);
 bool         hashmap_delete_at(hashmap_t *map, const hashkey_t key); // TODO
 void         hashmap_free(hashmap_t *map);
@@ -220,23 +228,10 @@ uint64_t fnv_init(const void *ptr, const size_t size)
 {
     const uint8_t *bytes = ptr;
     uint64_t base_number = MISC_FNV_BASIS;
-
-    if (size <= MISC_FNV_LIMIT) {
-        for (size_t i = 0; i < size; i++) {
-            base_number *= MISC_FNV_PRIME;
-            base_number ^= bytes[i];
-        }
-    } else {
-        for (size_t i = 0; i < MISC_FNV_LIMIT / 2; i++) {
-            base_number *= MISC_FNV_PRIME;
-            base_number ^= bytes[i];
-        }
-        for (size_t i = 0, j = size - 1; i < MISC_FNV_LIMIT / 2; i++, j--) {
-            base_number *= MISC_FNV_PRIME;
-            base_number ^= bytes[j];
-        }
+    for (size_t i = 0; i < size; i++) {
+        base_number *= MISC_FNV_PRIME;
+        base_number ^= bytes[i];
     }
-
     return base_number;
 }
 
@@ -275,7 +270,7 @@ void hashmap_rehash(hashmap_t* map)
         hashentry_t *entry = &table->items[i];
         if (hashentry_is_empty(entry)) continue;
 
-        uint64_t new_index = entry->key.hash % table->cap;
+        uint64_t new_index = MISC_HASHMAP_GETINDEX(entry->key.hash, table->cap);
         hashentry_t *new_entry = &table->items[new_index];
 
         if (hashentry_is_empty(new_entry)) {
@@ -285,7 +280,6 @@ void hashmap_rehash(hashmap_t* map)
             /* this happen when it supposed to be null, like for fuck sake
              * the allocator API is not zeroing it out dude
              * */
-            if (tail->next != NULL) abort();
             tail->next = entry;
         }
         memset(entry, 0, sizeof *entry);
@@ -325,10 +319,7 @@ hashentry_t *hashentry_find_exact(hashentry_t *head, const hashkey_t key)
 {
     uint64_t hash = fnv_init(key.key, key.len);
     while (head != NULL) {
-        // size_t smallest = head->key.len > key.len ? key.len : head->key.len;
-        if (head->key.hash == hash /* && memcmp(head->key.key, key.key, smallest) == 0 */ )
-            return head;
-
+        if (head->key.hash == hash) return head;
         head = head->next;
     }
     return NULL;
@@ -348,22 +339,23 @@ bool hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size)
 
     array_t(hashentry_t) *table = (void*) &map->table;
     key.hash = fnv_init(key.key, key.len);
-    uint64_t index = key.hash % table->cap;
+    uint64_t index = MISC_HASHMAP_GETINDEX(key.hash, table->cap);
     hashentry_t *entry = &table->items[index];
     hashentry_t appended = {
         .key = key,
         .value = value,
         .next = NULL,
     };
-    appended.key.key = malloc(key.len);
-    if (appended.key.key == NULL) return false;
-    memmove(appended.key.key, key.key, key.len);
-
-
+    bool alloc_key = false, alloc_value = false;
+    if (key.key != NULL && key.len > 0) {
+        appended.key.key = malloc(key.len);
+        if (appended.key.key == NULL) return false;
+        memmove(appended.key.key, key.key, key.len), alloc_key = true;
+    }
     if (value != NULL && size > 0) {
         appended.value = malloc(size);
         if (appended.value == NULL) return false;
-        memmove(appended.value, value, size);
+        memmove(appended.value, value, size), alloc_value = true;
     }
 
     // Jackpot
@@ -376,7 +368,11 @@ bool hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size)
         if (tail == NULL) return false;
 
         hashentry_t *end = hashentry_init(appended.key, appended.value);
-        if (end == NULL) return false;
+        if (end == NULL) {
+            if (alloc_key) free(appended.key.key);
+            if (alloc_value) free(appended.value);
+            return false;
+        }
 
         tail->next = end;
         map->collide++;
@@ -384,23 +380,59 @@ bool hashmap_put(hashmap_t *map, hashkey_t key, void *value, const size_t size)
     return true;
 }
 
-hashentry_t *hashmap_get_entry(const hashmap_t *map, const hashkey_t key)
+hashentry_t *hashmap_get_entry(const hashmap_t *map, hashentry_t **head, const hashkey_t key, int *found_status)
 {
     array_t(hashentry_t) *table = (void*) &map->table;
     uint64_t hash = fnv_init(key.key, key.len);
-    uint64_t index = hash % table->cap;
+    uint64_t index = MISC_HASHMAP_GETINDEX(hash, table->cap);
     hashentry_t *entry = &table->items[index];
     
-    if (hashentry_is_empty(entry)) return NULL;
-    if (hashentry_is_head(entry)) return entry; /* Jackpot */
+    if (hashentry_is_empty(entry)) {
+        *head = NULL;
+        *found_status = MISC_HASHMAP_FOUND_NULL;
+        return NULL;
+    } else if (hashentry_is_head(entry)) {
+        *head = entry;
+        *found_status = MISC_HASHMAP_FOUND_HEAD;
+        return entry; /* Jackpot */
+    }
+    *head = entry;
+    *found_status = MISC_HASHMAP_FOUND_LIST;
     return hashentry_find_exact(entry, key);
 }
 
 void *hashmap_get(const hashmap_t *map, const hashkey_t key)
 {
-    hashentry_t *entry = hashmap_get_entry(map, key);
+    int found;
+    hashentry_t *head;
+    hashentry_t *entry = hashmap_get_entry(map, &head, key, &found);
     if (entry != NULL) return entry->value;
     return NULL;
+}
+
+bool hashmap_delete_at(hashmap_t *map, const hashkey_t key)
+{
+    int found;
+    hashentry_t *head;
+    hashentry_t *entry = hashmap_get_entry(map, &head, key, &found);
+    if (entry == NULL) return false;
+    /* In case of the entry is a head of a list, do a memset 0 instead of free */
+    if (found == MISC_HASHMAP_FOUND_HEAD) {
+        if (entry->value != NULL) free(entry->value);
+        if (entry->key.key != NULL && entry->key.len > 0) free(entry->key.key);
+        memset(entry, 0, sizeof *entry);
+        return true;
+    }
+
+    /* looping through head until head->next become entry, saving the entry parent node in head */
+    hashentry_t *entry_child = entry->next;
+    if (entry->value != NULL) free(entry->value);
+    if (entry->key.key != NULL && entry->key.len > 0) free(entry->key.key);
+    while (head->next != entry) head = head->next;
+
+    head->next = entry_child;
+    free(entry);
+    return true;
 }
 
 void hashmap_free(hashmap_t *map)

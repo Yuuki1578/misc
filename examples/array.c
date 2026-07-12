@@ -3,7 +3,7 @@
 
 int main(void)
 {
-    array_t(int) ints = {0};
+    array_t(int) ints = { 0 };
     for (int i = 1; i <= 25; i++)
         array_append(&ints, i * 100);
 
