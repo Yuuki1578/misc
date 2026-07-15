@@ -158,26 +158,49 @@ void arena_free(arena_t* arena);
 
 #define array_free(array) array_resize(array, 0)
 
-typedef array_t(char) string_t;
+#define slice_t(type)      \
+    struct {               \
+        const type* items; \
+        uint32_t len;      \
+    }
+
+typedef array_t(char) str_t;
+
+typedef slice_t(char) stref_t;
+
+// Inclusive
+#define slice_from(slice, ptr, length, begin, end)    \
+    do {                                              \
+        if ((ptr) == NULL || (begin) > (end))         \
+            break;                                    \
+        size_t _b, _e;                                \
+        _b = (begin) > (length) ? (length) : (begin); \
+        _e = (end) > (length) ? (length) : (end);     \
+        (slice)->items = (ptr) + (_b);                \
+        (slice)->len = ((_e) - (_b));                 \
+    } while (0)
+
+#define slice_from_array(slice, array, begin, end) slice_from(slice, (array)->items, (array)->len, begin, end)
 
 /*
 Legends:
     function with prefixes str_* is going to use traditional char*
-    function with prefixes string_* is going to use string_t
+    function with prefixes string_* is going to use str_t
+    function with prefixes stref_* is going to use stref_t
 */
 
-#define string_fmt(string) (int)(string).len, (string).items
-char* str_printf(arena_t* allocator, const char* fmt, ...);
-string_t string_printf(const char* fmt, ...);
+#define str_fmt(str) (int)(str).len, (str).items
+stref_t stref_from(const char* cstr, size_t begin, size_t end);
+stref_t stref_from_str(str_t* str, size_t begin, size_t end);
+str_t string_printf(const char* fmt, ...);
+char* cstr_printf(arena_t* allocator, const char* fmt, ...);
 
 #define MISC_FNV_BASIS (0xcbf29ce484222325ULL)
 #define MISC_FNV_PRIME (0x100000001b3ULL)
 #define MISC_FNV_LIMIT (64)
+#define MISC_HASHMAP_LOADFACTOR (0.75)
 #ifndef MISC_HASHMAP_INITCAP
-#define MISC_HASHMAP_INITCAP (64)
-#endif
-#ifndef MISC_HASHMAP_THRESHOLD
-#define MISC_HASHMAP_THRESHOLD (MISC_HASHMAP_INITCAP)
+#define MISC_HASHMAP_INITCAP (8)
 #endif
 
 #define MISC_HASHMAP_GETINDEX(hash, table_cap) ((hash) % (table_cap))
@@ -197,47 +220,42 @@ typedef struct hashentry {
     struct hashentry* next;
 } hashentry_t;
 
+typedef array_t(hashentry_t) raw_table_t;
+
 typedef struct {
-    array_t(hashentry_t) table;
-    uint32_t collide, threshold;
-    // TODO: Add load factor for better performance tracking
+    raw_table_t table;
 } hashmap_t;
 
+#define hashmap_loadfactor(map) ((double)(map)->table.len / (double)(map)->table.cap)
+#define hashmap_put_cstr(map, cstr, value, size) hashmap_put(map, (hashkey_t) { .key = (void*)(cstr), .len = strlen(cstr) }, value, size)
+#define hashmap_get_cstr(map, cstr) hashmap_get(map, (hashkey_t) { .key = (void*)(cstr), .len = strlen(cstr) })
+
 uint64_t fnv_init(const void* ptr, const size_t size);
-int fnv_memcmp(const void* left, const size_t left_len, const void* right, const size_t right_len);
-bool hashmap_put(hashmap_t* map, hashkey_t key, void* value, const size_t size);
+void hashmap_put(hashmap_t* map, hashkey_t key, void* value, const size_t size);
 void* hashmap_get(const hashmap_t* map, const hashkey_t key);
 bool hashmap_delete_at(hashmap_t* map, const hashkey_t key);
 void hashmap_free(hashmap_t* map);
 
-#if __STDC_VERSION__ >= 202300L || (defined(__GNUC__) && __STDC_VERSION__ >= 201700L)
-
-// K and V can be immediate expression, but K cannot be string
-#define hashmap_insert(map, K, V, ok)                  \
-    do {                                               \
-        typeof((K)) _k = (K);                          \
-        typeof((V)) _v = (V);                          \
-        hashkey_t key = {                              \
-            .key = (void*)&_k,                         \
-            .len = sizeof _k,                          \
-        };                                             \
-        *(ok) = hashmap_put(map, key, &_v, sizeof _v); \
-    } while (0)
-
-#define hashmap_retrieve(map, K, ok)   \
-    do {                               \
-        typeof((K)) _k = (K);          \
-        hashkey_t key = {              \
-            .key = (void*)&_k,         \
-            .len = sizeof _k,          \
-        };                             \
-        *(ok) = hashmap_get(map, key); \
-    } while (0)
-
-#endif
-
 #ifdef MISC_IMPL
-char* str_printf(arena_t* allocator, const char* fmt, ...)
+stref_t stref_from(const char* cstr, size_t begin, size_t end)
+{
+    stref_t ref = { 0 };
+    if (cstr == NULL || end < begin)
+        return ref;
+
+    size_t len = strlen(cstr);
+    slice_from(&ref, cstr, len, begin, end);
+    return ref;
+}
+
+stref_t stref_from_string(str_t* str, size_t begin, size_t end)
+{
+    stref_t ref = { 0 };
+    slice_from_array(&ref, str, begin, end);
+    return ref;
+}
+
+char* cstr_printf(arena_t* allocator, const char* fmt, ...)
 {
     char* buf = NULL;
     va_list va;
@@ -259,9 +277,9 @@ end:;
     return buf;
 }
 
-string_t string_printf(const char* fmt, ...)
+str_t str_printf(const char* fmt, ...)
 {
-    string_t string = { 0 };
+    str_t str = { 0 };
     va_list va;
     va_start(va, fmt);
     int size = vsnprintf(NULL, 0, fmt, va);
@@ -269,17 +287,17 @@ string_t string_printf(const char* fmt, ...)
 
     if (size > 0) {
         bool ok;
-        array_try_resize(&string, (size_t)size + 1, &ok);
+        array_try_resize(&str, (size_t)size + 1, &ok);
         if (!ok)
-            return string;
+            return str;
 
         va_start(va, fmt);
-        size = vsnprintf(string.items, string.cap, fmt, va);
+        size = vsnprintf(str.items, str.cap, fmt, va);
         va_end(va);
-        string.len += size > 0 ? size : 0;
+        str.len += size > 0 ? size : 0;
     }
 
-    return string;
+    return str;
 }
 
 uint64_t fnv_init(const void* ptr, const size_t size)
@@ -291,17 +309,6 @@ uint64_t fnv_init(const void* ptr, const size_t size)
         base_number ^= bytes[i];
     }
     return base_number;
-}
-
-int fnv_memcmp(const void* left, const size_t left_len, const void* right, const size_t right_len)
-{
-    size_t smallest = left_len > right_len ? right_len : left_len;
-    int result;
-
-    if ((result = memcmp(left, right, smallest)) == 0)
-        return 0;
-
-    return result;
 }
 
 static bool hashentry_is_empty(const hashentry_t* entry)
@@ -322,37 +329,44 @@ static hashentry_t* hashentry_find_tail(hashentry_t* head)
     return current;
 }
 
-// HELL
-static void hashmap_rehash(hashmap_t* map)
-{
-    // TODO rehash all invalid hash value
-    array_t(hashentry_t)* table = (void*)&map->table;
+/*
+IMPORTANT:
+    From previous commit, i use hashmap_rehash to rehash the table from the new array
+    instead of the old one, and this is the fix, basically add one more params (new_table),
+    rehash based on new_table capacity, free the old table from map, replace the
+    map->table with the new_table, and that's it.
 
-    for (size_t i = 0; i < table->cap; i++) {
-        hashentry_t* entry = &table->items[i];
+    Duh, i spent a lot of time figuring out why this shit won't work oh my god, sorry, i don't
+    go into college so this technical detail about data structure is very confusing.
+*/
+static void hashmap_rehash(hashmap_t* map, raw_table_t new_table)
+{
+    raw_table_t* old_table = &map->table;
+
+    for (size_t i = 0; i < old_table->cap; i++) {
+        hashentry_t* entry = &old_table->items[i];
         if (hashentry_is_empty(entry))
             continue;
 
-        uint64_t new_index = MISC_HASHMAP_GETINDEX(entry->key.hash, table->cap);
-        hashentry_t* new_entry = &table->items[new_index];
+        // Literally life saver right here
+        uint64_t new_index = MISC_HASHMAP_GETINDEX(entry->key.hash, new_table.cap);
+        hashentry_t* new_entry = &new_table.items[new_index];
 
         if (hashentry_is_empty(new_entry)) {
             *new_entry = *entry;
         } else {
             hashentry_t* tail = hashentry_find_tail(new_entry);
-            /*
-            This is technichally impossible to be null,
-            if it is, just let it crash lmao
-            */
             tail->next = entry;
         }
-        memset(entry, 0, sizeof *entry);
     }
+
+    array_free(old_table);
+    map->table = new_table;
 }
 
 static bool hashmap_try_reserve(hashmap_t* map)
 {
-    array_t(hashentry_t)* table = (void*)&map->table;
+    raw_table_t* table = &map->table;
     bool ok;
 
     if (table->cap < MISC_HASHMAP_INITCAP) {
@@ -360,13 +374,15 @@ static bool hashmap_try_reserve(hashmap_t* map)
         if (!ok)
             return false;
     }
-    if (map->collide >= map->threshold) {
-        array_try_resize(table, table->cap * 2, &ok);
+    if (hashmap_loadfactor(map) >= MISC_HASHMAP_LOADFACTOR) {
+        raw_table_t new_table = { 0 };
+        bool ok;
+        array_try_resize(&new_table, table->cap * 2, &ok);
         if (!ok)
             return false;
 
-        hashmap_rehash(map);
-        map->threshold *= 2;
+        new_table.len = table->len;
+        hashmap_rehash(map, new_table);
     }
     return true;
 }
@@ -388,12 +404,12 @@ static hashentry_t* hashentry_find_exact(hashentry_t* head, const hashkey_t key)
 {
     uint64_t hash = fnv_init(key.key, key.len);
     while (head != NULL) {
-        if (head->key.hash == hash)
-            return head;
+        if (head->key.hash == hash && head->key.len == key.len)
+            break;
 
         head = head->next;
     }
-    return NULL;
+    return head;
 }
 
 static bool hashentry_is_head(hashentry_t* maybe_head)
@@ -401,36 +417,34 @@ static bool hashentry_is_head(hashentry_t* maybe_head)
     return maybe_head->next == NULL;
 }
 
-bool hashmap_put(hashmap_t* map, hashkey_t key, void* value,
-    const size_t size)
+void hashmap_put(hashmap_t* map, hashkey_t key, void* value, const size_t size)
 {
-    if (map->threshold < MISC_HASHMAP_THRESHOLD)
-        map->threshold = MISC_HASHMAP_THRESHOLD;
-
     if (!hashmap_try_reserve(map))
-        return false;
+        return;
 
-    array_t(hashentry_t)* table = (void*)&map->table;
+    raw_table_t* table = &map->table;
     key.hash = fnv_init(key.key, key.len);
     uint64_t index = MISC_HASHMAP_GETINDEX(key.hash, table->cap);
     hashentry_t* entry = &table->items[index];
+
+    bool alloc_key = false, alloc_value = false;
     hashentry_t appended = {
         .key = key,
         .value = value,
         .next = NULL,
     };
-    bool alloc_key = false, alloc_value = false;
+
     if (key.key != NULL && key.len > 0) {
         appended.key.key = malloc(key.len);
         if (appended.key.key == NULL)
-            return false;
+            return;
 
         memmove(appended.key.key, key.key, key.len), alloc_key = true;
     }
     if (value != NULL && size > 0) {
         appended.value = malloc(size);
         if (appended.value == NULL)
-            return false;
+            return;
 
         memmove(appended.value, value, size), alloc_value = true;
     }
@@ -438,12 +452,13 @@ bool hashmap_put(hashmap_t* map, hashkey_t key, void* value,
     // Jackpot
     if (hashentry_is_empty(entry)) {
         *entry = appended;
+        table->len++;
 
         // Not so lucky
     } else {
         hashentry_t* tail = hashentry_find_tail(entry);
         if (tail == NULL)
-            return false;
+            return;
 
         hashentry_t* end = hashentry_init(appended.key, appended.value);
         if (end == NULL) {
@@ -452,18 +467,16 @@ bool hashmap_put(hashmap_t* map, hashkey_t key, void* value,
             if (alloc_value)
                 free(appended.value);
 
-            return false;
+            return;
         }
 
         tail->next = end;
-        map->collide++;
     }
-    return true;
 }
 
 static hashentry_t* hashmap_get_entry(const hashmap_t* map, hashentry_t** head, const hashkey_t key, int* found_status)
 {
-    array_t(hashentry_t)* table = (void*)&map->table;
+    const raw_table_t* table = &map->table;
     uint64_t hash = fnv_init(key.key, key.len);
     uint64_t index = MISC_HASHMAP_GETINDEX(hash, table->cap);
     hashentry_t* entry = &table->items[index];
@@ -479,7 +492,7 @@ static hashentry_t* hashmap_get_entry(const hashmap_t* map, hashentry_t** head, 
     }
     *head = entry;
     *found_status = MISC_HASHMAP_FOUND_LIST;
-    return hashentry_find_exact(entry, key);
+    return hashentry_find_exact(*head, key);
 }
 
 void* hashmap_get(const hashmap_t* map, const hashkey_t key)
@@ -560,7 +573,6 @@ void hashmap_free(hashmap_t* map)
         }
     }
     array_free(&map->table);
-    map->collide = 0, map->threshold = 0;
 }
 
 /* arena_t: linear allocator.

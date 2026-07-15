@@ -1,7 +1,7 @@
 buffer = dict()
 fail = 0
 
-for k in range(0, 1024 * 50):
+for k in range(0, 1024 * 100):
     key = str(k << 16)
     buffer[key] = k
     val = buffer.get(key)

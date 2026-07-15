@@ -9,25 +9,25 @@ int main(void)
     assert(allocator != NULL);
 
     for (size_t i = 0; i < 1024 * 100; i++) {
-        char* buf = str_printf(allocator, "%zu", i << 16);
+        char* buf = cstr_printf(allocator, "%zu", i << 8);
         assert(buf != NULL);
 
-        hashkey_t key = { .key = (void*)buf, .len = strlen(buf) };
-        bool ok = hashmap_put(&map, key, &i, sizeof i);
-        assert(ok);
-
-        size_t* value = hashmap_get(&map, key);
-        if (value != NULL)
-            printf("[%zu] key: \"%s\", value: %zu\n", i, buf, *value);
-        else
+        hashmap_put_cstr(&map, buf, &i, sizeof i);
+        if (!hashmap_get_cstr(&map, buf))
             fail++;
-
-        assert(hashmap_delete_at(&map, key));
     }
+
+    char* key = cstr_printf(allocator, "%zu", ((1024 * 100) - 1) << 8);
+    size_t* ok = hashmap_get(&map, (hashkey_t) { .key = (void*)key, .len = strlen(key) });
+    if (!ok)
+        return 1;
+
+    printf("retrieved: %zu\n", *ok);
+    printf("retrieve failed count: %zu\n", fail);
+    printf("table capacity: %u\n", map.table.cap);
+    printf("load factor: %f\n", hashmap_loadfactor(&map));
 
     hashmap_free(&map);
     arena_free(allocator);
-
-    printf("retrieve failed count: %zu\n", fail);
     return 0;
 }
