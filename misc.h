@@ -373,7 +373,7 @@ static void hashmap_rehash(HashMap* map, RawHashTable new_table)
     map->table = new_table;
 }
 
-static bool HashMapry_reserve(HashMap* map)
+static bool hashmap_try_reserve(HashMap* map)
 {
     RawHashTable* table = &map->table;
     bool ok;
@@ -428,7 +428,7 @@ static bool hashentry_is_head(HashEntry* maybe_head)
 
 void hashmap_put(HashMap* map, HashKey key, void* value, const usize size)
 {
-    if (!HashMapry_reserve(map))
+    if (!hashmap_try_reserve(map))
         return;
 
     RawHashTable* table = &map->table;
