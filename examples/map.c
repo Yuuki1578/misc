@@ -3,13 +3,13 @@
 
 int main(void)
 {
-    hashmap_t map = { 0 };
-    arena_t* allocator = arena_init(1 << 12, MISC_ARHEAP);
+    HashMap map = { 0 };
+    Arena* allocator = arena_init(1 << 12, MISC_ARHEAP);
     size_t fail = 0;
     assert(allocator != NULL);
 
-    for (size_t i = 0; i < 1024 * 100; i++) {
-        char* buf = cstr_printf(allocator, "%zu", i << 8);
+    for (usize i = 0; i < 1024 * 1024; i++) {
+        char* buf = cstring_printf(allocator, "%zu", i << 2);
         assert(buf != NULL);
 
         hashmap_put_cstr(&map, buf, &i, sizeof i);
@@ -17,12 +17,16 @@ int main(void)
             fail++;
     }
 
-    char* key = cstr_printf(allocator, "%zu", ((1024 * 100) - 1) << 8);
-    size_t* ok = hashmap_get(&map, (hashkey_t) { .key = (void*)key, .len = strlen(key) });
-    if (!ok)
-        return 1;
+    char* key = cstring_printf(allocator, "%zu", ((1024 * 698) - 1) << 2);
+    const HashKey K = { .key = (void*)key, .len = strlen(key) };
+    assert(hashmap_delete_at(&map, K));
+    usize* ok = hashmap_get(&map, K);
+    if (ok == NULL)
+        goto skip;
 
     printf("retrieved: %zu\n", *ok);
+
+skip:;
     printf("retrieve failed count: %zu\n", fail);
     printf("table capacity: %u\n", map.table.cap);
     printf("load factor: %f\n", hashmap_loadfactor(&map));

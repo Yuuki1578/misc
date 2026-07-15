@@ -26,7 +26,7 @@ library.
 #error Compiler must be either gcc or clang
 #endif
 
-#define CFLAGS "-Wall", "-Werror", "-Wextra", "-pedantic", "-std=c99", "-ggdb"
+#define CFLAGS "-Wall", "-Werror", "-Wextra", "-pedantic", "-std=c99", "-O3", "-ffast-math", "-flto"
 
 void example_cc(Nob_Cmd* cmd, Nob_Procs* procs, char* input, char* output);
 void example_cc_all(Nob_Cmd* cmd, Nob_Procs* procs);
@@ -71,7 +71,7 @@ void example_cc_all(Nob_Cmd* cmd, Nob_Procs* procs)
 
 #ifdef __clang__
 
-#define FORMAT_FILE(file)                     \
+#define format_file(file)                     \
     do {                                      \
         nob_cmd_append(cmd, FMT, file, "-i"); \
         nob_cmd_run_async_and_reset(cmd);     \
@@ -79,12 +79,12 @@ void example_cc_all(Nob_Cmd* cmd, Nob_Procs* procs)
 
 void source_format(Nob_Cmd* cmd)
 {
-    FORMAT_FILE("misc.h");
-    FORMAT_FILE("nob.c");
-    FORMAT_FILE("examples/array.c");
-    FORMAT_FILE("examples/arena.c");
-    FORMAT_FILE("examples/map.c");
-    FORMAT_FILE("examples/map.cpp");
+    format_file("misc.h");
+    format_file("nob.c");
+    format_file("examples/array.c");
+    format_file("examples/arena.c");
+    format_file("examples/map.c");
+    format_file("examples/map.cpp");
 }
 
 #endif

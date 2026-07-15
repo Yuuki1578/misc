@@ -1,12 +1,12 @@
 #define MISC_IMPL
 #include "../misc.h"
 
-uint8_t stack_buffer[1024 + sizeof(arena_t)];
-uint8_t copy_buffer[1024 + sizeof(arena_t)];
+u8 stack_buffer[1024 + sizeof(Arena)];
+u8 copy_buffer[1024 + sizeof(Arena)];
 
 int main(void)
 {
-    arena_t* arena = arena_init(sizeof stack_buffer, MISC_ARSTACK | MISC_ARNOGROW, stack_buffer);
+    Arena* arena = arena_init(sizeof stack_buffer, MISC_ARSTACK | MISC_ARNOGROW, stack_buffer);
     assert(arena != NULL);
 
     void* buf = arena_alloc(arena, 128);
