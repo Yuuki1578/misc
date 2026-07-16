@@ -26,7 +26,7 @@ library.
 #error Compiler must be either gcc or clang
 #endif
 
-#define CFLAGS "-Wall", "-Werror", "-Wextra", "-pedantic", "-std=c99", "-O3", "-ffast-math", "-flto"
+#define CFLAGS "-Wall", "-Werror", "-Wextra", "-pedantic", "-std=c99", "-O3", "-ffast-math", "-flto", "-s"
 
 void example_cc(Nob_Cmd* cmd, Nob_Procs* procs, char* input, char* output);
 void example_cc_all(Nob_Cmd* cmd, Nob_Procs* procs);

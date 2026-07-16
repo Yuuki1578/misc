@@ -4,34 +4,36 @@
 int main(void)
 {
     HashMap map = { 0 };
-    Arena* allocator = arena_init(1 << 12, MISC_ARHEAP);
     size_t fail = 0;
-    assert(allocator != NULL);
 
-    for (usize i = 0; i < 1024 * 1024; i++) {
-        char* buf = cstring_printf(allocator, "%zu", i << 2);
-        assert(buf != NULL);
+    for (register usize i = 0; i < 1024 * 1024 * 4; i++) {
+        usize val = i;
+        String buf = string_printf("%zu", i << 2);
+        assert(buf.len > 0);
+        hashmap_put(
+            &map,
+            (HashKey) { .key = buf.items, .len = buf.len },
+            &val,
+            sizeof val);
 
-        hashmap_put_cstr(&map, buf, &i, sizeof i);
-        if (!hashmap_get_cstr(&map, buf))
-            fail++;
+        array_free(&buf);
     }
 
-    char* key = cstring_printf(allocator, "%zu", ((1024 * 698) - 1) << 2);
-    const HashKey K = { .key = (void*)key, .len = strlen(key) };
-    assert(hashmap_delete_at(&map, K));
-    usize* ok = hashmap_get(&map, K);
-    if (ok == NULL)
-        goto skip;
+    String buf = string_printf("%zu", ((1024 * 698) - 1) << 2);
+    HashKey key = {
+        .key = buf.items,
+        .len = buf.len,
+    };
 
-    printf("retrieved: %zu\n", *ok);
+    assert(hashmap_delete_at(&map, key));
+    usize* ok = hashmap_get(&map, key);
+    assert(ok == NULL);
 
-skip:;
     printf("retrieve failed count: %zu\n", fail);
     printf("table capacity: %u\n", map.table.cap);
-    printf("load factor: %f\n", hashmap_loadfactor(&map));
+    printf("load factor: %f\n", hashmap_load_factor(&map));
 
     hashmap_free(&map);
-    arena_free(allocator);
+    array_free(&buf);
     return 0;
 }
