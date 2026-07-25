@@ -473,6 +473,134 @@ void* chainmap_get(ChainMap* map, HashKey key);
 void chainmap_delete_at(ChainMap* map, HashKey key);
 void chainmap_free(ChainMap* map);
 
+#define make_opaque(T, ...) ((void*)&(T){__VA_ARGS__})
+
+// map == struct { K key; V value; }**
+// K   != char*
+// V   == any
+#define map_put(map, K, V) \
+    do { \
+        if (*(map) == NULL) { \
+            *(map) = malloc(sizeof(ChainMap) + sizeof **(map)); \
+            assert(*(map) != NULL); \
+        } \
+        ChainMap* real = (void*)((u8*)(void*)*(map) + sizeof **(map)); \
+        (*(map))->key = (K); \
+        (*(map))->value = (V); \
+        HashKey __K = { \
+            .key = &(*(map))->key, \
+            .len = sizeof (*(map))->key, \
+        }; \
+        void* __V = &(*(map))->value; \
+        usize __Vsz = sizeof &(*(map))->value; \
+        chainmap_put(real, __K, __V, __Vsz); \
+    } while (0)
+
+// map == struct { K key; V value; }**
+// K   == char*
+// V   == any
+#define mapstr_put(map, K, length, V) \
+    do { \
+        if (*(map) == NULL) { \
+            *(map) = malloc(sizeof(ChainMap) + sizeof **(map)); \
+            assert(*(map) != NULL); \
+        } \
+        ChainMap* real = (void*)((u8*)(void*)*(map) + sizeof **(map)); \
+        (*(map))->key = (K); \
+        (*(map))->value = (V); \
+        HashKey __K = { \
+            .key = (*(map))->key, \
+            .len = (length), \
+        }; \
+        void* __V = &(*(map))->value; \
+        usize __Vsz = sizeof &(*(map))->value; \
+        chainmap_put(real, __K, __V, __Vsz); \
+    } while (0)
+
+// map    == struct { K key; V value; }**
+// K      != char*
+// stored == V**
+#define map_get(map, K, stored) \
+    do { \
+        if (*(map) == NULL) { \
+            *(map) = malloc(sizeof(ChainMap) + sizeof **(map)); \
+            assert(*(map) != NULL); \
+        } \
+        ChainMap* real = (void*)((u8*)(void*)*(map) + sizeof **(map)); \
+        (*(map))->key = (K); \
+        HashKey __K = { \
+            .key = &(*(map))->key, \
+            .len = sizeof (*(map))->key, \
+        }; \
+        void* value = chainmap_get(real, __K); \
+        *(stored) = value; \
+    } while (0)
+
+// map    == struct { K key; V value; }**
+// K      == char*
+// stored == V**
+#define mapstr_get(map, K, length, stored) \
+    do { \
+        if (*(map) == NULL) { \
+            *(map) = malloc(sizeof(ChainMap) + sizeof **(map)); \
+            assert(*(map) != NULL); \
+        } \
+        ChainMap* real = (void*)((u8*)(void*)*(map) + sizeof **(map)); \
+        (*(map))->key = (K); \
+        HashKey __K = { \
+            .key = (*(map))->key, \
+            .len = (length), \
+        }; \
+        void* value = chainmap_get(real, __K); \
+        *(stored) = value; \
+    } while (0)
+
+// map == struct { K key; V value; }**
+// K   != char*
+// V   == any
+#define map_delete_at(map, K) \
+    do { \
+        if (*(map) == NULL) { \
+            *(map) = malloc(sizeof(ChainMap) + sizeof **(map)); \
+            assert(*(map) != NULL); \
+        } \
+        ChainMap* real = (void*)((u8*)(void*)*(map) + sizeof **(map)); \
+        (*(map))->key = (K); \
+        HashKey __K = { \
+            .key = &(*(map))->key, \
+            .len = sizeof (*(map))->key, \
+        }; \
+        chainmap_delete_at(real, __K); \
+    } while (0)
+
+// map == struct { K key; V value; }**
+// K   == any
+// V   == any
+#define mapstr_delete_at(map, K, length) \
+    do { \
+        if (*(map) == NULL) { \
+            *(map) = malloc(sizeof(ChainMap) + sizeof **(map)); \
+            assert(*(map) != NULL); \
+        } \
+        ChainMap* real = (void*)((u8*)(void*)*(map) + sizeof **(map)); \
+        (*(map))->key = (K); \
+        HashKey __K = { \
+            .key = (*(map))->key, \
+            .len = (length), \
+        }; \
+        chainmap_delete_at(real, __K); \
+    } while (0)
+
+#define map_free(map) \
+    do { \
+        if (*(map) != NULL) { \
+            ChainMap* real = (void*)((u8*)(void*)*(map) + sizeof **(map)); \
+            chainmap_free(real); \
+            free(*(map)); \
+            *(map) = NULL; \
+        } \
+    } while (0)
+
 #ifdef MISC_IMPL
 
 u64 fnv_init(const void* ptr, u64 size)
@@ -533,7 +661,8 @@ static bool chainmap_rehash(ChainMap* map)
             } else {
                 ChainEntry* tail = chainentry_last(new_slot);
                 tail->next = malloc(sizeof(ChainEntry));
-                if (tail->next == NULL) continue;
+                if (tail->next == NULL)
+                    continue;
 
                 *tail->next = *curr;
                 tail->next->next = NULL;
@@ -562,16 +691,11 @@ static bool chainmap_try_init(ChainMap* map)
 
 static bool chainentry_init(ChainEntry* entry, HashKey key, u64 hash, void* value, u64 size)
 {
-    entry->key.key = malloc(key.len);
-    if (entry->key.key == NULL) return false;
+    u8* pool = malloc(key.len + size);
+    if (pool == NULL) return false;
 
-    entry->value = malloc(size);
-    if (entry->value == NULL) {
-        free(entry->key.key);
-        entry->key.key = NULL;
-        return false;
-    }
-
+    entry->key.key = (void*)(pool);
+    entry->value = (void*)(pool + key.len);
     memmove(entry->key.key, key.key, key.len);
     memmove(entry->value, value, size);
     entry->key.len = key.len;
@@ -621,13 +745,11 @@ void* chainmap_get(ChainMap* map, HashKey key)
 void chainmap_delete_at(ChainMap* map, HashKey key)
 {
     ChainEntry* entry = chainmap_get_entry(map, key);
-    if (entry == NULL) return;
+    if (entry == NULL || entry->hash == 0) return;
 
     ChainEntry* child = entry->next;
     free(entry->key.key);
-    free(entry->value);
     memset(entry, 0, sizeof *entry);
-
     entry->next = child;
 }
 
@@ -641,7 +763,6 @@ void chainmap_free(ChainMap* map)
         while (curr != NULL) {
             ChainEntry* next = curr->next;
             if (curr->key.key != NULL) free(curr->key.key);
-            if (curr->value != NULL) free(curr->value);
             if (curr != head) free(curr);
             curr = next;
         }
