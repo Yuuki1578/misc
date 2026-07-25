@@ -3,37 +3,40 @@
 
 int main(void)
 {
-    HashMap map = { 0 };
-    size_t fail = 0;
+    ChainMap map = {0};
+    u64 fail = 0;
 
-    for (register usize i = 0; i < 1024 * 1024 * 4; i++) {
-        usize val = i;
-        String buf = string_printf("%zu", i << 2);
+    for (u64 i = 0; i < 1024 * 1024 * 10; i++) {
+        u64 val = i;
+        String buf = string_printf("%lu", i << 2);
         assert(buf.len > 0);
-        hashmap_put(
-            &map,
-            (HashKey) { .key = buf.items, .len = buf.len },
-            &val,
-            sizeof val);
+        chainmap_put(&map,
+            (HashKey) {
+                .key = buf.items,
+                .len = buf.len,
+            },
+            &val, sizeof val);
 
         array_free(&buf);
     }
 
-    String buf = string_printf("%zu", ((1024 * 698) - 1) << 2);
+    String buf = string_printf("%lu", ((1024 * 698) - 1) << 2);
     HashKey key = {
         .key = buf.items,
         .len = buf.len,
     };
 
-    assert(hashmap_delete_at(&map, key));
-    usize* ok = hashmap_get(&map, key);
-    assert(ok == NULL);
+    u64* ok = chainmap_get(&map, key);
+    assert(ok != NULL);
+    *ok = 0xdeadbee;
+    ok = chainmap_get(&map, key);
+    printf("%0lx\n", *ok);
 
     printf("retrieve failed count: %zu\n", fail);
-    printf("table capacity: %u\n", map.table.cap);
-    printf("load factor: %f\n", hashmap_load_factor(&map));
+    printf("table capacity: %lu\n", map.table.cap);
+    printf("load factor: %f\n", chainmap_load_factor(&map));
 
-    hashmap_free(&map);
     array_free(&buf);
+    chainmap_free(&map);
     return 0;
 }

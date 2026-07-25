@@ -9,7 +9,7 @@ int main(void)
 {
     unordered_map<string, size_t> map {};
 
-    for (size_t i = 0; i < 1024 * 1024 * 4; i++) {
+    for (size_t i = 0; i < 1024 * 1024 * 10; i++) {
         char K[16] = { 0 };
         snprintf(K, sizeof K, "%zu", i << 2);
 
