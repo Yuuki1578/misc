@@ -41,192 +41,237 @@ typedef uint64_t u64;
 typedef int64_t i64;
 typedef size_t usize;
 
-#define MISC_VOIDPTR(expr) ((void*)(expr))
-#define MISC_ARENA_PAGESIZE (1ULL << 12ULL)
-#define MISC_ARSTACK (0x1)
-#define MISC_ARHEAP (0x10)
-#define MISC_ARNOGROW (0x100)
-#define MISC_ARDEFAULT (MISC_ARHEAP)
+/*
 
-typedef struct Arena Arena;
-struct Arena {
-    Arena* next;
-    u32 total, offset, flags;
-};
+Linked list, this is designed to be used in another data structure
+(See the use case on arena allocator below).
 
-#define arena_remains(a) ((a)->total - (a)->offset)
-Arena* arena_init(u64 size, u32 flags, ...);
-void* arena_alloc(Arena* arena, u64 size, ...);
-void* arena_realloc(Arena* arena, void* ptr, u64 old_size, u64 new_size, ...);
-void arena_free(Arena* arena);
+The linked list only stored the @next pointer as its member,
+the value is the offset from the base pointer + sizeof NodeLink.
+
+API:
+NodeLink* nodelink_init(usize size);
+    Initialize a node with the size of @size.
+
+NodeLink* nodelink_insert_after(NodeLink* node, usize size);
+    Insert a new node after @node, preserve the newer node as
+    its return value.
+
+NodeLink* nodelink_insert_before(NodeLink* node, usize size);
+    Insert a new node behind @node, return the node before @node.
+
+usize nodelink_count_from(NodeLink* node);
+    Count the length of a linked list from @node until @node is null.
+
+void* nodelink_get_value(NodeLink* node);
+    Get the inner value from @node on its offset in memory (just a math).
+
+void nodelink_free_from(NodeLink* node);
+    Free all node starting from @node.
+
+*/
+
+void* strict_alloc(usize size);
+void* strict_realloc(void* ptr, usize size);
 
 #ifdef MISC_IMPL
-
-/* Arena: linear allocator.
- * this data structure is usually used to reduce
- * the call of malloc/realloc by preallocating
- * some amount of bytes into it's buffer, and simply
- * return the incremented address from that buffer
- * by its offset.
- *
- * The flags is used to specify what kind of arena is it.
- * Flags:
- * - MISC_ARDEFAULT: / MISC_ARHEAP: When this used, the buffer
- *   capacity is exactly `n` bytes, and it uses malloc/realloc
- *   to do that.
- * - MISC_ARSTACK: Use stack buffer at exactly `n` - sizeof Arena,
- *   so the size should be atleast sizeof Arena + 1, if it isn't,
- *   return NULL. The buffer is passed as third argument.
- * - MISC_ARNOGROW: If this flag is set, the arena doesn't grow
- *   exponentially, if the buffer is full, it cannot allocate anymore
- *   and simply return NULL.
- *
- * If MISC_ARSTACK: is specified but not MISC_ARNOGROW: , the user MUST
- * provide additional buffer in the third argument.
- * */
-
-Arena* arena_init(u64 size, u32 flags, ...)
+void* strict_alloc(usize size)
 {
-    Arena* head_node = NULL;
-    va_list va;
-    va_start(va, flags);
-
-    if (flags & MISC_ARSTACK && size < sizeof *head_node + 1)
-        return NULL;
-
-    switch (flags) {
-    case MISC_ARDEFAULT:
-    case MISC_ARDEFAULT | MISC_ARNOGROW:
-        head_node = malloc(sizeof *head_node + size);
-        break;
-    case MISC_ARSTACK:
-    case MISC_ARSTACK | MISC_ARNOGROW:
-        head_node = va_arg(va, void*);
-        break;
-    default:
-        goto none;
-    }
-
-    if (head_node == NULL) goto none;
-
-    head_node->next = NULL;
-    head_node->total = flags & MISC_ARSTACK ? size - sizeof *head_node : size;
-    head_node->offset = 0;
-    head_node->flags = flags;
-
-none:
-    va_end(va);
-    return head_node;
+    void* p = calloc(size, 1);
+    assert(p != NULL);
+    return p;
 }
 
-static Arena* arena_find_exact(Arena* arena, u64 size, int* found)
+void* strict_realloc(void* ptr, usize size)
 {
-    Arena *visitor = arena, *last_nonnull = NULL;
-    if (visitor->flags & MISC_ARNOGROW) {
-        if (arena_remains(arena) >= size)
-            *found = 1;
-        else
-            *found = 0;
-        return visitor;
-    }
+    void* p = realloc(ptr, size);
+    assert(p != NULL);
+    return p;
+}
+#endif
 
-    while (visitor) {
-        if (arena_remains(visitor) >= size) {
-            *found = 1;
-            return visitor;
-        }
-        last_nonnull = visitor;
-        visitor = visitor->next;
-    }
+typedef struct NodeLink NodeLink;
+struct NodeLink {
+    NodeLink* next;
+    // ...
+};
 
-    *found = 0;
-    return last_nonnull;
+NodeLink* nodelink_init(usize size);
+NodeLink* nodelink_insert_after(NodeLink* node, usize size);
+NodeLink* nodelink_insert_before(NodeLink* node, usize size);
+NodeLink* nodelink_remove_after(NodeLink* node);
+NodeLink* nodelink_find_last(NodeLink* node);
+usize nodelink_count_from(NodeLink* node);
+void* nodelink_get_value(NodeLink* node);
+void nodelink_free_from(NodeLink* node);
+
+#ifdef MISC_IMPL
+NodeLink* nodelink_init(usize size)
+{
+    NodeLink* node = malloc(sizeof *node + size);
+    assert(node != NULL);
+    node->next = NULL;
+    return node;
 }
 
-void* arena_alloc(Arena* arena, u64 size, ...)
+NodeLink* nodelink_insert_after(NodeLink* node, usize size)
 {
-    Arena* suitable;
-    va_list va;
-    int found = 0;
-    void* result = NULL;
-
-    if (arena == NULL || size == 0) return NULL;
-
-    va_start(va, size);
-    if (size > arena_remains(arena)) {
-        suitable = arena_find_exact(arena, size, &found);
-    } else {
-        suitable = arena, found = 1;
-    }
-
-    if (!found) {
-        void* optional = NULL;
-        if (suitable->flags & MISC_ARNOGROW) goto none;
-
-        if (suitable->flags & MISC_ARSTACK)
-            optional = va_arg(va, void*);
-
-        suitable->next = arena_init(size + suitable->total, suitable->flags, optional);
-        if (suitable->next == NULL) goto none;
-
-        suitable = suitable->next;
-    }
-
-    u8* offset_ptr = (u8*)MISC_VOIDPTR(suitable) + sizeof *suitable;
-    result = offset_ptr + suitable->offset;
-    suitable->offset = suitable->offset + size;
-
-none:
-    va_end(va);
-    return result;
+    NodeLink* next = nodelink_init(size);
+    node->next = next;
+    return next;
 }
 
-void* arena_realloc(Arena* arena, void* ptr, u64 old_size, u64 new_size, ...)
+NodeLink* nodelink_insert_before(NodeLink* node, usize size)
 {
-    void* optional = NULL;
-    void* result = NULL;
-    va_list va;
+    NodeLink* before = nodelink_init(size);
+    assert(before != NULL);
+    before->next = node;
+    return before;
+}
 
-    if (arena == NULL) goto none;
+NodeLink* nodelink_remove_after(NodeLink* node)
+{
+    NodeLink* next = node->next;
+    NodeLink* tmp = next != NULL ? next->next : NULL;
+    node->next = tmp;
+    return next;
+}
 
-    va_start(va, new_size);
-    if (arena->flags & MISC_ARSTACK)
-        optional = va_arg(va, void*);
+NodeLink* nodelink_find_last(NodeLink* node)
+{
+    if (node == NULL) return NULL;
+    while (node->next != NULL)
+        node = node->next;
 
-    result = arena_alloc(arena, new_size, optional);
-    if (result == NULL)
-        goto none;
-    else if (ptr == NULL)
-        goto none;
+    return node;
+}
 
-    memmove(result, ptr, old_size > new_size ? new_size : old_size);
-none:
-    va_end(va);
-    return result;
+void* nodelink_get_value(NodeLink* node)
+{
+    return (u8*)node + sizeof *node;
+}
+
+usize nodelink_count_from(NodeLink* node)
+{
+    usize count = 0;
+    while (node != NULL)
+        node = node->next,
+        count++;
+
+    return count;
+}
+
+void nodelink_free_from(NodeLink* node)
+{
+    while (node != NULL) {
+        NodeLink* tmp = node->next;
+        free(node);
+        node = tmp;
+    }
+}
+#endif
+
+typedef struct Arena Arena;
+
+Arena* arena_init(usize size);
+void* arena_alloc(Arena* arena, usize size);
+void* arena_realloc(Arena* arena, void* ptr, usize size_before, usize size_after);
+void arena_free(Arena* arena);
+usize arena_size(Arena* arena);
+
+#ifdef MISC_IMPL
+typedef struct {
+    usize cap;
+    usize len;
+    // ...
+} ArenaBody;
+
+struct Arena {
+    NodeLink
+        *head,
+        *last;
+};
+
+Arena* arena_init(usize size)
+{
+    assert(size > 0);
+    Arena* arena = malloc(sizeof *arena);
+    assert(arena != NULL);
+
+    ArenaBody body = { .cap = size };
+    arena->head = nodelink_init(sizeof body + size);
+    arena->last = arena->head;
+
+    ArenaBody* value = nodelink_get_value(arena->head);
+    *value = body;
+    return arena;
+}
+
+void* arena_alloc(Arena* arena, usize size)
+{
+    assert(arena != NULL && size > 0);
+
+    NodeLink* last = arena->last;
+    ArenaBody* body = nodelink_get_value(last);
+
+    if (body->cap - body->len < size) {
+        usize new_size = (body->cap > size ? body->cap : size) + size;
+        ArenaBody newer = { .cap = new_size };
+        NodeLink* new_tail = nodelink_insert_after(last, sizeof newer + new_size);
+
+        arena->last = new_tail;
+        last = arena->last;
+        body = nodelink_get_value(last);
+        *body = newer;
+    }
+
+    void* ptr = (u8*)body + sizeof *body + body->len;
+    body->len += size;
+    uintptr_t aligned = ((uintptr_t)ptr + sizeof(void*) - 1) & ~(sizeof(void*) - 1);
+    return (void*)aligned;
+}
+
+void* arena_realloc(Arena* arena, void* ptr, usize size_before, usize size_after)
+{
+    if (size_after == 0) return NULL;
+
+    void* newer = arena_alloc(arena, size_after);
+    if (ptr == NULL) return newer;
+
+    usize true_size = size_before > size_after ? size_after : size_before;
+    return memmove(newer, ptr, true_size);
 }
 
 void arena_free(Arena* arena)
 {
-    while (arena) {
-        Arena* tmp = arena->next;
-        if (arena->flags & MISC_ARHEAP)
-            free(arena);
-        else
-            memset(arena, 0, arena->total + sizeof *arena);
-
-        arena = tmp;
+    if (arena != NULL) {
+        nodelink_free_from(arena->head);
+        free(arena);
     }
 }
 
+usize arena_size(Arena* arena)
+{
+    usize size = 0;
+    if (arena == NULL) return size;
+
+    NodeLink* node = arena->head;
+    while (node != NULL) {
+        ArenaBody* body = nodelink_get_value(node);
+        size += body->cap;
+        node = node->next;
+    }
+    return size;
+}
 #endif
 
 #define MISC_ARRAY_RESERVE (8)
 
-#define Array(T)  \
-    struct {      \
-        T* items; \
-        u64 cap;  \
-        u64 len;  \
+#define Array(T)    \
+    struct {        \
+        T* items;   \
+        usize cap;  \
+        usize len;  \
     }
 
 #define array_is_empty(array) ((array) != NULL ? ((array)->items == NULL && !(array)->cap) : 1)
@@ -291,33 +336,27 @@ void arena_free(Arena* arena)
     do {                                 \
         bool ok;                         \
         array_try_resize(array, N, &ok); \
-        if (!ok) {                       \
-            abort();                     \
-        }                                \
+        assert(ok);                      \
     } while (0)
 
 #define array_append(array, item)           \
     do {                                    \
         bool ok;                            \
         array_try_append(array, item, &ok); \
-        if (!ok) {                          \
-            abort();                        \
-        }                                   \
+        assert(ok);                         \
     } while (0)
 
 #define array_extend(array, many_ptr, N)           \
     do {                                           \
         bool ok;                                   \
         array_try_extend(array, many_ptr, N, &ok); \
-        if (!ok) {                                 \
-            abort();                               \
-        }                                          \
+        assert(ok);                                \
     } while (0)
 
 #define array_remove_at(array, index)                                             \
     do {                                                                          \
         if ((array)->len > 1 && (index) < (array)->len) {                         \
-            for (u64 i = (index); i < (array)->len - 1; i++) {                    \
+            for (usize i = (index); i < (array)->len - 1; i++) {                    \
                 (array)->items[i] = (array)->items[i + 1];                        \
             }                                                                     \
             memset(&(array)->items[(array)->len - 1], 0, sizeof *(array)->items); \
@@ -325,12 +364,13 @@ void arena_free(Arena* arena)
         }                                                                         \
     } while (0)
 
+#define array_shrink_to_fit(array) array_resize(array, (array)->len)
 #define array_free(array) array_resize(array, 0)
 
 #define Slice(T)        \
     struct {            \
         const T* items; \
-        u64 len;        \
+        usize len;      \
     }
 
 typedef Array(char) String;
@@ -341,7 +381,7 @@ typedef Slice(char) StringRef;
     do {                                              \
         if ((ptr) == NULL || (begin) > (end))         \
             break;                                    \
-        u64 _b, _e;                                 \
+        usize _b, _e;                                   \
         _b = (begin) > (length) ? (length) : (begin); \
         _e = (end) > (length) ? (length) : (end);     \
         (slice)->items = (ptr) + (_b);                \
@@ -358,25 +398,24 @@ Legends:
 */
 
 #define string_fmt(s) (int)(s).len, (s).items
-StringRef stringref_from(const char* cstr, u64 begin, u64 end);
-StringRef stringref_from_string(String* str, u64 begin, u64 end);
+StringRef stringref_from(const char* cstr, usize begin, usize end);
+StringRef stringref_from_string(String* str, usize begin, usize end);
 String string_printf(const char* fmt, ...);
 char* cstring_printf(Arena* allocator, const char* fmt, ...);
 
 #ifdef MISC_IMPL
-
-StringRef stringref_from(const char* cstr, u64 begin, u64 end)
+StringRef stringref_from(const char* cstr, usize begin, usize end)
 {
     StringRef ref = {0};
     if (cstr == NULL || end < begin)
         return ref;
 
-    u64 len = strlen(cstr);
+    usize len = strlen(cstr);
     slice_from(&ref, cstr, len, begin, end);
     return ref;
 }
 
-StringRef stringref_from_string(String* str, u64 begin, u64 end)
+StringRef stringref_from_string(String* str, usize begin, usize end)
 {
     StringRef ref = {0};
     slice_from_array(&ref, str, begin, end);
@@ -393,11 +432,11 @@ char* cstring_printf(Arena* allocator, const char* fmt, ...)
     va_end(va);
 
     if (size > 0) {
-        if ((buf = arena_alloc(allocator, (u64)size + 1)) == NULL)
+        if ((buf = arena_alloc(allocator, (usize)size + 1)) == NULL)
             goto end;
 
         va_start(va, fmt);
-        vsnprintf(buf, (u64)size + 1, fmt, va);
+        vsnprintf(buf, (usize)size + 1, fmt, va);
         va_end(va);
     }
 
@@ -415,7 +454,7 @@ String string_printf(const char* fmt, ...)
 
     if (size > 0) {
         bool ok;
-        array_try_resize(&str, (u64)size + 1, &ok);
+        array_try_resize(&str, (usize)size + 1, &ok);
         if (!ok)
             return str;
 
@@ -427,7 +466,6 @@ String string_printf(const char* fmt, ...)
 
     return str;
 }
-
 #endif
 
 #define MISC_FNV_BASIS (0xcbf29ce484222325ULL)
@@ -442,168 +480,14 @@ String string_printf(const char* fmt, ...)
 #endif
 
 #ifndef MISC_HASHMAP_INITCAP
-#define MISC_HASHMAP_INITCAP (8)
+#define MISC_HASHMAP_INITCAP (16)
 #endif
 
-typedef struct {
-    void* key;
-    u64 len;
-} HashKey;
-
-typedef struct ChainEntry {
-    HashKey key;
-    void* value;
-    u64 hash;
-    struct ChainEntry* next;
-} ChainEntry;
-
-typedef Array(ChainEntry) ChainTable;
-
-typedef struct {
-    ChainTable table;
-} ChainMap;
-
-#define chainmap_load_factor(map) ((double)(map)->table.len / (double)(map)->table.cap)
-#define chainmap_put_cstr(map, cstr, value, size) chainmap_put(map, (HashKey) { .key = (void*)(cstr), .len = strlen(cstr) }, value, size)
-#define chainmap_get_cstr(map, cstr) chainmap_get(map, (HashKey) { .key = (void*)(cstr), .len = strlen(cstr) })
-
-u64 fnv_init(const void* ptr, u64 size);
-bool chainmap_put(ChainMap* map, HashKey key, void* value, u64 size);
-void* chainmap_get(ChainMap* map, HashKey key);
-void chainmap_delete_at(ChainMap* map, HashKey key);
-void chainmap_free(ChainMap* map);
-
-#define make_opaque(T, ...) ((void*)&(T){__VA_ARGS__})
-
-// map == struct { K key; V value; }**
-// K   != char*
-// V   == any
-#define map_put(map, K, V) \
-    do { \
-        if (*(map) == NULL) { \
-            *(map) = malloc(sizeof(ChainMap) + sizeof **(map)); \
-            assert(*(map) != NULL); \
-        } \
-        ChainMap* real = (void*)((u8*)(void*)*(map) + sizeof **(map)); \
-        (*(map))->key = (K); \
-        (*(map))->value = (V); \
-        HashKey __K = { \
-            .key = &(*(map))->key, \
-            .len = sizeof (*(map))->key, \
-        }; \
-        void* __V = &(*(map))->value; \
-        usize __Vsz = sizeof &(*(map))->value; \
-        chainmap_put(real, __K, __V, __Vsz); \
-    } while (0)
-
-// map == struct { K key; V value; }**
-// K   == char*
-// V   == any
-#define mapstr_put(map, K, length, V) \
-    do { \
-        if (*(map) == NULL) { \
-            *(map) = malloc(sizeof(ChainMap) + sizeof **(map)); \
-            assert(*(map) != NULL); \
-        } \
-        ChainMap* real = (void*)((u8*)(void*)*(map) + sizeof **(map)); \
-        (*(map))->key = (K); \
-        (*(map))->value = (V); \
-        HashKey __K = { \
-            .key = (*(map))->key, \
-            .len = (length), \
-        }; \
-        void* __V = &(*(map))->value; \
-        usize __Vsz = sizeof &(*(map))->value; \
-        chainmap_put(real, __K, __V, __Vsz); \
-    } while (0)
-
-// map    == struct { K key; V value; }**
-// K      != char*
-// stored == V**
-#define map_get(map, K, stored) \
-    do { \
-        if (*(map) == NULL) { \
-            *(map) = malloc(sizeof(ChainMap) + sizeof **(map)); \
-            assert(*(map) != NULL); \
-        } \
-        ChainMap* real = (void*)((u8*)(void*)*(map) + sizeof **(map)); \
-        (*(map))->key = (K); \
-        HashKey __K = { \
-            .key = &(*(map))->key, \
-            .len = sizeof (*(map))->key, \
-        }; \
-        void* value = chainmap_get(real, __K); \
-        *(stored) = value; \
-    } while (0)
-
-// map    == struct { K key; V value; }**
-// K      == char*
-// stored == V**
-#define mapstr_get(map, K, length, stored) \
-    do { \
-        if (*(map) == NULL) { \
-            *(map) = malloc(sizeof(ChainMap) + sizeof **(map)); \
-            assert(*(map) != NULL); \
-        } \
-        ChainMap* real = (void*)((u8*)(void*)*(map) + sizeof **(map)); \
-        (*(map))->key = (K); \
-        HashKey __K = { \
-            .key = (*(map))->key, \
-            .len = (length), \
-        }; \
-        void* value = chainmap_get(real, __K); \
-        *(stored) = value; \
-    } while (0)
-
-// map == struct { K key; V value; }**
-// K   != char*
-// V   == any
-#define map_delete_at(map, K) \
-    do { \
-        if (*(map) == NULL) { \
-            *(map) = malloc(sizeof(ChainMap) + sizeof **(map)); \
-            assert(*(map) != NULL); \
-        } \
-        ChainMap* real = (void*)((u8*)(void*)*(map) + sizeof **(map)); \
-        (*(map))->key = (K); \
-        HashKey __K = { \
-            .key = &(*(map))->key, \
-            .len = sizeof (*(map))->key, \
-        }; \
-        chainmap_delete_at(real, __K); \
-    } while (0)
-
-// map == struct { K key; V value; }**
-// K   == any
-// V   == any
-#define mapstr_delete_at(map, K, length) \
-    do { \
-        if (*(map) == NULL) { \
-            *(map) = malloc(sizeof(ChainMap) + sizeof **(map)); \
-            assert(*(map) != NULL); \
-        } \
-        ChainMap* real = (void*)((u8*)(void*)*(map) + sizeof **(map)); \
-        (*(map))->key = (K); \
-        HashKey __K = { \
-            .key = (*(map))->key, \
-            .len = (length), \
-        }; \
-        chainmap_delete_at(real, __K); \
-    } while (0)
-
-#define map_free(map) \
-    do { \
-        if (*(map) != NULL) { \
-            ChainMap* real = (void*)((u8*)(void*)*(map) + sizeof **(map)); \
-            chainmap_free(real); \
-            free(*(map)); \
-            *(map) = NULL; \
-        } \
-    } while (0)
+u64 fnv_init(const void* ptr, usize size);
 
 #ifdef MISC_IMPL
 
-u64 fnv_init(const void* ptr, u64 size)
+u64 fnv_init(const void* ptr, usize size)
 {
     const u8* bytes = ptr;
     u64 base_number = MISC_FNV_BASIS;
@@ -612,162 +496,6 @@ u64 fnv_init(const void* ptr, u64 size)
         base_number ^= bytes[i];
     }
     return base_number;
-}
-
-static ChainEntry* chainentry_last(ChainEntry* entry)
-{
-    while (entry != NULL) {
-        if (entry->next == NULL) return entry;
-        entry = entry->next;
-    }
-    return NULL;
-}
-
-static ChainEntry* chainentry_find(ChainEntry* entry, HashKey key, u64 hash)
-{
-    while (entry != NULL) {
-        if (entry->hash == hash && memcmp(entry->key.key, key.key, key.len) == 0)
-            return entry;
-
-        entry = entry->next;
-    }
-
-    return NULL;
-}
-
-static bool chainmap_rehash(ChainMap* map)
-{
-    ChainTable newer = {0};
-    u64 new_cap = map->table.cap * 2;
-    bool ok;
-
-    array_try_resize(&newer, new_cap, &ok);
-    if (!ok) return false;
-    newer.len = map->table.len;
-
-    for (u64 i = 0; i < map->table.cap; i++) {
-        ChainEntry* curr = &map->table.items[i];
-        ChainEntry* head = curr;
-        if (curr->hash == 0) continue;
-
-        while (curr != NULL) {
-            ChainEntry* next = curr->next;
-            u64 index = curr->hash % newer.cap;
-            ChainEntry* new_slot = &newer.items[index];
-
-            if (new_slot->hash == 0) {
-                *new_slot = *curr;
-                new_slot->next = NULL;
-            } else {
-                ChainEntry* tail = chainentry_last(new_slot);
-                tail->next = malloc(sizeof(ChainEntry));
-                if (tail->next == NULL)
-                    continue;
-
-                *tail->next = *curr;
-                tail->next->next = NULL;
-            }
-
-            if (curr != head) free(curr);
-            curr = next;
-        }
-    }
-
-    array_free(&map->table);
-    map->table = newer;
-    return ok;
-}
-
-static bool chainmap_try_init(ChainMap* map)
-{
-    bool ok = true;
-    if (map->table.cap < MISC_HASHMAP_INITCAP)
-        array_try_resize(&map->table, MISC_HASHMAP_INITCAP, &ok);
-    if (chainmap_load_factor(map) >= MISC_HASHMAP_LOADFACTOR)
-        ok = chainmap_rehash(map);
-
-    return true;
-}
-
-static bool chainentry_init(ChainEntry* entry, HashKey key, u64 hash, void* value, u64 size)
-{
-    u8* pool = malloc(key.len + size);
-    if (pool == NULL) return false;
-
-    entry->key.key = (void*)(pool);
-    entry->value = (void*)(pool + key.len);
-    memmove(entry->key.key, key.key, key.len);
-    memmove(entry->value, value, size);
-    entry->key.len = key.len;
-    entry->hash = hash;
-    entry->next = NULL;
-    return true;
-}
-
-bool chainmap_put(ChainMap* map, HashKey key, void* value, u64 size)
-{
-    if (key.key == NULL || value == NULL) return false;;
-    if (!chainmap_try_init(map)) return false;
-
-    u64 hash = fnv_init(key.key, key.len);
-    u64 index = hash % map->table.cap;
-    ChainEntry* entry = &map->table.items[index];
-    bool ok = true;
-
-    if (entry->hash == 0) {
-        ok = chainentry_init(entry, key, hash, value, size);
-    } else {
-        ChainEntry* tail = chainentry_last(entry);
-        tail->next = malloc(sizeof(ChainEntry));
-        if (tail->next == NULL) return false;
-        ok = chainentry_init(tail->next, key, hash, value, size);
-    }
-
-    if (ok) map->table.len++;
-    return ok;
-}
-
-static ChainEntry* chainmap_get_entry(ChainMap* map, HashKey key)
-{
-    u64 hash = fnv_init(key.key, key.len);
-    u64 index = hash % map->table.cap;
-    ChainEntry* entry = &map->table.items[index];
-    return chainentry_find(entry, key, hash);
-}
-
-void* chainmap_get(ChainMap* map, HashKey key)
-{
-    ChainEntry* entry = chainmap_get_entry(map, key);
-    if (entry != NULL) return entry->value;
-    else return NULL;
-}
-
-void chainmap_delete_at(ChainMap* map, HashKey key)
-{
-    ChainEntry* entry = chainmap_get_entry(map, key);
-    if (entry == NULL || entry->hash == 0) return;
-
-    ChainEntry* child = entry->next;
-    free(entry->key.key);
-    memset(entry, 0, sizeof *entry);
-    entry->next = child;
-}
-
-void chainmap_free(ChainMap* map)
-{
-    for (u64 i = 0; i < map->table.cap; i++) {
-        ChainEntry* curr = &map->table.items[i];
-        ChainEntry* head = curr;
-        if (curr->hash == 0) continue;
-
-        while (curr != NULL) {
-            ChainEntry* next = curr->next;
-            if (curr->key.key != NULL) free(curr->key.key);
-            if (curr != head) free(curr);
-            curr = next;
-        }
-    }
-    array_free(&map->table);
 }
 
 #endif

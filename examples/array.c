@@ -13,8 +13,11 @@ int main(void)
     array_remove_at(&ints, 1);
     array_remove_at(&ints, ints.len - 1);
 
+    array_shrink_to_fit(&ints);
     for (u64 i = 0; i < ints.len; i++)
         printf("%d\n", ints.items[i]);
 
+    printf("Capacity: %lu\n", ints.cap);
+    printf("Length: %lu\n", ints.len);
     array_free(&ints);
 }

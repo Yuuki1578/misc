@@ -3,22 +3,22 @@
 
 int main(void)
 {
-    struct { u64 key; u64 value; } *map = NULL;
+    HashMap* map = hm_init(64);
+    Arena* arena = arena_init(1 << 16);
 
-    for (u64 i = 0; i < 1024 * 1024 * 10; i++) {
-        u64 val = i;
-        map_put(&map, i << 2, val);
+    for (usize i = 0; i < 10; i++) {
+        char* key = cstring_printf(arena, "%zu", i << 4);
+        usize* value = arena_alloc(arena, sizeof i);
+        *value = i;
+
+        hm_put(map, key, strlen(key), value);
     }
 
-    map_delete_at(&map, (1024 * 698) << 2);
-    u64* val;
-    map_get(&map, (1024 * 698) << 2, &val);
-    assert(val == NULL);
+    for (usize i = 0; i < 10; i++) {
+        char* key = cstring_printf(arena, "%zu", i << 4);
+        usize* v = hm_get(map, key, strlen(key));
+        printf("%zu\n", v != NULL ? *v : 512);
+    }
 
-    map_get(&map, (1024 * 1024 * 5) << 2, &val);
-    assert(val != NULL);
-    printf("%lu\n", *val);
-
-    map_free(&map);
-    return 0;
+    hm_free(map);
 }
