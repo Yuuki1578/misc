@@ -5,19 +5,19 @@ int main(void)
 {
     Array(i32) ints = {0};
     for (i32 i = 1; i <= 25; i++)
-        array_append(&ints, i * 100);
+        appendArray(&ints, i * 100);
 
     i32 additional[] = { -1, -2, -3 };
-    array_extend(&ints, additional, 3);
-    array_remove_at(&ints, 0);
-    array_remove_at(&ints, 1);
-    array_remove_at(&ints, ints.len - 1);
+    extendArray(&ints, additional, 3);
+    removeArrayAt(&ints, 0);
+    removeArrayAt(&ints, 1);
+    removeArrayAt(&ints, ints.len - 1);
 
-    array_shrink_to_fit(&ints);
+    shrinkArrayToFit(&ints);
     for (u64 i = 0; i < ints.len; i++)
         printf("%d\n", ints.items[i]);
 
     printf("Capacity: %lu\n", ints.cap);
     printf("Length: %lu\n", ints.len);
-    array_free(&ints);
+    freeArray(&ints);
 }
