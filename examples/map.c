@@ -5,30 +5,18 @@ int main(void)
 {
     Map map = {0};
     initMap(&map);
-    Arena* arena = initArena(1 << 12);
 
-    for (usize i = 0; i < 1024*1024; i++) {
-        char* key = cstrArenaPrintf(arena, "%zu", i);
+    for (usize i = 0; i < 1024 * 1024 * 10; i++) {
+        char* key = cstrPrintf("\"%zu\"", i << 4);
         putInMap(&map, key, strlen(key), &i, sizeof i);
+        free(key);
     }
 
-    for (usize i = 0; i < 1024*1024; i++) {
-        char* key = cstrArenaPrintf(arena, "%zu", i);
-        usize* value = getFromMap(&map, key, strlen(key));
-        printf("%zu\n", *value);
-    }
-
-    // for (usize i = 0; i < 1024*1024; i++) {
-    //     String key = stringPrintf("%zu", i);
-    //     deleteFromMap(&map, key.items, key.len);
-    //     freeArray(&key);
-    // }
-
-    // for (usize i = 0; i < 1024*1024; i++) {
-    //     String key = stringPrintf("%zu", i);
-    //     putInMap(&map, key.items, key.len, &i, sizeof i);
-    //     freeArray(&key);
-    //     // printf("'%.*s': %zu\n", stringFmt(key), *value);
+    // MapKV pair = {0};
+    // while (iterateMap(&map, &pair)) {
+    //     char* key = pair.key;
+    //     usize* value = pair.value;
+    //     printf("Key: %s, Value: %zu\n", key, *value);
     // }
 
     freeMap(&map);

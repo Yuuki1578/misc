@@ -40,6 +40,10 @@ typedef int32_t i32;
 typedef uint64_t u64;
 typedef int64_t i64;
 typedef size_t usize;
+typedef float f32;
+typedef double f64;
+
+#define MISC_ALIGN (sizeof(void*))
 
 /*
 
@@ -173,6 +177,7 @@ void freeNodeLink(NodeLink* node)
 #endif
 
 typedef struct Arena Arena;
+#define alignUp(size) (((size) + MISC_ALIGN - 1) & ~(MISC_ALIGN - 1))
 
 Arena* initArena(usize size);
 void* allocArena(Arena* arena, usize size);
@@ -206,61 +211,35 @@ Arena* initArena(usize size)
     return arena;
 }
 
-// void* allocArena(Arena* arena, usize size)
-// {
-//     assert(arena != NULL && size > 0);
-
-//     NodeLink* last = arena->last;
-//     ArenaBody* body = valueOfNodeLink(last);
-
-//     if (body->cap - body->len < size) {
-//         usize new_size = (body->cap > size ? body->cap : size) + size;
-//         ArenaBody newer = { .cap = new_size };
-//         NodeLink* new_tail = insertAfterNodeLink(last, sizeof newer + new_size);
-
-//         arena->last = new_tail;
-//         last = arena->last;
-//         body = valueOfNodeLink(last);
-//         *body = newer;
-//     }
-
-//     void* ptr = (u8*)body + sizeof *body + body->len;
-//     body->len += size;
-//     uintptr_t aligned = ((uintptr_t)ptr + sizeof(void*) - 1) & ~(sizeof(void*) - 1);
-//     return (void*)aligned;
-// }
-
 void* allocArena(Arena* arena, usize size)
 {
     assert(arena != NULL && size > 0);
 
     NodeLink* last = arena->last;
     ArenaBody* body = valueOfNodeLink(last);
+    size = alignUp(size);
 
-    void* ptr = (u8*)body + sizeof *body + body->len;
-    uintptr_t aligned = ((uintptr_t)ptr + sizeof(void*) - 1) & ~(sizeof(void*) - 1);
-    usize needed = (usize)((u8*)aligned - (u8*)ptr) + size;
+    if (body->cap - body->len < size) {
+        usize new_size = (body->cap > size ? body->cap : size) + size;
+        ArenaBody newer = { .cap = new_size };
+        NodeLink* new_tail = insertAfterNodeLink(last, sizeof newer + new_size);
 
-    if (body->cap - body->len < needed) {
-        usize newSize = (body->cap > needed ? body->cap : needed) + needed;
-        ArenaBody newer = { .cap = newSize };
-        NodeLink* newTail = insertAfterNodeLink(last, sizeof newer + newSize);
-
-        arena->last = newTail;
+        arena->last = new_tail;
         last = arena->last;
         body = valueOfNodeLink(last);
         *body = newer;
-
-        ptr = (u8*)body + sizeof *body + body->len;
-        aligned = ((uintptr_t)ptr + sizeof(void*) - 1) & ~(sizeof(void*) - 1);
-        needed = (usize)((u8*)aligned - (u8*)ptr) + size;
     }
 
-    body->len += needed;
-    return (void*)aligned;
+    void* ptr = (u8*)body + sizeof *body + body->len;
+    body->len += size;
+    return ptr;
 }
 
-void* reallocArena(Arena* arena, void* ptr, usize sizeBefore, usize sizeAfter)
+void* reallocArena(
+    Arena* arena,
+    void*  ptr,
+    usize  sizeBefore,
+    usize  sizeAfter)
 {
     if (sizeAfter == 0) return NULL;
 
@@ -306,7 +285,7 @@ usize sizeOfArena(Arena* arena)
 #define isArrayEmpty(array) ((array) != NULL ? ((array)->items == NULL && !(array)->cap) : 1)
 #define remainsOfArray(array) ((array) != NULL ? ((array)->cap - (array)->len) : 0)
 
-#define tryResizeArray(array, N, ok)                                       \
+#define tryResizeArray(array, N, ok)                                         \
     do {                                                                     \
         if ((N) <= 0) {                                                      \
             free((array)->items);                                            \
@@ -316,7 +295,7 @@ usize sizeOfArena(Arena* arena)
             *(ok) = 1;                                                       \
         } else {                                                             \
             void* tmp;                                                       \
-            if ((array)->cap == 0) {                                    \
+            if ((array)->cap == 0) {                                         \
                 tmp = calloc((N), sizeof *(array)->items);                   \
             } else {                                                         \
                 tmp = realloc((array)->items, (N) * sizeof *(array)->items); \
@@ -334,21 +313,21 @@ usize sizeOfArena(Arena* arena)
         }                                                                    \
     } while (0)
 
-#define tryAppendArray(array, item, ok)                                   \
+#define tryAppendArray(array, item, ok)                                     \
     do {                                                                    \
         if ((array)->cap <= (array)->len) {                                 \
-            tryResizeArray(array, (array)->cap + MISC_ARRAY_RESERVE, ok); \
+            tryResizeArray(array, (array)->cap + MISC_ARRAY_RESERVE, ok);   \
         }                                                                   \
         if (*(ok)) {                                                        \
             (array)->items[(array)->len++] = (item);                        \
         }                                                                   \
     } while (0)
 
-#define tryExtendArray(array, many_ptr, N, ok)                                              \
+#define tryExtendArray(array, many_ptr, N, ok)                                                \
     do {                                                                                      \
         if ((many_ptr) != NULL && (N) > 0) {                                                  \
-            if (isArrayEmpty(array) || remainsOfArray(array) <= (N)) {                       \
-                tryResizeArray(array, (array)->cap + (N) + MISC_ARRAY_RESERVE, ok);         \
+            if (isArrayEmpty(array) || remainsOfArray(array) <= (N)) {                        \
+                tryResizeArray(array, (array)->cap + (N) + MISC_ARRAY_RESERVE, ok);           \
                 if (!*(ok)) {                                                                 \
                     break;                                                                    \
                 }                                                                             \
@@ -361,31 +340,31 @@ usize sizeOfArena(Arena* arena)
         }                                                                                     \
     } while (0)
 
-#define resizeArray(array, N)           \
-    do {                                 \
-        bool ok;                         \
+#define resizeArray(array, N)          \
+    do {                               \
+        bool ok;                       \
         tryResizeArray(array, N, &ok); \
-        assert(ok);                      \
+        assert(ok);                    \
     } while (0)
 
-#define appendArray(array, item)           \
-    do {                                    \
-        bool ok;                            \
+#define appendArray(array, item)          \
+    do {                                  \
+        bool ok;                          \
         tryAppendArray(array, item, &ok); \
-        assert(ok);                         \
+        assert(ok);                       \
     } while (0)
 
-#define extendArray(array, many_ptr, N)           \
-    do {                                           \
-        bool ok;                                   \
+#define extendArray(array, many_ptr, N)          \
+    do {                                         \
+        bool ok;                                 \
         tryExtendArray(array, many_ptr, N, &ok); \
-        assert(ok);                                \
+        assert(ok);                              \
     } while (0)
 
-#define removeArrayAt(array, index)                                             \
+#define removeArrayAt(array, index)                                               \
     do {                                                                          \
         if ((array)->len > 1 && (index) < (array)->len) {                         \
-            for (usize i = (index); i < (array)->len - 1; i++) {                    \
+            for (usize i = (index); i < (array)->len - 1; i++) {                  \
                 (array)->items[i] = (array)->items[i + 1];                        \
             }                                                                     \
             memset(&(array)->items[(array)->len - 1], 0, sizeof *(array)->items); \
@@ -403,14 +382,14 @@ usize sizeOfArena(Arena* arena)
     }
 
 typedef Array(char) String;
-typedef Slice(char) StringSlice;
+typedef Slice(char) StringView;
 
 // Exclusive
-#define initSlice(slice, ptr, length, begin, end)    \
+#define initSlice(slice, ptr, length, begin, end)     \
     do {                                              \
         if ((ptr) == NULL || (begin) > (end))         \
             break;                                    \
-        usize _b, _e;                                   \
+        usize _b, _e;                                 \
         _b = (begin) > (length) ? (length) : (begin); \
         _e = (end) > (length) ? (length) : (end);     \
         (slice)->items = (ptr) + (_b);                \
@@ -419,24 +398,63 @@ typedef Slice(char) StringSlice;
 
 #define initSliceFromArray(slice, array, begin, end) initSlice(slice, (array)->items, (array)->len, begin, end)
 
-/*
-Legends:
-    function with prefixes cstring_* is going to use traditional char*
-    function with prefixes string_* is going to use String
-    function with prefixes stringref_* is going to use StringSlice
-*/
-
 #define stringFmt(s) (int)(s).len, (s).items
-StringSlice sliceStringFrom(const char* cstr, usize begin, usize end);
-StringSlice sliceStringFromString(String* string, usize begin, usize end);
+StringView stringViewFrom(const char* cstr, usize begin, usize end);
+StringView stringViewFromString(String* string, usize begin, usize end);
+bool splitStringViewBy(StringView* sv, const char* delims, StringView* out);
+StringView trimStartStringViewBy(StringView* sv, const char* delim);
+StringView trimEndStringViewBy(StringView* sv, const char* delim);
+StringView trimStringViewBy(StringView* sv, const char* delim);
+StringView trimStringView(StringView* sv);
 String stringPrintf(const char* fmt, ...);
 char* cstrArenaPrintf(Arena* arena, const char* fmt, ...);
 char* cstrPrintf(const char* fmt, ...);
 
 #ifdef MISC_IMPL
-StringSlice sliceStringFrom(const char* cstr, usize begin, usize end)
+
+static bool isDelimsMatch(char target, const char* delims)
 {
-    StringSlice ref = {0};
+    for (usize i = 0; i < strlen(delims); i++) {
+        if (delims[i] == target)
+            return true;
+    }
+    return false;
+}
+
+bool splitStringViewBy(
+    StringView* sv,
+    const char* delims,
+    StringView* out)
+{
+    if (sv->len == 0) return false;
+
+    usize i = 0;
+    while (i < sv->len && !isDelimsMatch(sv->items[i], delims))
+        i += 1;
+
+    StringView result = {
+        .items = sv->items,
+        .len = i,
+    };
+
+    if (i < sv->len) {
+        sv->len -= i + 1;
+        sv->items += i + 1;
+    } else {
+        sv->len = 0;
+        sv->items += i;
+    }
+
+    if (out != NULL) *out = result;
+    return true;
+}
+
+StringView stringViewFrom(
+    const char* cstr,
+    usize       begin,
+    usize       end)
+{
+    StringView ref = {0};
     if (cstr == NULL || end < begin)
         return ref;
 
@@ -445,14 +463,20 @@ StringSlice sliceStringFrom(const char* cstr, usize begin, usize end)
     return ref;
 }
 
-StringSlice sliceStringFromString(String* str, usize begin, usize end)
+StringView stringViewFromString(
+    String* str,
+    usize   begin,
+    usize   end)
 {
-    StringSlice ref = {0};
+    StringView ref = {0};
     initSliceFromArray(&ref, str, begin, end);
     return ref;
 }
 
-char* cstrArenaPrintf(Arena* arena, const char* fmt, ...)
+char* cstrArenaPrintf(
+    Arena*      arena,
+    const char* fmt,
+                ...)
 {
     va_list va;
     char* buf = NULL;
@@ -516,7 +540,7 @@ String stringPrintf(const char* fmt, ...)
 #define MISC_FNV_PRIME (0x100000001b3ULL)
 
 #ifndef MISC_MAP_LOADF
-#define MISC_MAP_LOADF (0.85)
+#define MISC_MAP_LOADF (0.55)
 #else
 #if MISC_MAP_LOADF >= 1.0
 #error Load factor must be less than 1.0
@@ -527,12 +551,44 @@ String stringPrintf(const char* fmt, ...)
 #define MISC_MAP_MINIMUM (8)
 #endif
 
+/*
+
+A proper Hash map with open addressing, inspired from the book
+`Crafting interpreters`.
+
+This hashmap uses void* as a mean to do generic.
+Let K and V be a type of key and value respectively.
+On such function, one must provide a K* and V* as an argument,
+each with the size.
+
+K* and V* will be DEEP COPIED from caller into the table.
+If user trying to get a value from a said table, the user must NOT
+at ANY circumstances, calling free() on the return value directly.
+That would resulting in double free after the call of freeMap().
+
+K* and V* value from the table will be freed when:
+1. Call of deleteFromMap()
+2. Call of freeMap()
+
+freeMap() will free all the backing memory of K* and V* thoroughly
+until N capacity of table. deleteFromMap() will only free
+1 entry of K and V, marking it as tombstone and can be used again
+if needed.
+
+*/
+
 typedef struct {
     void* key;
     usize keyLen;
     void* value;
     u64 hash;
 } MapEntry;
+
+typedef struct {
+    void* key;
+    void* value;
+    usize pos;
+} MapKV;
 
 typedef struct {
     MapEntry* items;
@@ -545,10 +601,11 @@ void initMap(Map* map);
 void putInMap(Map* map, const void* key, usize keyLen, const void* value, usize valueSize);
 void* getFromMap(Map* map, const void* key, usize keyLen);
 void deleteFromMap(Map* map, const void* key, usize keyLen);
+bool iterateMap(Map* map, MapKV* input);
 void freeMap(Map* map);
 
 #ifdef MISC_IMPL
-#define mapLoadFactor(map) ((double)(map)->len / (double)(map)->cap)
+#define mapLoadFactor(map) ((f64)(map)->len / (f64)(map)->cap)
 
 void initMap(Map* map)
 {
@@ -556,23 +613,23 @@ void initMap(Map* map)
 }
 
 static bool compareKey(
-    MapEntry* dst,
+    MapEntry*   dst,
     const void* key,
-    usize keyLen,
-    u64 hash)
+    usize       keyLen,
+    u64         hash)
 {
     return dst->keyLen == keyLen &&
-           dst->hash == hash &&
+           dst->hash   == hash   &&
            memcmp(dst->key, key, keyLen) == 0;
 }
 
 static MapEntry* findMapEntry(
-    Map* map,
+    Map*        map,
     const void* key,
-    usize keyLen,
-    u64 hash)
+    usize       keyLen,
+    u64         hash)
 {
-    usize idx = hash % map->cap;
+    usize idx = hash & (map->cap - 1);
     MapEntry* tombstone = NULL;
 
     while (true) {
@@ -586,7 +643,7 @@ static MapEntry* findMapEntry(
         } else if (compareKey(entry, key, keyLen, hash)) {
             return entry;
         }
-        idx = (idx + 1) % map->cap;
+        idx = (idx + 1) & (map->cap - 1);
     }
 }
 
@@ -609,11 +666,16 @@ static void growMap(Map* map, usize into)
     *map = newer;
 }
 
-void putInMap(Map* map, const void* key, usize keyLen, const void* value, usize valueSize)
+void putInMap(
+    Map*        map,
+    const void* key,
+    usize       keyLen,
+    const void* value,
+    usize       valueSize)
 {
     if (map->cap < MISC_MAP_MINIMUM) {
         initMap(map);
-    } else if (mapLoadFactor(map) >= 0.5) {
+    } else if (mapLoadFactor(map) >= MISC_MAP_LOADF) {
         growMap(map, map->cap * 2);
     }
 
@@ -631,14 +693,20 @@ void putInMap(Map* map, const void* key, usize keyLen, const void* value, usize 
     memmove(entry->value, value, valueSize);
 }
 
-void* getFromMap(Map* map, const void* key, usize keyLen)
+void* getFromMap(
+    Map*        map,
+    const void* key,
+    usize       keyLen)
 {
     MapEntry* entry = findMapEntry(map, key, keyLen, initFNV(key, keyLen));
     if (entry->key != NULL) return entry->value;
     return NULL;
 }
 
-void deleteFromMap(Map* map, const void* key, usize keyLen)
+void deleteFromMap(
+    Map*        map,
+    const void* key,
+    usize       keyLen)
 {
     MapEntry* entry = findMapEntry(map, key, keyLen, initFNV(key, keyLen));
     if (entry->key == NULL) return;
@@ -661,6 +729,22 @@ void freeMap(Map* map)
         free(entry.value);
     }
     freeArray(map);
+}
+
+bool iterateMap(Map* map, MapKV* input)
+{
+    for (; input->pos < map->cap; input->pos++) {
+        MapEntry entry = map->items[input->pos];
+        if (entry.key != NULL) {
+            input->key = entry.key;
+            input->value = entry.value;
+            input->pos++;
+            return true;
+        }
+    }
+
+    input->pos = 0;
+    return false;
 }
 
 u64 initFNV(const void* ptr, usize size)

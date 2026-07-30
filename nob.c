@@ -62,4 +62,5 @@ void example_cc_all(Nob_Cmd* cmd, Nob_Procs* procs)
     example_cc(cmd, procs, "examples/array.c", "build/examples/array");
     example_cc(cmd, procs, "examples/arena.c", "build/examples/arena");
     example_cc(cmd, procs, "examples/map.c", "build/examples/map");
+    example_cc(cmd, procs, "examples/string.c", "build/examples/string");
 }
