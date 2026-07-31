@@ -1,23 +1,39 @@
 #define MISC_IMPL
 #include "../misc.h"
+#include <errno.h>
 
-int main(void)
+// Word counter
+
+int main(int argc, const char **argv)
 {
-    Map map = {0};
-    initMap(&map);
-
-    for (usize i = 0; i < 1024 * 1024 * 10; i++) {
-        char* key = cstrPrintf("\"%zu\"", i << 4);
-        putInMap(&map, key, strlen(key), &i, sizeof i);
-        free(key);
+    if (argc == 1) {
+        printf("usage: %s <FILE>", argv[0]);
+        return 1;
     }
 
-    // MapKV pair = {0};
-    // while (iterateMap(&map, &pair)) {
-    //     char* key = pair.key;
-    //     usize* value = pair.value;
-    //     printf("Key: %s, Value: %zu\n", key, *value);
-    // }
+    Map map = {0};
+    String buffer = readFileToString(argv[1]);
+    StringView curr, split = initSvFromString(&buffer, 0, buffer.len);
+    initMap(&map);
 
+    while (splitSvBy(&split, " ", &curr)) {
+        usize *recv, count = 1;
+
+        if ((recv = getFromMap(&map, curr.items, curr.len)) == NULL) {
+            putInMap(&map, curr.items, curr.len, &count, sizeof count);
+        } else {
+            *recv += 1;
+        }
+    }
+
+    MapKV pair = {0};
+    while (iterateMap(&map, &pair)) {
+        printf("Word: '%.*s' = %zu times\n",
+               (int)pair.keyLen,
+               (char*)pair.key,
+               *(usize*)pair.value);
+    }
+
+    freeArray(&buffer);
     freeMap(&map);
 }

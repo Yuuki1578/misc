@@ -23,6 +23,7 @@ Licensed under the MIT License. All rights reserved.
 #define MISC_H
 
 #include <assert.h>
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -399,14 +400,18 @@ typedef Slice(char) StringView;
 #define initSliceFromArray(slice, array, begin, end) initSlice(slice, (array)->items, (array)->len, begin, end)
 
 #define stringFmt(s) (int)(s).len, (s).items
-StringView stringViewFrom(const char* cstr, usize begin, usize end);
-StringView stringViewFromString(String* string, usize begin, usize end);
-bool splitStringViewBy(StringView* sv, const char* delims, StringView* out);
-StringView trimStartStringViewBy(StringView* sv, const char* delim);
-StringView trimEndStringViewBy(StringView* sv, const char* delim);
-StringView trimStringViewBy(StringView* sv, const char* delim);
-StringView trimStringView(StringView* sv);
+StringView initSvFrom(const char* cstr, usize begin, usize end);
+StringView initSvFromString(String* string, usize begin, usize end);
+bool splitSvBy(StringView* sv, const char* delims, StringView* out);
+StringView trimStartSvBy(StringView* sv, const char* delims);
+StringView trimEndSvBy(StringView* sv, const char* delims);
+StringView trimSvBy(StringView* sv, const char* delims);
+void toStringUppercase(String* string);
+void toStringLowercase(String* string);
+void reverseString(String* string);
 String stringPrintf(const char* fmt, ...);
+String readStreamToString(FILE* file);
+String readFileToString(const char* path);
 char* cstrArenaPrintf(Arena* arena, const char* fmt, ...);
 char* cstrPrintf(const char* fmt, ...);
 
@@ -421,7 +426,44 @@ static bool isDelimsMatch(char target, const char* delims)
     return false;
 }
 
-bool splitStringViewBy(
+StringView trimStartSvBy(StringView* sv, const char* delims)
+{
+    StringView result = {0};
+    if (sv->len < 1) return result;
+
+    usize i = 0;
+    while (i < sv->len && isDelimsMatch(sv->items[i], delims))
+        i++;
+
+    result.items = sv->items + i;
+    result.len = sv->len - i;
+    return result;
+}
+
+StringView trimEndSvBy(StringView* sv, const char* delims)
+{
+    StringView result = {0};
+    if (sv->len < 1) return result;
+
+    usize i = sv->len - 1;
+    while (i > 0 && isDelimsMatch(sv->items[i], delims))
+        i--;
+
+    result.items = sv->items;
+    if (i == 0)
+        result.len = 0;
+    else
+        result.len = i + 1;
+    return result;
+}
+
+StringView trimSvBy(StringView* sv, const char* delims)
+{
+    StringView result = trimStartSvBy(sv, delims);
+    return trimEndSvBy(&result, delims);
+}
+
+bool splitSvBy(
     StringView* sv,
     const char* delims,
     StringView* out)
@@ -449,7 +491,7 @@ bool splitStringViewBy(
     return true;
 }
 
-StringView stringViewFrom(
+StringView initSvFrom(
     const char* cstr,
     usize       begin,
     usize       end)
@@ -463,7 +505,70 @@ StringView stringViewFrom(
     return ref;
 }
 
-StringView stringViewFromString(
+void toStringUppercase(String* string)
+{
+    for (usize i = 0; i < string->len; i++) {
+        if (islower(string->items[i]))
+            string->items[i] = toupper(string->items[i]);
+    }
+}
+
+void toStringLowercase(String* string)
+{
+    for (usize i = 0; i < string->len; i++) {
+        if (isupper(string->items[i]))
+            string->items[i] = tolower(string->items[i]);
+    }
+}
+
+void reverseString(String* string)
+{
+    if (string->len <= 1)
+        return;
+
+    usize front = 0,
+          back = string->len - 1;
+
+    while (front < back) {
+        char tmp = string->items[front];
+        string->items[front] = string->items[back];
+        string->items[back] = tmp;
+        front++, back--;
+    }
+}
+
+
+String readStreamToString(FILE* file)
+{
+    String string = {0};
+    if (feof(file))
+        return string;
+    else if (ferror(file))
+        clearerr(file);
+
+    long pos;
+    assert(fseek(file, 0, SEEK_END) == 0);
+    assert((pos = ftell(file)) > 0);
+    rewind(file);
+
+    resizeArray(&string, (usize)pos + 1);
+    fread(string.items, 1, string.cap, file);
+    string.len = (usize)pos;
+    return string;
+}
+
+String readFileToString(const char* path)
+{
+    String result = {0};
+    FILE* file = fopen(path, "r");
+    if (file != NULL) {
+        result = readStreamToString(file);
+        fclose(file);
+    }
+    return result;
+}
+
+StringView initSvFromString(
     String* str,
     usize   begin,
     usize   end)
@@ -587,6 +692,7 @@ typedef struct {
 typedef struct {
     void* key;
     void* value;
+    usize keyLen;
     usize pos;
 } MapKV;
 
@@ -738,6 +844,7 @@ bool iterateMap(Map* map, MapKV* input)
         if (entry.key != NULL) {
             input->key = entry.key;
             input->value = entry.value;
+            input->keyLen = entry.keyLen;
             input->pos++;
             return true;
         }
