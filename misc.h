@@ -22,7 +22,6 @@ Licensed under the MIT License. All rights reserved.
 #ifndef MISC_H
 #define MISC_H
 
-#include <assert.h>
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -41,10 +40,13 @@ typedef int32_t i32;
 typedef uint64_t u64;
 typedef int64_t i64;
 typedef size_t usize;
+typedef intptr_t isize;
 typedef float f32;
 typedef double f64;
 
 #define MISC_ALIGN (sizeof(void*))
+#define fprintfn(f, fmt, ...) fprintf(f, fmt "\n", __VA_ARGS__)
+#define printfn(fmt, ...) fprintfn(stdout, fmt, __VA_ARGS__)
 
 /*
 
@@ -81,19 +83,29 @@ void* strictRealloc(void* ptr, usize size);
 
 #define makeStack(T, ...) (&(T){__VA_ARGS__})
 #define makeHeap(T, ...) memmove(strictAlloc(sizeof(T)), makeStack(T, __VA_ARGS__), sizeof(T))
+#define panicAbort(msg) \
+    do {                                                                                 \
+        fprintf(stderr, "FILE: %s, LINE: %d, cause: \"%s\"\n", __FILE__, __LINE__, (msg)); \
+        abort();                                                                         \
+    } while (0)
+
+#define miscAssert(cond, msg)         \
+    do {                              \
+        if (!(cond)) panicAbort(msg); \
+    } while (0)
 
 #ifdef MISC_IMPL
 void* strictAlloc(usize size)
 {
     void* p = calloc(size, 1);
-    assert(p != NULL);
+    miscAssert(p != NULL, "calloc() returns null");
     return p;
 }
 
 void* strictRealloc(void* ptr, usize size)
 {
     void* p = realloc(ptr, size);
-    assert(p != NULL);
+    miscAssert(p != NULL, "realloc() returns null");
     return p;
 }
 #endif
@@ -201,7 +213,7 @@ struct Arena {
 
 Arena* initArena(usize size)
 {
-    assert(size > 0);
+    if (size < 1) return NULL;
     Arena* arena = strictAlloc(sizeof *arena);
     ArenaBody body = { .cap = size };
     arena->head = initNodeLink(sizeof body + size);
@@ -214,7 +226,7 @@ Arena* initArena(usize size)
 
 void* allocArena(Arena* arena, usize size)
 {
-    assert(arena != NULL && size > 0);
+    if (arena == NULL || size < 1) return NULL;
 
     NodeLink* last = arena->last;
     ArenaBody* body = valueOfNodeLink(last);
@@ -242,7 +254,7 @@ void* reallocArena(
     usize  sizeBefore,
     usize  sizeAfter)
 {
-    if (sizeAfter == 0) return NULL;
+    if (arena == NULL || sizeAfter == 0) return NULL;
 
     void* newer = allocArena(arena, sizeAfter);
     if (ptr == NULL) return newer;
@@ -341,25 +353,25 @@ usize sizeOfArena(Arena* arena)
         }                                                                                     \
     } while (0)
 
-#define resizeArray(array, N)          \
-    do {                               \
-        bool ok;                       \
-        tryResizeArray(array, N, &ok); \
-        assert(ok);                    \
+#define resizeArray(array, N)                   \
+    do {                                        \
+        bool ok;                                \
+        tryResizeArray(array, N, &ok);          \
+        miscAssert(ok, "resizeArray() failed"); \
     } while (0)
 
-#define appendArray(array, item)          \
-    do {                                  \
-        bool ok;                          \
-        tryAppendArray(array, item, &ok); \
-        assert(ok);                       \
+#define appendArray(array, item)                \
+    do {                                        \
+        bool ok;                                \
+        tryAppendArray(array, item, &ok);       \
+        miscAssert(ok, "appendArray() failed"); \
     } while (0)
 
 #define extendArray(array, many_ptr, N)          \
     do {                                         \
         bool ok;                                 \
         tryExtendArray(array, many_ptr, N, &ok); \
-        assert(ok);                              \
+        miscAssert(ok, "extendArray() failed");  \
     } while (0)
 
 #define removeArrayAt(array, index)                                               \
@@ -543,14 +555,12 @@ String readStreamToString(FILE* file)
     String string = {0};
     if (feof(file))
         return string;
-    else if (ferror(file))
-        clearerr(file);
 
     long pos;
-    assert(fseek(file, 0, SEEK_END) == 0);
-    assert((pos = ftell(file)) > 0);
-    rewind(file);
+    if (fseek(file, 0, SEEK_END) != 0) return string;
+    if ((pos = ftell(file)) <= 0) return string;
 
+    rewind(file);
     resizeArray(&string, (usize)pos + 1);
     fread(string.items, 1, string.cap, file);
     string.len = (usize)pos;
@@ -690,8 +700,8 @@ typedef struct {
 } MapEntry;
 
 typedef struct {
-    void* key;
-    void* value;
+    const void* key;
+    const void* value;
     usize keyLen;
     usize pos;
 } MapKV;
@@ -789,8 +799,11 @@ void putInMap(
     MapEntry* entry = findMapEntry(map, key, keyLen, hash);
     bool isNewKey = entry->key == NULL || (uintptr_t)entry->value == 0xdead;
     if (isNewKey) {
-        entry->key = strictAlloc(keyLen);
-        entry->value = strictAlloc(valueSize);
+        usize merge = keyLen + valueSize;
+        usize roundUp = alignUp(merge);
+        u8* pool = strictAlloc(roundUp);
+        entry->key = pool;
+        entry->value = pool + keyLen + (roundUp - merge);
         entry->keyLen = keyLen;
         entry->hash = hash;
         memmove(entry->key, key, keyLen);
@@ -818,7 +831,6 @@ void deleteFromMap(
     if (entry->key == NULL) return;
 
     free(entry->key);
-    free(entry->value);
     memset(entry, 0, sizeof *entry);
     entry->value = (void*)0xdead;
     map->len--;
@@ -832,7 +844,6 @@ void freeMap(Map* map)
             continue;
 
         free(entry.key);
-        free(entry.value);
     }
     freeArray(map);
 }
@@ -863,6 +874,132 @@ u64 initFNV(const void* ptr, usize size)
         baseValue ^= bytes[i];
     }
     return baseValue;
+}
+
+#endif
+
+/*
+
+Ring buffer, Circular buffer, Cyclic buffer.
+This is a wrapper around a fixed-size buffer that let you
+read/write at a specific position without worried about
+doing it pass its size, because if it does, it'll wrap
+around to position 0 instead of going pass the address boundary. 
+
+[ H, e, l, l, o, 0x0, 0x0, 0x0 ]
+  ↑               ↑
+ read position   write position
+
+[ l, d, !, \n, 0x0, W, o, r ]
+                    ↑
+                read/write position
+
+*/
+
+typedef struct {
+    void* buffer;
+    usize writePos,
+          readPos,
+          len
+    ;
+} RingBuffer;
+
+RingBuffer initRbFrom(void* buffer, usize len);
+usize writeToRb(RingBuffer* rb, const void* src, usize len);
+usize readFromRb(RingBuffer* rb, void* dst, usize len);
+void seekWriteRb(RingBuffer* rb, isize len, int whence);
+void seekReadRb(RingBuffer* rb, isize len, int whence);
+void clearRb(RingBuffer* rb);
+
+#ifdef MISC_IMPL
+RingBuffer initRbFrom(void* buffer, usize len)
+{
+    return (RingBuffer){
+        .buffer = buffer,
+        .len = len,
+        .writePos = 0,
+        .readPos = 0,
+    };
+}
+
+usize writeToRb(RingBuffer* rb, const void* src, usize len)
+{
+    const u8* repr = src;
+    u8* buf = rb->buffer;
+
+    usize i;
+    for (i = 0; i < len; i++, rb->writePos = (rb->writePos + 1) % rb->len) {
+        buf[rb->writePos] = repr[i];
+    }
+
+    return i;
+}
+
+usize readFromRb(RingBuffer* rb, void* dst, usize len)
+{
+    u8* repr = dst;
+    const u8* buf = rb->buffer;
+
+    usize i;
+    for (i = 0;
+         i < len && rb->readPos < rb->writePos;
+         i++, rb->readPos = (rb->readPos + 1) % rb->len)
+    {
+        repr[i] = buf[rb->readPos];
+    }
+
+    return i;
+}
+
+void seekWriteRb(RingBuffer* rb, isize len, int whence)
+{
+    switch (whence) {
+    case SEEK_SET:
+        len = len % rb->len;
+        break;
+
+    case SEEK_CUR:
+        len = (len + (isize)rb->writePos) % rb->len;
+        break;
+
+    case SEEK_END:
+        len = ((isize)rb->len - len) % rb->len;
+        break;
+
+    default:
+        return;
+    }
+
+    rb->writePos = (usize)len;
+}
+
+void seekReadRb(RingBuffer* rb, isize len, int whence)
+{
+    switch (whence) {
+    case SEEK_SET:
+        len %= rb->len;
+        break;
+
+    case SEEK_CUR:
+        len = (len + (isize)rb->readPos) % rb->len;
+        break;
+
+    case SEEK_END:
+        len = ((isize)rb->len - len) % rb->len;
+        break;
+
+    default:
+        return;
+    }
+
+    rb->readPos = (usize)len;    
+}
+
+void clearRb(RingBuffer* rb)
+{
+    memset(rb->buffer, 0, rb->len);
+    rb->writePos = 0;
+    rb->readPos = 0;
 }
 
 #endif

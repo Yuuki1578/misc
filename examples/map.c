@@ -7,7 +7,7 @@
 int main(int argc, const char **argv)
 {
     if (argc == 1) {
-        printf("usage: %s <FILE>", argv[0]);
+        printfn("usage: %s <FILE>", argv[0]);
         return 1;
     }
 
@@ -16,7 +16,7 @@ int main(int argc, const char **argv)
     StringView curr, split = initSvFromString(&buffer, 0, buffer.len);
     initMap(&map);
 
-    while (splitSvBy(&split, " ", &curr)) {
+    while (splitSvBy(&split, " \n", &curr)) {
         usize *recv, count = 1;
 
         if ((recv = getFromMap(&map, curr.items, curr.len)) == NULL) {
@@ -28,7 +28,7 @@ int main(int argc, const char **argv)
 
     MapKV pair = {0};
     while (iterateMap(&map, &pair)) {
-        printf("Word: '%.*s' = %zu times\n",
+        printfn("Word: '%.*s' = %zu times",
                (int)pair.keyLen,
                (char*)pair.key,
                *(usize*)pair.value);
