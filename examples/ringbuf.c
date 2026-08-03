@@ -1,17 +1,29 @@
 #define MISC_IMPL
 #include "../misc.h"
+#define MAX (15)
+
+u8 buffer[MAX];
+RingBuffer rb;
 
 int main(void)
 {
-    u8 buf[128];
-    RingBuffer rb = initRbFrom(buf, sizeof buf);
+    usize writeTotal = 0,
+          readTotal  = 0;
+
+    rb = initRbFrom(buffer, sizeof buffer);
+
+    const char* text = "HELLO";
+    for (usize i = 0, idx; i < MAX * 5; ++i, idx = i % strlen(text)) {
+        char ch;
+        writeTotal += writeToRb(&rb, &text[idx], 1);
+        readTotal += readFromRb(&rb, &ch, 1);
+
+        putchar(ch);
+        if (ch == 'O')
+            putchar('\n');
+    }
+
+    printfn("Total bytes written to buffer: %zu", writeTotal);
+    printfn("Total bytes readed from buffer: %zu", readTotal);
     clearRb(&rb);
-
-    const char *word = "Hello!";
-    writeToRb(&rb, word, strlen(word));
-
-    char copy[7];
-    readFromRb(&rb, copy, sizeof copy - 1);
-    copy[sizeof copy - 1] = 0;
-    printfn("%s", buf);
 }

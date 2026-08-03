@@ -83,10 +83,11 @@ void* strictRealloc(void* ptr, usize size);
 
 #define makeStack(T, ...) (&(T){__VA_ARGS__})
 #define makeHeap(T, ...) memmove(strictAlloc(sizeof(T)), makeStack(T, __VA_ARGS__), sizeof(T))
-#define panicAbort(msg) \
-    do {                                                                                 \
-        fprintf(stderr, "FILE: %s, LINE: %d, cause: \"%s\"\n", __FILE__, __LINE__, (msg)); \
-        abort();                                                                         \
+
+#define panicAbort(msg)                                                                   \
+    do {                                                                                  \
+        fprintfn(stderr, "FILE: %s, LINE: %d, cause: \"%s\"", __FILE__, __LINE__, (msg)); \
+        abort();                                                                          \
     } while (0)
 
 #define miscAssert(cond, msg)         \
@@ -97,7 +98,8 @@ void* strictRealloc(void* ptr, usize size);
 #ifdef MISC_IMPL
 void* strictAlloc(usize size)
 {
-    void* p = calloc(size, 1);
+    // void* p = calloc(size, 1);
+    void* p = malloc(size);
     miscAssert(p != NULL, "calloc() returns null");
     return p;
 }
@@ -166,6 +168,14 @@ NodeLink* findLastNodeLink(NodeLink* node)
 
 void* valueOfNodeLink(NodeLink* node)
 {
+    /*
+    32-bit: size 4
+    64-bit: size 8
+
+    Will it break the alignment? definitely not.
+    Unless, the node itself had an odd alignment,
+    which is not my problem.
+    */
     return (u8*)node + sizeof *node;
 }
 
@@ -230,6 +240,22 @@ void* allocArena(Arena* arena, usize size)
 
     NodeLink* last = arena->last;
     ArenaBody* body = valueOfNodeLink(last);
+
+    /*
+    Make @size divisible by the host default alignment.
+    On 64-bit, that would be 8 bytes, while 32-bit is 4 bytes.
+
+    This is important, if the caller provide the size for @initArena
+    that is considered odd or misaligned by the OS, the @size here will
+    make that irrelevant, since if it doesn't had enough capacity by the
+    @size + (additional to make the @size aligned), it will create a new
+    arena (on the next linked list, for sure), and will use that, so the
+    odd aligned part of the previous arena will never used.
+
+    You can comment this and see what happen. I'm using zig compiler to compile
+    the example, and it absolutely blew up my terminal with stack trace because
+    the program trying to access memory that is not aligned. (fuckin learned it the hard way dawg✌️😭)
+    */
     size = alignUp(size);
 
     if (body->cap - body->len < size) {
@@ -295,7 +321,7 @@ usize sizeOfArena(Arena* arena)
         usize len;  \
     }
 
-#define isArrayEmpty(array) ((array) != NULL ? ((array)->items == NULL && !(array)->cap) : 1)
+#define isArrayEmpty(array) ((array) != NULL ? ((array)->items == NULL || (array)->cap < 1) : 1)
 #define remainsOfArray(array) ((array) != NULL ? ((array)->cap - (array)->len) : 0)
 
 #define tryResizeArray(array, N, ok)                                         \
@@ -385,6 +411,42 @@ usize sizeOfArena(Arena* arena)
         }                                                                         \
     } while (0)
 
+#define reverseArray(T, array)                                \
+    do {                                                      \
+        if ((array)->len > 1) {                               \
+            usize front = 0, back = (array)->len - 1;         \
+            while (front < back) {                            \
+                T tmp = (array)->items[front];                \
+                (array)->items[front] = (array)->items[back]; \
+                (array)->items[back] = tmp;                   \
+                front++, back--;                              \
+            }                                                 \
+        }                                                     \
+    } while (0)
+
+#define tryAppendArrayAt(array, idx, item, ok)                                                                              \
+    do {                                                                                                                    \
+        if ((idx) < (array)->len) {                                                                                         \
+            if ((array)->cap - (array)->len <= 1) {                                                                         \
+                tryResizeArray(array, (array)->cap + MISC_ARRAY_RESERVE, ok);                                               \
+                if (!*(ok)) break;                                                                                          \
+            }                                                                                                               \
+            memmove((array)->items + ((idx) + 1), (array)->items + (idx), ((array)->len - (idx)) * sizeof *(array)->items); \
+            (array)->items[(idx)] = (item);                                                                                 \
+            (array)->len++;                                                                                                 \
+            *(ok) = 1;                                                                                                      \
+        } else {                                                                                                            \
+            tryAppendArray(array, item, ok);                                                                                \
+        }                                                                                                                   \
+    } while (0)
+
+#define appendArrayAt(array, idx, item)           \
+    do {                                          \
+        bool ok = false;                          \
+        tryAppendArrayAt(array, idx, item, &ok);  \
+        miscAssert(ok, "arrayAppendAt() failed"); \
+    } while (0)
+
 #define shrinkArrayToFit(array) resizeArray(array, (array)->len)
 #define freeArray(array) resizeArray(array, 0)
 
@@ -420,7 +482,6 @@ StringView trimEndSvBy(StringView* sv, const char* delims);
 StringView trimSvBy(StringView* sv, const char* delims);
 void toStringUppercase(String* string);
 void toStringLowercase(String* string);
-void reverseString(String* string);
 String stringPrintf(const char* fmt, ...);
 String readStreamToString(FILE* file);
 String readFileToString(const char* path);
@@ -527,28 +588,11 @@ void toStringUppercase(String* string)
 
 void toStringLowercase(String* string)
 {
-    for (usize i = 0; i < string->len; i++) {
+    for (usize i = 0; i < string->len; i++) 
         if (isupper(string->items[i]))
             string->items[i] = tolower(string->items[i]);
-    }
+    
 }
-
-void reverseString(String* string)
-{
-    if (string->len <= 1)
-        return;
-
-    usize front = 0,
-          back = string->len - 1;
-
-    while (front < back) {
-        char tmp = string->items[front];
-        string->items[front] = string->items[back];
-        string->items[back] = tmp;
-        front++, back--;
-    }
-}
-
 
 String readStreamToString(FILE* file)
 {
@@ -694,9 +738,9 @@ if needed.
 
 typedef struct {
     void* key;
-    usize keyLen;
     void* value;
     u64 hash;
+    usize keyLen;
 } MapEntry;
 
 typedef struct {
@@ -797,7 +841,7 @@ void putInMap(
 
     u64 hash = initFNV(key, keyLen);
     MapEntry* entry = findMapEntry(map, key, keyLen, hash);
-    bool isNewKey = entry->key == NULL || (uintptr_t)entry->value == 0xdead;
+    bool isNewKey = entry->key == NULL;
     if (isNewKey) {
         usize merge = keyLen + valueSize;
         usize roundUp = alignUp(merge);
@@ -881,10 +925,10 @@ u64 initFNV(const void* ptr, usize size)
 /*
 
 Ring buffer, Circular buffer, Cyclic buffer.
-This is a wrapper around a fixed-size buffer that let you
+This is a wrapper around fixed-size buffer that let you
 read/write at a specific position without worried about
-doing it pass its size, because if it does, it'll wrap
-around to position 0 instead of going pass the address boundary. 
+doing it past its size, because if it does, it'll wrap
+around to position 0 instead of going past the size of buffer. 
 
 [ H, e, l, l, o, 0x0, 0x0, 0x0 ]
   ↑               ↑
@@ -900,8 +944,7 @@ typedef struct {
     void* buffer;
     usize writePos,
           readPos,
-          len
-    ;
+          len;
 } RingBuffer;
 
 RingBuffer initRbFrom(void* buffer, usize len);
@@ -915,10 +958,10 @@ void clearRb(RingBuffer* rb);
 RingBuffer initRbFrom(void* buffer, usize len)
 {
     return (RingBuffer){
-        .buffer = buffer,
-        .len = len,
+        .buffer   = buffer,
+        .len      = len,
         .writePos = 0,
-        .readPos = 0,
+        .readPos  = 0,
     };
 }
 
@@ -942,7 +985,7 @@ usize readFromRb(RingBuffer* rb, void* dst, usize len)
 
     usize i;
     for (i = 0;
-         i < len && rb->readPos < rb->writePos;
+         i < len;
          i++, rb->readPos = (rb->readPos + 1) % rb->len)
     {
         repr[i] = buf[rb->readPos];
@@ -955,7 +998,7 @@ void seekWriteRb(RingBuffer* rb, isize len, int whence)
 {
     switch (whence) {
     case SEEK_SET:
-        len = len % rb->len;
+        len %= rb->len;
         break;
 
     case SEEK_CUR:

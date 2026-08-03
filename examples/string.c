@@ -9,6 +9,6 @@ int main(void)
     String newer = stringPrintf("'%.*s'", stringFmt(other));
 
     toStringLowercase(&newer);
-    reverseString(&newer);
-    printf("%.*s\n", stringFmt(newer));
+    reverseArray(char, &newer);
+    printfn("%.*s", stringFmt(newer));
 }

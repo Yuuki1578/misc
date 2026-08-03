@@ -1,16 +1,20 @@
-# Simple C library for my personal use
+# Simple header-only library to get you going with C
 
-This library provide some basic functionality that C doesn't have.
+This library provide some basic functionalities that C doesn't have,
+like generic dynamic-array, generic linked-list, linear allocator,
+generic managed-hashmap, string manipulation, and ring buffer.
+This will work on every compiler that follows C standard 99.
 
 ## Using the header
 ```c
-// define this on main file for functions implementation
+// define this once in main file for functions implementation
 // main.c
 #define MISC_IMPL
 #include "misc.h"
 
+// Use this in another translation, do not declare MISC_IMPL
+// again to avoid linker error.
 // other.c
-// Use this in another translation
 #include "misc.h"
 ```
 
