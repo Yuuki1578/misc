@@ -22,16 +22,16 @@ int main(void)
         };
     }
     */
-    Array(i32) ints = {0};
+    Array(i32) ints = { 0 };
 
     for (i32 i = 0; i > -32; i--)
-        appendArrayAt(&ints, 0, i);
+        array_append_at(&ints, 0, i);
 
-    shrinkArrayToFit(&ints);
-    reverseArray(i32, &ints);
+    array_make_fit(&ints);
+    array_reverse(i32, &ints);
     for (usize i = 0; i < ints.len; i++)
         printfn("%zu: %d", i, ints.items[i]);
 
     printfn("Capacity: %zu, Length: %zu", ints.cap, ints.len);
-    freeArray(&ints);
+    array_free(&ints);
 }

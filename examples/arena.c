@@ -3,13 +3,14 @@
 
 int main(void)
 {
-    Arena* arena = initArena(1 << 16);
+    void* alloc = &misc_mmap_alloc;
+    Arena* arena = arena_init_with(alloc, 1 << 16);
     char* buf;
 
     for (usize i = 0; i < 1024; i++) {
-        buf = cstrArenaPrintf(arena, "STRING IS: %zu:%zu:%zu\n", i, i * 2, i * 3);
+        buf = cstr_arena_printf(alloc, arena, "STRING IS: %zu:%zu:%zu\n", i, i * 2, i * 3);
         printf("%s", buf);
     }
 
-    freeArena(arena);
+    arena_free_with(alloc, arena);
 }

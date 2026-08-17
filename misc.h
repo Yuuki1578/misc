@@ -50,64 +50,254 @@ typedef double f64;
 
 /*
 
-Linked list, this is designed to be used in another data structure
-(See the use case on arena allocator below).
+Common interface to allocate memory in a uniform manner.
+@any could be anything, yes, ANYTHING.
+@size is a size, of course.
+@alignment must be a power of 2, if not, the creator must explicitly return NULL.
+@alignment is then packed into @size and call allocation API, so the allocated
+memory is aligned. So the alignment is applied before and not after it's allocated.
 
-The linked list only stored the @next pointer as its member,
-the value is the offset from the base pointer + sizeof NodeLink.
+This header will expose 2 kind of allocators:
+1. Libc allocator as @misc_libc_alloc.
+2. System memory mapped virtual memory as @misc_mmap_alloc.
 
-API:
-NodeLink* initNodeLink(usize size);
-    Initialize a node with the size of @size.
+For most of the time, you should use the @misc_libc_alloc, as it will uses
+the malloc(3), realloc(3) and free(3) with the addition of an alignment in it.
 
-NodeLink* insertAfterNodeLink(NodeLink* node, usize size);
-    Insert a new node after @node, preserve the newer node as
-    its return value.
+the implemented allocators here will store additional address metadata such as its size
+in allocated memory (or a fat pointer).
+Maybe we could make it store the alignment, so we can get more clean function table here haha.
 
-NodeLink* insertBeforeNodeLink(NodeLink* node, usize size);
-    Insert a new node behind @node, return the node before @node.
-
-usize lengthOfNodeLink(NodeLink* node);
-    Count the length of a linked list from @node until @node is null.
-
-void* valueOfNodeLink(NodeLink* node);
-    Get the inner value from @node on its offset in memory (just a math).
-
-void freeNodeLink(NodeLink* node);
-    Free all node starting from @node.
+Note that it's not thread safe since c99 doesn't have the threadlocal yet, so one must use a lock mechanism.
+Functions that use it will have *_with postfix in their name.
+If one function use one custom allocator, all of the other functions must uses the same allocator, MUST!
 
 */
+typedef struct {
+    void* any;
+    void* (*allocate)(void* any, usize size, usize alignment);
+    void* (*reallocate)(void* any, void* ptr, usize size, usize alignment);
+    void (*deallocate)(void* any, void* ptr);
+} GeneralAllocator;
 
-void* strictAlloc(usize size);
-void* strictRealloc(void* ptr, usize size);
+extern GeneralAllocator misc_libc_alloc;
+extern GeneralAllocator misc_mmap_alloc;
 
-#define makeStack(T, ...) (&(T){__VA_ARGS__})
-#define makeHeap(T, ...) memmove(strictAlloc(sizeof(T)), makeStack(T, __VA_ARGS__), sizeof(T))
+#define misc_palign(ptr, align) ((void*)(((uintptr_t)(ptr) + (align) - 1) & ~((align) - 1)))
+#define misc_align_up(size) ((uintptr_t)misc_palign(size, 8))
 
-#define panicAbort(msg)                                                                   \
+void* misc_mmap(usize size, usize alignment);
+void* misc_remap(void* ptr, usize size, usize alignment);
+void misc_unmap(void* ptr);
+
+#ifdef __unix__
+#include <sys/mman.h>
+#include <unistd.h>
+
+#if defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0
+#define MISC_POSIX_MAP
+#define MISC_MAP_ERR MAP_FAILED
+#else
+#define MISC_MAP_ERR NULL
+#endif
+
+#elif defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#define MISC_MAP_ERR NULL
+#define MISC_WINAPI
+
+#else
+#define MISC_MAP_ERR NULL
+#endif
+
+#ifdef MISC_IMPL
+
+void* misc_alloc(void* any, usize size, usize alignment)
+{
+    (void)any;
+    return malloc((uintptr_t)misc_palign(size, alignment));
+}
+
+void* misc_realloc(void* any, void* ptr, usize size, usize alignment)
+{
+    (void)any;
+    return realloc(ptr, (uintptr_t)misc_palign(size, alignment));
+}
+
+void misc_free(void* any, void* ptr)
+{
+    (void)any;
+    free(ptr);
+}
+
+GeneralAllocator misc_libc_alloc = {
+    .allocate = misc_alloc,
+    .reallocate = misc_realloc,
+    .deallocate = misc_free,
+};
+
+void* misc_mmap(usize size, usize alignment)
+{
+#ifdef MISC_WINAPI
+    HANDLE handle;
+#endif
+
+    void* ptr;
+
+    if (size == 0 || alignment == 0 || (alignment & (alignment - 1)) != 0)
+        return NULL;
+
+#ifdef MISC_POSIX_MAP
+    size = (usize)(uintptr_t)misc_palign(size + sizeof size, alignment);
+    ptr = mmap(NULL, size, PROT_WRITE | PROT_READ, MAP_ANON | MAP_PRIVATE, -1, 0);
+
+#elif defined(MISC_WINAPI)
+    size = (usize)(uintptr_t)misc_palign(size + sizeof handle + sizeof size, alignment);
+    handle = CreateFileMapping(
+        INVALID_HANDLE_VALUE,
+        NULL,
+        PAGE_READWRITE,
+        0,
+        size,
+        NULL);
+
+    if (handle == NULL)
+        return NULL;
+
+    ptr = MapViewOfFile(
+        handle,
+        FILE_MAP_ALL_ACCESS,
+        0,
+        0,
+        size);
+#else
+    ptr = malloc(misc_palign(size, alignment));
+
+#endif
+
+    if (ptr == MISC_MAP_ERR) {
+#ifdef MISC_WINAPI
+        CloseHandle(handle);
+#endif
+        return NULL;
+    }
+
+#ifdef MISC_POSIX_MAP
+    memmove(ptr, &size, sizeof size);
+    ptr = (u8*)ptr + sizeof size;
+
+#elif defined(MISC_WINAPI)
+    memmove(ptr, handle, sizeof handle);
+    memmove((u8*)ptr + sizeof handle, &size, sizeof size);
+    ptr = (u8*)ptr + sizeof handle + sizeof size;
+
+#endif
+
+    return ptr;
+}
+
+void* misc_remap(void* ptr, usize size, usize alignment)
+{
+    void* newer;
+
+    if (size == 0 || alignment == 0 || (alignment & (alignment - 1)) != 0)
+        return NULL;
+
+    if (ptr == NULL)
+        return misc_mmap(size, alignment);
+
+#if defined(MISC_POSIX_MAP) || defined(MISC_WINAPI)
+    usize* true_size = (void*)((u8*)ptr - sizeof(usize));
+    usize copied = *true_size > size ? size : *true_size;
+    newer = misc_mmap(size, alignment);
+
+    if (newer == NULL)
+        return NULL;
+
+    memmove(newer, ptr, copied);
+    misc_unmap(ptr);
+
+#else
+    newer = realloc(ptr, misc_palign(size, alignment));
+#endif
+
+    return newer;
+}
+
+void misc_unmap(void* ptr)
+{
+    if (ptr == NULL)
+        return;
+#ifdef MISC_POSIX_MAP
+    ptr = (u8*)ptr - sizeof(usize);
+    usize* true_size = ptr;
+    munmap(ptr, *true_size);
+
+#elif defined(MISC_WINAPI)
+    ptr = (u8*)ptr - sizeof(usize) - sizeof(HANDLE);
+    UnmapViewOfFile(ptr);
+
+#else
+    free(ptr);
+#endif
+}
+
+void* _misc_mmap(void* any, usize size, usize alignment)
+{
+    (void)any;
+    return misc_mmap(size, alignment);
+}
+
+void* _misc_remap(void* any, void* ptr, usize size, usize alignment)
+{
+    (void)any;
+    return misc_remap(ptr, size, alignment);
+}
+
+void _misc_unmap(void* any, void* ptr)
+{
+    (void)any;
+    misc_unmap(ptr);
+}
+
+GeneralAllocator misc_mmap_alloc = {
+    .allocate = _misc_mmap,
+    .reallocate = _misc_remap,
+    .deallocate = _misc_unmap,
+};
+
+#endif
+
+void* misc_strict_alloc(usize size);
+void* misc_strict_realloc(void* ptr, usize size);
+
+#define misc_stacked(T, ...) (&(T) { __VA_ARGS__ })
+#define misc_heaped(T, ...) memmove(misc_strict_alloc(sizeof(T)), misc_stacked(T, __VA_ARGS__), sizeof(T))
+
+#define misc_panic(msg)                                                                   \
     do {                                                                                  \
         fprintfn(stderr, "FILE: %s, LINE: %d, cause: \"%s\"", __FILE__, __LINE__, (msg)); \
         abort();                                                                          \
     } while (0)
 
-#define miscAssert(cond, msg)         \
-    do {                              \
-        if (!(cond)) panicAbort(msg); \
+#define misc_assert(cond, msg) \
+    do {                       \
+        if (!(cond))           \
+            misc_panic(msg);   \
     } while (0)
 
 #ifdef MISC_IMPL
-void* strictAlloc(usize size)
+void* misc_strict_alloc(usize size)
 {
-    // void* p = calloc(size, 1);
     void* p = malloc(size);
-    miscAssert(p != NULL, "calloc() returns null");
+    misc_assert(p != NULL, "malloc() returns null");
     return p;
 }
 
-void* strictRealloc(void* ptr, usize size)
+void* misc_strict_realloc(void* ptr, usize size)
 {
     void* p = realloc(ptr, size);
-    miscAssert(p != NULL, "realloc() returns null");
+    misc_assert(p != NULL, "realloc() returns null");
     return p;
 }
 #endif
@@ -118,38 +308,71 @@ struct NodeLink {
     // ...
 };
 
-NodeLink* initNodeLink(usize size);
-NodeLink* insertAfterNodeLink(NodeLink* node, usize size);
-NodeLink* insertBeforeNodeLink(NodeLink* node, usize size);
-NodeLink* removeAfterNodeLink(NodeLink* node);
-NodeLink* findLastNodeLink(NodeLink* node);
-usize lengthOfNodeLink(NodeLink* node);
-void* valueOfNodeLink(NodeLink* node);
-void freeNodeLink(NodeLink* node);
+NodeLink* nl_init_with(GeneralAllocator* allocator, usize size);
+NodeLink* nl_put_after_with(GeneralAllocator* allocator, NodeLink* node, usize size);
+NodeLink* nl_put_before_with(GeneralAllocator* allocator, NodeLink* node, usize size);
+void nl_free_with(GeneralAllocator* allocator, NodeLink* node);
+
+NodeLink* nl_init(usize size);
+NodeLink* nl_put_after(NodeLink* node, usize size);
+NodeLink* nl_put_before(NodeLink* node, usize size);
+NodeLink* nl_pop_after(NodeLink* node);
+NodeLink* nl_last(NodeLink* node);
+usize nl_len(NodeLink* node);
+void* nl_value(NodeLink* node);
+void nl_free(NodeLink* node);
 
 #ifdef MISC_IMPL
-NodeLink* initNodeLink(usize size)
+NodeLink* nl_init_with(GeneralAllocator* allocator, usize size)
 {
-    NodeLink* node = strictAlloc(sizeof *node + size);
-    node->next = NULL;
+    NodeLink* node = allocator->allocate(allocator->any, size, MISC_ALIGN);
+    if (node != NULL)
+        node->next = NULL;
+
     return node;
 }
 
-NodeLink* insertAfterNodeLink(NodeLink* node, usize size)
+NodeLink* nl_put_after_with(GeneralAllocator* allocator, NodeLink* node, usize size)
 {
-    NodeLink* next = initNodeLink(size);
+    NodeLink* next = nl_init_with(allocator, size);
     node->next = next;
     return next;
 }
 
-NodeLink* insertBeforeNodeLink(NodeLink* node, usize size)
+NodeLink* nl_put_before_with(GeneralAllocator* allocator, NodeLink* node, usize size)
 {
-    NodeLink* before = initNodeLink(size);
-    before->next = node;
+    NodeLink* before = nl_init_with(allocator, size);
+    if (before != NULL)
+        before->next = node;
+
     return before;
 }
 
-NodeLink* removeAfterNodeLink(NodeLink* node)
+void nl_free_with(GeneralAllocator* allocator, NodeLink* node)
+{
+    while (node != NULL) {
+        NodeLink* tmp = node->next;
+        allocator->deallocate(allocator->any, node);
+        node = tmp;
+    }
+}
+
+NodeLink* nl_init(usize size)
+{
+    return nl_init_with(&misc_libc_alloc, size);
+}
+
+NodeLink* nl_put_after(NodeLink* node, usize size)
+{
+    return nl_put_after_with(NULL, node, size);
+}
+
+NodeLink* nl_put_before(NodeLink* node, usize size)
+{
+    return nl_put_before_with(NULL, node, size);
+}
+
+NodeLink* nl_pop_after(NodeLink* node)
 {
     NodeLink* next = node->next;
     NodeLink* tmp = next != NULL ? next->next : NULL;
@@ -157,16 +380,17 @@ NodeLink* removeAfterNodeLink(NodeLink* node)
     return next;
 }
 
-NodeLink* findLastNodeLink(NodeLink* node)
+NodeLink* nl_last(NodeLink* node)
 {
-    if (node == NULL) return NULL;
+    if (node == NULL)
+        return NULL;
     while (node->next != NULL)
         node = node->next;
 
     return node;
 }
 
-void* valueOfNodeLink(NodeLink* node)
+void* nl_value(NodeLink* node)
 {
     /*
     32-bit: size 4
@@ -179,7 +403,7 @@ void* valueOfNodeLink(NodeLink* node)
     return (u8*)node + sizeof *node;
 }
 
-usize lengthOfNodeLink(NodeLink* node)
+usize nl_len(NodeLink* node)
 {
     usize count = 0;
     while (node != NULL)
@@ -189,24 +413,24 @@ usize lengthOfNodeLink(NodeLink* node)
     return count;
 }
 
-void freeNodeLink(NodeLink* node)
+void nl_free(NodeLink* node)
 {
-    while (node != NULL) {
-        NodeLink* tmp = node->next;
-        free(node);
-        node = tmp;
-    }
+    nl_free_with(&misc_libc_alloc, node);
 }
 #endif
 
 typedef struct Arena Arena;
-#define alignUp(size) (((size) + MISC_ALIGN - 1) & ~(MISC_ALIGN - 1))
 
-Arena* initArena(usize size);
-void* allocArena(Arena* arena, usize size);
-void* reallocArena(Arena* arena, void* ptr, usize sizeBefore, usize sizeAfter);
-void freeArena(Arena* arena);
-usize sizeOfArena(Arena* arena);
+Arena* arena_init_with(GeneralAllocator* allocator, usize size);
+void* arena_alloc_with(GeneralAllocator* allocator, Arena* arena, usize size);
+void* arena_realloc_with(GeneralAllocator* allocator, Arena* arena, void* ptr, usize size_before, usize size_after);
+void arena_free_with(GeneralAllocator* allocator, Arena* arena);
+
+Arena* arena_init(usize size);
+void* arena_alloc(Arena* arena, usize size);
+void* arena_realloc(Arena* arena, void* ptr, usize size_before, usize size_after);
+void arena_free(Arena* arena);
+usize arena_size(Arena* arena);
 
 #ifdef MISC_IMPL
 typedef struct {
@@ -221,31 +445,44 @@ struct Arena {
         *last;
 };
 
-Arena* initArena(usize size)
+Arena* arena_init_with(GeneralAllocator* allocator, usize size)
 {
-    if (size < 1) return NULL;
-    Arena* arena = strictAlloc(sizeof *arena);
-    ArenaBody body = { .cap = size };
-    arena->head = initNodeLink(sizeof body + size);
-    arena->last = arena->head;
+    if (size < 1)
+        return NULL;
 
-    ArenaBody* value = valueOfNodeLink(arena->head);
+    Arena* arena = allocator->allocate(allocator->any, sizeof *arena, MISC_ALIGN);
+    if (arena == NULL)
+        return NULL;
+
+    ArenaBody body = { .cap = size };
+    arena->head = nl_init_with(allocator, sizeof body + size);
+    if (arena->head == NULL) {
+        allocator->deallocate(allocator->any, arena);
+        return NULL;
+    }
+
+    arena->last = arena->head;
+    ArenaBody* value = nl_value(arena->head);
     *value = body;
     return arena;
 }
 
-void* allocArena(Arena* arena, usize size)
+void* arena_alloc_with(
+    GeneralAllocator* allocator,
+    Arena* arena,
+    usize size)
 {
-    if (arena == NULL || size < 1) return NULL;
+    if (arena == NULL || size < 1)
+        return NULL;
 
     NodeLink* last = arena->last;
-    ArenaBody* body = valueOfNodeLink(last);
+    ArenaBody* body = nl_value(last);
 
     /*
     Make @size divisible by the host default alignment.
     On 64-bit, that would be 8 bytes, while 32-bit is 4 bytes.
 
-    This is important, if the caller provide the size for @initArena
+    This is important, if the caller provide the size for @arena_init
     that is considered odd or misaligned by the OS, the @size here will
     make that irrelevant, since if it doesn't had enough capacity by the
     @size + (additional to make the @size aligned), it will create a new
@@ -256,16 +493,18 @@ void* allocArena(Arena* arena, usize size)
     the example, and it absolutely blew up my terminal with stack trace because
     the program trying to access memory that is not aligned. (fuckin learned it the hard way dawg✌️😭)
     */
-    size = alignUp(size);
+    size = misc_align_up(size);
 
     if (body->cap - body->len < size) {
         usize new_size = (body->cap > size ? body->cap : size) + size;
         ArenaBody newer = { .cap = new_size };
-        NodeLink* new_tail = insertAfterNodeLink(last, sizeof newer + new_size);
+        NodeLink* new_tail = nl_put_after_with(allocator, last, sizeof newer + new_size);
+        if (new_tail == NULL)
+            return NULL;
 
         arena->last = new_tail;
         last = arena->last;
-        body = valueOfNodeLink(last);
+        body = nl_value(last);
         *body = newer;
     }
 
@@ -274,37 +513,65 @@ void* allocArena(Arena* arena, usize size)
     return ptr;
 }
 
-void* reallocArena(
+void* arena_realloc_with(
+    GeneralAllocator* allocator,
     Arena* arena,
-    void*  ptr,
-    usize  sizeBefore,
-    usize  sizeAfter)
+    void* ptr,
+    usize size_before,
+    usize size_after)
 {
-    if (arena == NULL || sizeAfter == 0) return NULL;
+    if (arena == NULL || size_after == 0)
+        return NULL;
 
-    void* newer = allocArena(arena, sizeAfter);
-    if (ptr == NULL) return newer;
+    void* newer = arena_alloc_with(allocator, arena, size_after);
+    if (ptr == NULL)
+        return newer;
 
-    usize trueSize = sizeBefore > sizeAfter ? sizeAfter : sizeBefore;
-    return memmove(newer, ptr, trueSize);
+    usize true_size = size_before > size_after ? size_after : size_before;
+    return memmove(newer, ptr, true_size);
 }
 
-void freeArena(Arena* arena)
+void arena_free_with(GeneralAllocator* allocator, Arena* arena)
 {
     if (arena != NULL) {
-        freeNodeLink(arena->head);
-        free(arena);
+        nl_free_with(allocator, arena->head);
+        allocator->deallocate(allocator->any, arena);
     }
 }
 
-usize sizeOfArena(Arena* arena)
+Arena* arena_init(usize size)
+{
+    return arena_init_with(&misc_libc_alloc, size);
+}
+
+void* arena_alloc(Arena* arena, usize size)
+{
+    return arena_alloc_with(&misc_libc_alloc, arena, size);
+}
+
+void* arena_realloc(
+    Arena* arena,
+    void* ptr,
+    usize size_before,
+    usize size_after)
+{
+    return arena_realloc_with(&misc_libc_alloc, arena, ptr, size_before, size_after);
+}
+
+void arena_free(Arena* arena)
+{
+    arena_free_with(&misc_libc_alloc, arena);
+}
+
+usize arena_size(Arena* arena)
 {
     usize size = 0;
-    if (arena == NULL) return size;
+    if (arena == NULL)
+        return size;
 
     NodeLink* node = arena->head;
     while (node != NULL) {
-        ArenaBody* body = valueOfNodeLink(node);
+        ArenaBody* body = nl_value(node);
         size += body->cap;
         node = node->next;
     }
@@ -314,17 +581,17 @@ usize sizeOfArena(Arena* arena)
 
 #define MISC_ARRAY_RESERVE (8)
 
-#define Array(T)    \
-    struct {        \
-        T* items;   \
-        usize cap;  \
-        usize len;  \
+#define Array(T)   \
+    struct {       \
+        T* items;  \
+        usize cap; \
+        usize len; \
     }
 
-#define isArrayEmpty(array) ((array) != NULL ? ((array)->items == NULL || (array)->cap < 1) : 1)
-#define remainsOfArray(array) ((array) != NULL ? ((array)->cap - (array)->len) : 0)
+#define array_is_empty(array) ((array) != NULL ? ((array)->items == NULL || (array)->cap < 1) : 1)
+#define array_remains(array) ((array) != NULL ? ((array)->cap - (array)->len) : 0)
 
-#define tryResizeArray(array, N, ok)                                         \
+#define array_try_resize(array, N, ok)                                       \
     do {                                                                     \
         if ((N) <= 0) {                                                      \
             free((array)->items);                                            \
@@ -352,21 +619,21 @@ usize sizeOfArena(Arena* arena)
         }                                                                    \
     } while (0)
 
-#define tryAppendArray(array, item, ok)                                     \
+#define array_try_append(array, item, ok)                                   \
     do {                                                                    \
         if ((array)->cap <= (array)->len) {                                 \
-            tryResizeArray(array, (array)->cap + MISC_ARRAY_RESERVE, ok);   \
+            array_try_resize(array, (array)->cap + MISC_ARRAY_RESERVE, ok); \
         }                                                                   \
         if (*(ok)) {                                                        \
             (array)->items[(array)->len++] = (item);                        \
         }                                                                   \
     } while (0)
 
-#define tryExtendArray(array, many_ptr, N, ok)                                                \
+#define array_try_extend(array, many_ptr, N, ok)                                              \
     do {                                                                                      \
         if ((many_ptr) != NULL && (N) > 0) {                                                  \
-            if (isArrayEmpty(array) || remainsOfArray(array) <= (N)) {                        \
-                tryResizeArray(array, (array)->cap + (N) + MISC_ARRAY_RESERVE, ok);           \
+            if (array_is_empty(array) || array_remains(array) <= (N)) {                       \
+                array_try_resize(array, (array)->cap + (N) + MISC_ARRAY_RESERVE, ok);         \
                 if (!*(ok)) {                                                                 \
                     break;                                                                    \
                 }                                                                             \
@@ -379,28 +646,28 @@ usize sizeOfArena(Arena* arena)
         }                                                                                     \
     } while (0)
 
-#define resizeArray(array, N)                   \
-    do {                                        \
-        bool ok;                                \
-        tryResizeArray(array, N, &ok);          \
-        miscAssert(ok, "resizeArray() failed"); \
+#define array_resize(array, N)                    \
+    do {                                          \
+        bool ok;                                  \
+        array_try_resize(array, N, &ok);          \
+        misc_assert(ok, "array_resize() failed"); \
     } while (0)
 
-#define appendArray(array, item)                \
-    do {                                        \
-        bool ok;                                \
-        tryAppendArray(array, item, &ok);       \
-        miscAssert(ok, "appendArray() failed"); \
+#define array_append(array, item)                 \
+    do {                                          \
+        bool ok;                                  \
+        array_try_append(array, item, &ok);       \
+        misc_assert(ok, "array_append() failed"); \
     } while (0)
 
-#define extendArray(array, many_ptr, N)          \
-    do {                                         \
-        bool ok;                                 \
-        tryExtendArray(array, many_ptr, N, &ok); \
-        miscAssert(ok, "extendArray() failed");  \
+#define array_extend(array, many_ptr, N)           \
+    do {                                           \
+        bool ok;                                   \
+        array_try_extend(array, many_ptr, N, &ok); \
+        misc_assert(ok, "array_extend() failed");  \
     } while (0)
 
-#define removeArrayAt(array, index)                                               \
+#define array_remove_at(array, index)                                             \
     do {                                                                          \
         if ((array)->len > 1 && (index) < (array)->len) {                         \
             for (usize i = (index); i < (array)->len - 1; i++) {                  \
@@ -411,7 +678,7 @@ usize sizeOfArena(Arena* arena)
         }                                                                         \
     } while (0)
 
-#define reverseArray(T, array)                                \
+#define array_reverse(T, array)                               \
     do {                                                      \
         if ((array)->len > 1) {                               \
             usize front = 0, back = (array)->len - 1;         \
@@ -424,31 +691,32 @@ usize sizeOfArena(Arena* arena)
         }                                                     \
     } while (0)
 
-#define tryAppendArrayAt(array, idx, item, ok)                                                                              \
+#define array_try_append_at(array, idx, item, ok)                                                                           \
     do {                                                                                                                    \
         if ((idx) < (array)->len) {                                                                                         \
             if ((array)->cap - (array)->len <= 1) {                                                                         \
-                tryResizeArray(array, (array)->cap + MISC_ARRAY_RESERVE, ok);                                               \
-                if (!*(ok)) break;                                                                                          \
+                array_try_resize(array, (array)->cap + MISC_ARRAY_RESERVE, ok);                                             \
+                if (!*(ok))                                                                                                 \
+                    break;                                                                                                  \
             }                                                                                                               \
             memmove((array)->items + ((idx) + 1), (array)->items + (idx), ((array)->len - (idx)) * sizeof *(array)->items); \
             (array)->items[(idx)] = (item);                                                                                 \
             (array)->len++;                                                                                                 \
             *(ok) = 1;                                                                                                      \
         } else {                                                                                                            \
-            tryAppendArray(array, item, ok);                                                                                \
+            array_try_append(array, item, ok);                                                                              \
         }                                                                                                                   \
     } while (0)
 
-#define appendArrayAt(array, idx, item)           \
-    do {                                          \
-        bool ok = false;                          \
-        tryAppendArrayAt(array, idx, item, &ok);  \
-        miscAssert(ok, "arrayAppendAt() failed"); \
+#define array_append_at(array, idx, item)                \
+    do {                                                 \
+        bool ok = false;                                 \
+        array_try_append_at(array, idx, item, &ok);      \
+        misc_assert(ok, "array_try_append_at() failed"); \
     } while (0)
 
-#define shrinkArrayToFit(array) resizeArray(array, (array)->len)
-#define freeArray(array) resizeArray(array, 0)
+#define array_make_fit(array) array_resize(array, (array)->len)
+#define array_free(array) array_resize(array, 0)
 
 #define Slice(T)        \
     struct {            \
@@ -460,7 +728,7 @@ typedef Array(char) String;
 typedef Slice(char) StringView;
 
 // Exclusive
-#define initSlice(slice, ptr, length, begin, end)     \
+#define slice_init(slice, ptr, length, begin, end)    \
     do {                                              \
         if ((ptr) == NULL || (begin) > (end))         \
             break;                                    \
@@ -471,26 +739,26 @@ typedef Slice(char) StringView;
         (slice)->len = ((_e) - (_b));                 \
     } while (0)
 
-#define initSliceFromArray(slice, array, begin, end) initSlice(slice, (array)->items, (array)->len, begin, end)
+#define slice_from_array(slice, array, begin, end) slice_init(slice, (array)->items, (array)->len, begin, end)
 
-#define stringFmt(s) (int)(s).len, (s).items
-StringView initSvFrom(const char* cstr, usize begin, usize end);
-StringView initSvFromString(String* string, usize begin, usize end);
-bool splitSvBy(StringView* sv, const char* delims, StringView* out);
-StringView trimStartSvBy(StringView* sv, const char* delims);
-StringView trimEndSvBy(StringView* sv, const char* delims);
-StringView trimSvBy(StringView* sv, const char* delims);
-void toStringUppercase(String* string);
-void toStringLowercase(String* string);
-String stringPrintf(const char* fmt, ...);
-String readStreamToString(FILE* file);
-String readFileToString(const char* path);
-char* cstrArenaPrintf(Arena* arena, const char* fmt, ...);
-char* cstrPrintf(const char* fmt, ...);
+#define string_fmt(s) (int)(s).len, (s).items
+StringView sv_from(const char* cstr, usize begin, usize end);
+StringView sv_from_string(String* string, usize begin, usize end);
+bool sv_split_by(StringView* sv, const char* delims, StringView* out);
+StringView sv_trim_start_by(StringView* sv, const char* delims);
+StringView sv_trim_end_by(StringView* sv, const char* delims);
+StringView sv_trim_by(StringView* sv, const char* delims);
+void string_to_upper(String* string);
+void string_to_lower(String* string);
+String string_printf(const char* fmt, ...);
+String string_read_file(FILE* file);
+String string_read_path(const char* path);
+char* cstr_arena_printf(GeneralAllocator* allocator, Arena* arena, const char* fmt, ...);
+char* cstr_printf(const char* fmt, ...);
 
 #ifdef MISC_IMPL
 
-static bool isDelimsMatch(char target, const char* delims)
+static bool is_delims_match(char target, const char* delims)
 {
     for (usize i = 0; i < strlen(delims); i++) {
         if (delims[i] == target)
@@ -499,13 +767,14 @@ static bool isDelimsMatch(char target, const char* delims)
     return false;
 }
 
-StringView trimStartSvBy(StringView* sv, const char* delims)
+StringView sv_trim_start_by(StringView* sv, const char* delims)
 {
-    StringView result = {0};
-    if (sv->len < 1) return result;
+    StringView result = { 0 };
+    if (sv->len < 1)
+        return result;
 
     usize i = 0;
-    while (i < sv->len && isDelimsMatch(sv->items[i], delims))
+    while (i < sv->len && is_delims_match(sv->items[i], delims))
         i++;
 
     result.items = sv->items + i;
@@ -513,13 +782,14 @@ StringView trimStartSvBy(StringView* sv, const char* delims)
     return result;
 }
 
-StringView trimEndSvBy(StringView* sv, const char* delims)
+StringView sv_trim_end_by(StringView* sv, const char* delims)
 {
-    StringView result = {0};
-    if (sv->len < 1) return result;
+    StringView result = { 0 };
+    if (sv->len < 1)
+        return result;
 
     usize i = sv->len - 1;
-    while (i > 0 && isDelimsMatch(sv->items[i], delims))
+    while (i > 0 && is_delims_match(sv->items[i], delims))
         i--;
 
     result.items = sv->items;
@@ -530,21 +800,22 @@ StringView trimEndSvBy(StringView* sv, const char* delims)
     return result;
 }
 
-StringView trimSvBy(StringView* sv, const char* delims)
+StringView sv_trim_by(StringView* sv, const char* delims)
 {
-    StringView result = trimStartSvBy(sv, delims);
-    return trimEndSvBy(&result, delims);
+    StringView result = sv_trim_start_by(sv, delims);
+    return sv_trim_end_by(&result, delims);
 }
 
-bool splitSvBy(
+bool sv_split_by(
     StringView* sv,
     const char* delims,
     StringView* out)
 {
-    if (sv->len == 0) return false;
+    if (sv->len == 0)
+        return false;
 
     usize i = 0;
-    while (i < sv->len && !isDelimsMatch(sv->items[i], delims))
+    while (i < sv->len && !is_delims_match(sv->items[i], delims))
         i += 1;
 
     StringView result = {
@@ -560,25 +831,26 @@ bool splitSvBy(
         sv->items += i;
     }
 
-    if (out != NULL) *out = result;
+    if (out != NULL)
+        *out = result;
     return true;
 }
 
-StringView initSvFrom(
+StringView sv_from(
     const char* cstr,
-    usize       begin,
-    usize       end)
+    usize begin,
+    usize end)
 {
-    StringView ref = {0};
+    StringView ref = { 0 };
     if (cstr == NULL || end < begin)
         return ref;
 
     usize len = strlen(cstr);
-    initSlice(&ref, cstr, len, begin, end);
+    slice_init(&ref, cstr, len, begin, end);
     return ref;
 }
 
-void toStringUppercase(String* string)
+void string_to_upper(String* string)
 {
     for (usize i = 0; i < string->len; i++) {
         if (islower(string->items[i]))
@@ -586,56 +858,58 @@ void toStringUppercase(String* string)
     }
 }
 
-void toStringLowercase(String* string)
+void string_to_lower(String* string)
 {
-    for (usize i = 0; i < string->len; i++) 
+    for (usize i = 0; i < string->len; i++)
         if (isupper(string->items[i]))
             string->items[i] = tolower(string->items[i]);
-    
 }
 
-String readStreamToString(FILE* file)
+String string_read_file(FILE* file)
 {
-    String string = {0};
+    String string = { 0 };
     if (feof(file))
         return string;
 
     long pos;
-    if (fseek(file, 0, SEEK_END) != 0) return string;
-    if ((pos = ftell(file)) <= 0) return string;
+    if (fseek(file, 0, SEEK_END) != 0)
+        return string;
+    if ((pos = ftell(file)) <= 0)
+        return string;
 
     rewind(file);
-    resizeArray(&string, (usize)pos + 1);
+    array_resize(&string, (usize)pos + 1);
     fread(string.items, 1, string.cap, file);
     string.len = (usize)pos;
     return string;
 }
 
-String readFileToString(const char* path)
+String string_read_path(const char* path)
 {
-    String result = {0};
+    String result = { 0 };
     FILE* file = fopen(path, "r");
     if (file != NULL) {
-        result = readStreamToString(file);
+        result = string_read_file(file);
         fclose(file);
     }
     return result;
 }
 
-StringView initSvFromString(
+StringView sv_from_string(
     String* str,
-    usize   begin,
-    usize   end)
+    usize begin,
+    usize end)
 {
-    StringView ref = {0};
-    initSliceFromArray(&ref, str, begin, end);
+    StringView ref = { 0 };
+    slice_from_array(&ref, str, begin, end);
     return ref;
 }
 
-char* cstrArenaPrintf(
-    Arena*      arena,
+char* cstr_arena_printf(
+    GeneralAllocator* allocator,
+    Arena* arena,
     const char* fmt,
-                ...)
+    ...)
 {
     va_list va;
     char* buf = NULL;
@@ -646,7 +920,7 @@ char* cstrArenaPrintf(
     va_end(va);
 
     if (size > 0) {
-        buf = allocArena(arena, (usize)size + 1);
+        buf = allocator == NULL ? arena_alloc(arena, (usize)size + 1) : arena_alloc_with(allocator, arena, (usize)size + 1);
         va_start(va, fmt);
         vsnprintf(buf, (usize)size + 1, fmt, va);
         va_end(va);
@@ -655,7 +929,7 @@ char* cstrArenaPrintf(
     return buf;
 }
 
-char* cstrPrintf(const char* fmt, ...)
+char* cstr_printf(const char* fmt, ...)
 {
     va_list va;
     char* buf = NULL;
@@ -666,7 +940,7 @@ char* cstrPrintf(const char* fmt, ...)
     va_end(va);
 
     if (size > 0) {
-        buf = strictAlloc((usize)size + 1);
+        buf = misc_strict_alloc((usize)size + 1);
         va_start(va, fmt);
         vsnprintf(buf, (usize)size + 1, fmt, va);
         va_end(va);
@@ -675,16 +949,16 @@ char* cstrPrintf(const char* fmt, ...)
     return buf;
 }
 
-String stringPrintf(const char* fmt, ...)
+String string_printf(const char* fmt, ...)
 {
-    String str = {0};
+    String str = { 0 };
     va_list va;
     va_start(va, fmt);
     int size = vsnprintf(NULL, 0, fmt, va);
     va_end(va);
 
     if (size > 0) {
-        resizeArray(&str, (usize)size + 1);
+        array_resize(&str, (usize)size + 1);
         va_start(va, fmt);
         vsnprintf(str.items, str.cap, fmt, va);
         va_end(va);
@@ -723,14 +997,14 @@ each with the size.
 K* and V* will be DEEP COPIED from caller into the table.
 If user trying to get a value from a said table, the user must NOT
 at ANY circumstances, calling free() on the return value directly.
-That would resulting in double free after the call of freeMap().
+That would resulting in double free after the call of map_free().
 
 K* and V* value from the table will be freed when:
-1. Call of deleteFromMap()
-2. Call of freeMap()
+1. Call of map_delete()
+2. Call of map_free()
 
-freeMap() will free all the backing memory of K* and V* thoroughly
-until N capacity of table. deleteFromMap() will only free
+map_free() will free all the backing memory of K* and V* thoroughly
+until N capacity of table. map_delete() will only free
 1 entry of K and V, marking it as tombstone and can be used again
 if needed.
 
@@ -740,13 +1014,13 @@ typedef struct {
     void* key;
     void* value;
     u64 hash;
-    usize keyLen;
+    usize key_size;
 } MapEntry;
 
 typedef struct {
     const void* key;
     const void* value;
-    usize keyLen;
+    usize key_size;
     usize pos;
 } MapKV;
 
@@ -756,38 +1030,36 @@ typedef struct {
     usize len;
 } Map;
 
-u64 initFNV(const void* ptr, usize size);
-void initMap(Map* map);
-void putInMap(Map* map, const void* key, usize keyLen, const void* value, usize valueSize);
-void* getFromMap(Map* map, const void* key, usize keyLen);
-void deleteFromMap(Map* map, const void* key, usize keyLen);
-bool iterateMap(Map* map, MapKV* input);
-void freeMap(Map* map);
+u64 misc_fnv1a(const void* ptr, usize size);
+void map_init(Map* map);
+void map_put(Map* map, const void* key, usize key_size, const void* value, usize value_size);
+void* map_get(Map* map, const void* key, usize key_size);
+void map_delete(Map* map, const void* key, usize key_size);
+bool map_iterate(Map* map, MapKV* input);
+void map_free(Map* map);
 
 #ifdef MISC_IMPL
-#define mapLoadFactor(map) ((f64)(map)->len / (f64)(map)->cap)
+#define map_load_factor(map) ((f64)(map)->len / (f64)(map)->cap)
 
-void initMap(Map* map)
+void map_init(Map* map)
 {
-    resizeArray(map, MISC_MAP_MINIMUM);
+    array_resize(map, MISC_MAP_MINIMUM);
 }
 
-static bool compareKey(
-    MapEntry*   dst,
+static bool compare_key(
+    MapEntry* dst,
     const void* key,
-    usize       keyLen,
-    u64         hash)
+    usize key_size,
+    u64 hash)
 {
-    return dst->keyLen == keyLen &&
-           dst->hash   == hash   &&
-           memcmp(dst->key, key, keyLen) == 0;
+    return dst->key_size == key_size && dst->hash == hash && memcmp(dst->key, key, key_size) == 0;
 }
 
-static MapEntry* findMapEntry(
-    Map*        map,
+static MapEntry* me_find(
+    Map* map,
     const void* key,
-    usize       keyLen,
-    u64         hash)
+    usize key_size,
+    u64 hash)
 {
     usize idx = hash & (map->cap - 1);
     MapEntry* tombstone = NULL;
@@ -798,19 +1070,20 @@ static MapEntry* findMapEntry(
             if (entry->value == NULL) {
                 return tombstone != NULL ? tombstone : entry;
             } else {
-                if (tombstone == NULL) tombstone = entry;
+                if (tombstone == NULL)
+                    tombstone = entry;
             }
-        } else if (compareKey(entry, key, keyLen, hash)) {
+        } else if (compare_key(entry, key, key_size, hash)) {
             return entry;
         }
         idx = (idx + 1) & (map->cap - 1);
     }
 }
 
-static void growMap(Map* map, usize into)
+static void map_grow(Map* map, usize into)
 {
-    Map newer = {0};
-    resizeArray(&newer, into);
+    Map newer = { 0 };
+    array_resize(&newer, into);
     newer.len = map->len;
 
     for (usize i = 0; i < map->cap; i++) {
@@ -818,61 +1091,63 @@ static void growMap(Map* map, usize into)
         if (entry->key == NULL)
             continue;
 
-        MapEntry* dest = findMapEntry(&newer, entry->key, entry->keyLen, entry->hash);
+        MapEntry* dest = me_find(&newer, entry->key, entry->key_size, entry->hash);
         *dest = *entry;
     }
 
-    freeArray(map);
+    array_free(map);
     *map = newer;
 }
 
-void putInMap(
-    Map*        map,
+void map_put(
+    Map* map,
     const void* key,
-    usize       keyLen,
+    usize key_size,
     const void* value,
-    usize       valueSize)
+    usize value_size)
 {
     if (map->cap < MISC_MAP_MINIMUM) {
-        initMap(map);
-    } else if (mapLoadFactor(map) >= MISC_MAP_LOADF) {
-        growMap(map, map->cap * 2);
+        map_init(map);
+    } else if (map_load_factor(map) >= MISC_MAP_LOADF) {
+        map_grow(map, map->cap * 2);
     }
 
-    u64 hash = initFNV(key, keyLen);
-    MapEntry* entry = findMapEntry(map, key, keyLen, hash);
+    u64 hash = misc_fnv1a(key, key_size);
+    MapEntry* entry = me_find(map, key, key_size, hash);
     bool isNewKey = entry->key == NULL;
     if (isNewKey) {
-        usize merge = keyLen + valueSize;
-        usize roundUp = alignUp(merge);
-        u8* pool = strictAlloc(roundUp);
+        usize merge = key_size + value_size;
+        usize round_up = misc_align_up(merge);
+        u8* pool = misc_strict_alloc(round_up);
         entry->key = pool;
-        entry->value = pool + keyLen + (roundUp - merge);
-        entry->keyLen = keyLen;
+        entry->value = pool + key_size + (round_up - merge);
+        entry->key_size = key_size;
         entry->hash = hash;
-        memmove(entry->key, key, keyLen);
+        memmove(entry->key, key, key_size);
         map->len++;
     }
-    memmove(entry->value, value, valueSize);
+    memmove(entry->value, value, value_size);
 }
 
-void* getFromMap(
-    Map*        map,
+void* map_get(
+    Map* map,
     const void* key,
-    usize       keyLen)
+    usize key_size)
 {
-    MapEntry* entry = findMapEntry(map, key, keyLen, initFNV(key, keyLen));
-    if (entry->key != NULL) return entry->value;
+    MapEntry* entry = me_find(map, key, key_size, misc_fnv1a(key, key_size));
+    if (entry->key != NULL)
+        return entry->value;
     return NULL;
 }
 
-void deleteFromMap(
-    Map*        map,
+void map_delete(
+    Map* map,
     const void* key,
-    usize       keyLen)
+    usize key_size)
 {
-    MapEntry* entry = findMapEntry(map, key, keyLen, initFNV(key, keyLen));
-    if (entry->key == NULL) return;
+    MapEntry* entry = me_find(map, key, key_size, misc_fnv1a(key, key_size));
+    if (entry->key == NULL)
+        return;
 
     free(entry->key);
     memset(entry, 0, sizeof *entry);
@@ -880,7 +1155,7 @@ void deleteFromMap(
     map->len--;
 }
 
-void freeMap(Map* map)
+void map_free(Map* map)
 {
     for (usize i = 0; i < map->cap; i++) {
         MapEntry entry = map->items[i];
@@ -889,17 +1164,17 @@ void freeMap(Map* map)
 
         free(entry.key);
     }
-    freeArray(map);
+    array_free(map);
 }
 
-bool iterateMap(Map* map, MapKV* input)
+bool map_iterate(Map* map, MapKV* input)
 {
     for (; input->pos < map->cap; input->pos++) {
         MapEntry entry = map->items[input->pos];
         if (entry.key != NULL) {
             input->key = entry.key;
             input->value = entry.value;
-            input->keyLen = entry.keyLen;
+            input->key_size = entry.key_size;
             input->pos++;
             return true;
         }
@@ -909,15 +1184,15 @@ bool iterateMap(Map* map, MapKV* input)
     return false;
 }
 
-u64 initFNV(const void* ptr, usize size)
+u64 misc_fnv1a(const void* ptr, usize size)
 {
     const u8* bytes = ptr;
-    u64 baseValue = MISC_FNV_BASIS;
+    u64 base_val = MISC_FNV_BASIS;
     for (u64 i = 0; i < size; i++) {
-        baseValue *= MISC_FNV_PRIME;
-        baseValue ^= bytes[i];
+        base_val *= MISC_FNV_PRIME;
+        base_val ^= bytes[i];
     }
-    return baseValue;
+    return base_val;
 }
 
 #endif
@@ -928,7 +1203,7 @@ Ring buffer, Circular buffer, Cyclic buffer.
 This is a wrapper around fixed-size buffer that let you
 read/write at a specific position without worried about
 doing it past its size, because if it does, it'll wrap
-around to position 0 instead of going past the size of buffer. 
+around to position 0 instead of going past the size of buffer.
 
 [ H, e, l, l, o, 0x0, 0x0, 0x0 ]
   ↑               ↑
@@ -942,59 +1217,59 @@ around to position 0 instead of going past the size of buffer.
 
 typedef struct {
     void* buffer;
-    usize writePos,
-          readPos,
-          len;
+    usize
+        write_pos,
+        read_pos,
+        len;
 } RingBuffer;
 
-RingBuffer initRbFrom(void* buffer, usize len);
-usize writeToRb(RingBuffer* rb, const void* src, usize len);
-usize readFromRb(RingBuffer* rb, void* dst, usize len);
-void seekWriteRb(RingBuffer* rb, isize len, int whence);
-void seekReadRb(RingBuffer* rb, isize len, int whence);
-void clearRb(RingBuffer* rb);
+RingBuffer rb_init(void* buffer, usize len);
+usize rb_write(RingBuffer* rb, const void* src, usize len);
+usize rb_read(RingBuffer* rb, void* dst, usize len);
+void rb_seek_write(RingBuffer* rb, isize len, int whence);
+void rb_seek_read(RingBuffer* rb, isize len, int whence);
+void rb_clear(RingBuffer* rb);
 
 #ifdef MISC_IMPL
-RingBuffer initRbFrom(void* buffer, usize len)
+RingBuffer rb_init(void* buffer, usize len)
 {
-    return (RingBuffer){
-        .buffer   = buffer,
-        .len      = len,
-        .writePos = 0,
-        .readPos  = 0,
+    return (RingBuffer) {
+        .buffer = buffer,
+        .len = len,
+        .write_pos = 0,
+        .read_pos = 0,
     };
 }
 
-usize writeToRb(RingBuffer* rb, const void* src, usize len)
+usize rb_write(RingBuffer* rb, const void* src, usize len)
 {
     const u8* repr = src;
     u8* buf = rb->buffer;
 
     usize i;
-    for (i = 0; i < len; i++, rb->writePos = (rb->writePos + 1) % rb->len) {
-        buf[rb->writePos] = repr[i];
+    for (i = 0; i < len; i++, rb->write_pos = (rb->write_pos + 1) % rb->len) {
+        buf[rb->write_pos] = repr[i];
     }
 
     return i;
 }
 
-usize readFromRb(RingBuffer* rb, void* dst, usize len)
+usize rb_read(RingBuffer* rb, void* dst, usize len)
 {
     u8* repr = dst;
     const u8* buf = rb->buffer;
 
     usize i;
     for (i = 0;
-         i < len;
-         i++, rb->readPos = (rb->readPos + 1) % rb->len)
-    {
-        repr[i] = buf[rb->readPos];
+        i < len;
+        i++, rb->read_pos = (rb->read_pos + 1) % rb->len) {
+        repr[i] = buf[rb->read_pos];
     }
 
     return i;
 }
 
-void seekWriteRb(RingBuffer* rb, isize len, int whence)
+void rb_seek_write(RingBuffer* rb, isize len, int whence)
 {
     switch (whence) {
     case SEEK_SET:
@@ -1002,7 +1277,7 @@ void seekWriteRb(RingBuffer* rb, isize len, int whence)
         break;
 
     case SEEK_CUR:
-        len = (len + (isize)rb->writePos) % rb->len;
+        len = (len + (isize)rb->write_pos) % rb->len;
         break;
 
     case SEEK_END:
@@ -1013,10 +1288,10 @@ void seekWriteRb(RingBuffer* rb, isize len, int whence)
         return;
     }
 
-    rb->writePos = (usize)len;
+    rb->write_pos = (usize)len;
 }
 
-void seekReadRb(RingBuffer* rb, isize len, int whence)
+void rb_seek_read(RingBuffer* rb, isize len, int whence)
 {
     switch (whence) {
     case SEEK_SET:
@@ -1024,7 +1299,7 @@ void seekReadRb(RingBuffer* rb, isize len, int whence)
         break;
 
     case SEEK_CUR:
-        len = (len + (isize)rb->readPos) % rb->len;
+        len = (len + (isize)rb->read_pos) % rb->len;
         break;
 
     case SEEK_END:
@@ -1035,14 +1310,14 @@ void seekReadRb(RingBuffer* rb, isize len, int whence)
         return;
     }
 
-    rb->readPos = (usize)len;    
+    rb->read_pos = (usize)len;
 }
 
-void clearRb(RingBuffer* rb)
+void rb_clear(RingBuffer* rb)
 {
     memset(rb->buffer, 0, rb->len);
-    rb->writePos = 0;
-    rb->readPos = 0;
+    rb->write_pos = 0;
+    rb->read_pos = 0;
 }
 
 #endif
