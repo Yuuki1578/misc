@@ -3,7 +3,7 @@
 
 int main(void)
 {
-    void* alloc = &misc_mmap_alloc;
+    void* alloc = misc_mmap_alloc;
     Arena* arena = arena_init_with(alloc, 1 << 16);
     char* buf;
 

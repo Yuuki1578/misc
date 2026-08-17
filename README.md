@@ -18,6 +18,11 @@ This will work on every compiler that follows C standard 99.
 #include "misc.h"
 ```
 
+As a shared library
+```bash
+cc -xc misc.h -DMISC_IMPL -shared -fPIC -o libmisc.so
+```
+
 ## Building the examples
 ### Nob
 ```bash

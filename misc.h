@@ -80,8 +80,11 @@ typedef struct {
     void (*deallocate)(void* any, void* ptr);
 } GeneralAllocator;
 
-extern GeneralAllocator misc_libc_alloc;
-extern GeneralAllocator misc_mmap_alloc;
+// Use this for most of the time
+extern GeneralAllocator* const misc_libc_alloc;
+
+// You'll rarely use this anyway
+extern GeneralAllocator* const misc_mmap_alloc;
 
 #define misc_palign(ptr, align) ((void*)(((uintptr_t)(ptr) + (align) - 1) & ~((align) - 1)))
 #define misc_align_up(size) ((uintptr_t)misc_palign(size, 8))
@@ -130,11 +133,13 @@ void misc_free(void* any, void* ptr)
     free(ptr);
 }
 
-GeneralAllocator misc_libc_alloc = {
+static GeneralAllocator libc_alloc = {
     .allocate = misc_alloc,
     .reallocate = misc_realloc,
     .deallocate = misc_free,
 };
+
+GeneralAllocator* const misc_libc_alloc = &libc_alloc;
 
 void* misc_mmap(usize size, usize alignment)
 {
@@ -260,11 +265,13 @@ void _misc_unmap(void* any, void* ptr)
     misc_unmap(ptr);
 }
 
-GeneralAllocator misc_mmap_alloc = {
+static GeneralAllocator mmap_alloc = {
     .allocate = _misc_mmap,
     .reallocate = _misc_remap,
     .deallocate = _misc_unmap,
 };
+
+GeneralAllocator* const misc_mmap_alloc = &mmap_alloc;
 
 #endif
 
@@ -359,7 +366,7 @@ void nl_free_with(GeneralAllocator* allocator, NodeLink* node)
 
 NodeLink* nl_init(usize size)
 {
-    return nl_init_with(&misc_libc_alloc, size);
+    return nl_init_with(misc_libc_alloc, size);
 }
 
 NodeLink* nl_put_after(NodeLink* node, usize size)
@@ -415,7 +422,7 @@ usize nl_len(NodeLink* node)
 
 void nl_free(NodeLink* node)
 {
-    nl_free_with(&misc_libc_alloc, node);
+    nl_free_with(misc_libc_alloc, node);
 }
 #endif
 
@@ -541,12 +548,12 @@ void arena_free_with(GeneralAllocator* allocator, Arena* arena)
 
 Arena* arena_init(usize size)
 {
-    return arena_init_with(&misc_libc_alloc, size);
+    return arena_init_with(misc_libc_alloc, size);
 }
 
 void* arena_alloc(Arena* arena, usize size)
 {
-    return arena_alloc_with(&misc_libc_alloc, arena, size);
+    return arena_alloc_with(misc_libc_alloc, arena, size);
 }
 
 void* arena_realloc(
@@ -555,12 +562,12 @@ void* arena_realloc(
     usize size_before,
     usize size_after)
 {
-    return arena_realloc_with(&misc_libc_alloc, arena, ptr, size_before, size_after);
+    return arena_realloc_with(misc_libc_alloc, arena, ptr, size_before, size_after);
 }
 
 void arena_free(Arena* arena)
 {
-    arena_free_with(&misc_libc_alloc, arena);
+    arena_free_with(misc_libc_alloc, arena);
 }
 
 usize arena_size(Arena* arena)
@@ -591,66 +598,70 @@ usize arena_size(Arena* arena)
 #define array_is_empty(array) ((array) != NULL ? ((array)->items == NULL || (array)->cap < 1) : 1)
 #define array_remains(array) ((array) != NULL ? ((array)->cap - (array)->len) : 0)
 
-#define array_try_resize(array, N, ok)                                       \
-    do {                                                                     \
-        if ((N) <= 0) {                                                      \
-            free((array)->items);                                            \
-            (array)->items = NULL;                                           \
-            (array)->cap = 0;                                                \
-            (array)->len = 0;                                                \
-            *(ok) = 1;                                                       \
-        } else {                                                             \
-            void* tmp;                                                       \
-            if ((array)->cap == 0) {                                         \
-                tmp = calloc((N), sizeof *(array)->items);                   \
-            } else {                                                         \
-                tmp = realloc((array)->items, (N) * sizeof *(array)->items); \
-            }                                                                \
-            if (tmp != NULL) {                                               \
-                *(ok) = 1;                                                   \
-                (array)->items = tmp;                                        \
-                (array)->cap = (N);                                          \
-                if ((N) < (array)->len) {                                    \
-                    (array)->len = (N);                                      \
-                }                                                            \
-            } else {                                                         \
-                *(ok) = 0;                                                   \
-            }                                                                \
-        }                                                                    \
+#define array_try_resize_with(allocator, array, N, ok)                                                                     \
+    do {                                                                                                                   \
+        if ((N) <= 0) {                                                                                                    \
+            (allocator)->deallocate((allocator)->any, (array)->items);                                                     \
+            (array)->items = NULL;                                                                                         \
+            (array)->cap = 0;                                                                                              \
+            (array)->len = 0;                                                                                              \
+            *(ok) = 1;                                                                                                     \
+        } else {                                                                                                           \
+            void* tmp;                                                                                                     \
+            if ((array)->cap == 0) {                                                                                       \
+                tmp = (allocator)->allocate((allocator)->any, (N) * sizeof *(array)->items, MISC_ALIGN);                   \
+            } else {                                                                                                       \
+                tmp = (allocator)->reallocate((allocator)->any, (array)->items, (N) * sizeof *(array)->items, MISC_ALIGN); \
+            }                                                                                                              \
+            if (tmp != NULL) {                                                                                             \
+                *(ok) = 1;                                                                                                 \
+                (array)->items = tmp;                                                                                      \
+                (array)->cap = (N);                                                                                        \
+                if ((N) < (array)->len) {                                                                                  \
+                    (array)->len = (N);                                                                                    \
+                }                                                                                                          \
+            } else {                                                                                                       \
+                *(ok) = 0;                                                                                                 \
+            }                                                                                                              \
+        }                                                                                                                  \
     } while (0)
 
-#define array_try_append(array, item, ok)                                   \
-    do {                                                                    \
-        if ((array)->cap <= (array)->len) {                                 \
-            array_try_resize(array, (array)->cap + MISC_ARRAY_RESERVE, ok); \
-        }                                                                   \
-        if (*(ok)) {                                                        \
-            (array)->items[(array)->len++] = (item);                        \
-        }                                                                   \
+#define array_try_append_with(allocator, array, item, ok)                                   \
+    do {                                                                                    \
+        if ((array)->cap <= (array)->len) {                                                 \
+            array_try_resize_with(allocator, array, (array)->cap + MISC_ARRAY_RESERVE, ok); \
+        }                                                                                   \
+        if (*(ok)) {                                                                        \
+            (array)->items[(array)->len++] = (item);                                        \
+        }                                                                                   \
     } while (0)
 
-#define array_try_extend(array, many_ptr, N, ok)                                              \
-    do {                                                                                      \
-        if ((many_ptr) != NULL && (N) > 0) {                                                  \
-            if (array_is_empty(array) || array_remains(array) <= (N)) {                       \
-                array_try_resize(array, (array)->cap + (N) + MISC_ARRAY_RESERVE, ok);         \
-                if (!*(ok)) {                                                                 \
-                    break;                                                                    \
-                }                                                                             \
-            }                                                                                 \
-            memmove((array)->items + (array)->len, (many_ptr), (N) * sizeof *(array)->items); \
-            (array)->len += (N);                                                              \
-            *(ok) = 1;                                                                        \
-        } else {                                                                              \
-            *(ok) = 0;                                                                        \
-        }                                                                                     \
+#define array_try_extend_with(allocator, array, many_ptr, N, ok)                                \
+    do {                                                                                        \
+        if ((many_ptr) != NULL && (N) > 0) {                                                    \
+            if (array_is_empty(array) || array_remains(array) <= (N)) {                         \
+                array_try_resize(allocatr, array, (array)->cap + (N) + MISC_ARRAY_RESERVE, ok); \
+                if (!*(ok)) {                                                                   \
+                    break;                                                                      \
+                }                                                                               \
+            }                                                                                   \
+            memmove((array)->items + (array)->len, (many_ptr), (N) * sizeof *(array)->items);   \
+            (array)->len += (N);                                                                \
+            *(ok) = 1;                                                                          \
+        } else {                                                                                \
+            *(ok) = 0;                                                                          \
+        }                                                                                       \
     } while (0)
+
+#define array_try_resize(array, N, ok) array_try_resize_with(misc_libc_alloc, array, N, ok)
+#define array_try_append(array, item, ok) array_try_append_with(misc_libc_alloc, array, item, ok)
+#define array_try_extend(array, items, N, ok) array_try_extend_with(misc_libc_alloc, array, items, N, ok)
 
 #define array_resize(array, N)                    \
     do {                                          \
         bool ok;                                  \
         array_try_resize(array, N, &ok);          \
-        misc_assert(ok, "array_resize() failed"); \
+        misc_assert(ok, "array_append() failed"); \
     } while (0)
 
 #define array_append(array, item)                 \
@@ -691,11 +702,11 @@ usize arena_size(Arena* arena)
         }                                                     \
     } while (0)
 
-#define array_try_append_at(array, idx, item, ok)                                                                           \
+#define array_try_append_at_with(allocator, array, idx, item, ok)                                                           \
     do {                                                                                                                    \
         if ((idx) < (array)->len) {                                                                                         \
             if ((array)->cap - (array)->len <= 1) {                                                                         \
-                array_try_resize(array, (array)->cap + MISC_ARRAY_RESERVE, ok);                                             \
+                array_try_resize_with(allocator, array, (array)->cap + MISC_ARRAY_RESERVE, ok);                             \
                 if (!*(ok))                                                                                                 \
                     break;                                                                                                  \
             }                                                                                                               \
@@ -704,10 +715,11 @@ usize arena_size(Arena* arena)
             (array)->len++;                                                                                                 \
             *(ok) = 1;                                                                                                      \
         } else {                                                                                                            \
-            array_try_append(array, item, ok);                                                                              \
+            array_try_append_with(allocator, array, item, ok);                                                              \
         }                                                                                                                   \
     } while (0)
 
+#define array_try_append_at(array, idx, item, ok) array_try_append_at_with(misc_libc_alloc, array, idx, item, ok)
 #define array_append_at(array, idx, item)                \
     do {                                                 \
         bool ok = false;                                 \
@@ -715,8 +727,23 @@ usize arena_size(Arena* arena)
         misc_assert(ok, "array_try_append_at() failed"); \
     } while (0)
 
-#define array_make_fit(array) array_resize(array, (array)->len)
-#define array_free(array) array_resize(array, 0)
+#define array_make_fit_with(allocator, array)                       \
+    do {                                                            \
+        bool ok;                                                    \
+        array_try_resize_with(allocator, array, (array)->len, &ok); \
+        (void)ok;                                                   \
+    } while (0)
+
+#define array_make_fit(array) array_make_fit_with(misc_libc_alloc, array)
+
+#define array_free_with(allocator, array)                \
+    do {                                                 \
+        bool ok;                                         \
+        array_try_resize_with(allocator, array, 0, &ok); \
+        (void)ok;                                        \
+    } while (0)
+
+#define array_free(array) array_free_with(misc_libc_alloc, array)
 
 #define Slice(T)        \
     struct {            \
