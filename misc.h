@@ -89,6 +89,7 @@ extern Misc_Allocator* const misc_mmap_alloc;
 #define misc_palign(ptr, align) ((void*)(((uintptr_t)(ptr) + (align) - 1) & ~((align) - 1)))
 #define misc_align_up(size) ((uintptr_t)misc_palign(size, 8))
 
+// Use these functions if you want to allocate huge amount of memory, use case: custom page allocator
 void* misc_mmap(usize size, usize alignment);
 void* misc_remap(void* ptr, usize size, usize alignment);
 void misc_unmap(void* ptr);
@@ -141,6 +142,14 @@ static Misc_Allocator libc_alloc = {
 
 Misc_Allocator* const misc_libc_alloc = &libc_alloc;
 
+/*
+
+Oh boy, turns out there is a function like mmap in windows, it's VirtualAlloc and VirtualFree!
+Before that, i fucking use the CreateFileMapping and use Map/UnmapViewOfFile manually and store
+the handle inside the pointer, along with the size of it, so 1 byte allocation with natural alignment
+of 8 bytes will resulted in 24 bytes allocated virtual memory lmaooo.
+
+*/
 void* misc_mmap(usize size, usize alignment)
 {
     void* ptr;
@@ -1204,7 +1213,7 @@ typedef struct {
         len;
 } Ring_Buffer;
 
-Ring_Buffer rb_init(void* buffer, usize len);
+Ring_Buffer rb_init(void* buffer /* assume aligned */, usize len);
 usize rb_write(Ring_Buffer* rb, const void* src, usize len);
 usize rb_read(Ring_Buffer* rb, void* dst, usize len);
 void rb_seek_write(Ring_Buffer* rb, isize len, int whence);
