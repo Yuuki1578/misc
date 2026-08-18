@@ -18,7 +18,7 @@ int main(void)
     };
 
     for (usize i = 0; i < 1024; i++) {
-        buf = cstr_printf(&alloc, "STRING IS: %zu:%zu:%zu\n", i, i * 2, i * 3);
+        buf = cstr_printf(&alloc, "STRING IS: %zu:%zu:%zu, hash = %lu\n", i, i * 2, i * 3, misc_fnv1a(&i, sizeof i));
         printf("%s", buf);
     }
 

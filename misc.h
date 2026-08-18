@@ -516,6 +516,19 @@ usize arena_size(Arena* arena)
 }
 #endif
 
+/*
+
+Fixed size arena / Bump allocator.
+
+Note that unlike the Arena above, this one doesn't manage it's own alignment.
+So the caller must allocate to the natural alignment of the data types, like 1, 2, 4, 8, 16, 24, 32 etc.
+
+WARN:
+Last reminder, KEEP THAT IN MIND!
+This warning will be red on helix editor.
+
+*/
+
 typedef struct {
     void* buffer;
     usize cap, len;
@@ -529,11 +542,7 @@ void* fa_alloc(Fixed_Arena* fa, usize size)
 {
     void* buffer;
 
-    if (size == 0)
-        return NULL;
-
-    size = misc_align_up(size);
-    if (size > fa->cap - fa->len)
+    if (size == 0 || size > fa->cap - fa->len)
         return NULL;
 
     buffer = (u8*)fa->buffer + fa->len;
@@ -983,10 +992,10 @@ bool hm_put_with(Misc_Allocator* allocator, Hash_Map* map, const void* key, usiz
 bool hm_delete_with(Misc_Allocator* allocator, Hash_Map* map, const void* key, usize key_size);
 void hm_free_with(Misc_Allocator* allocator, Hash_Map* map);
 
-#define hm_init(map, capacity) map_init_with(misc_libc_alloc, map, capacity)
-#define hm_put(map, key, key_size, value, value_size) map_put_with(misc_libc_alloc, map, key, key_size, value, value_size)
-#define hm_delete(map, key, key_size) map_delete_with(misc_libc_alloc, map, key, key_size)
-#define hm_free(map) map_free_with(misc_libc_alloc, map)
+#define hm_init(map, capacity) hm_init_with(misc_libc_alloc, map, capacity)
+#define hm_put(map, key, key_size, value, value_size) hm_put_with(misc_libc_alloc, map, key, key_size, value, value_size)
+#define hm_delete(map, key, key_size) hm_delete_with(misc_libc_alloc, map, key, key_size)
+#define hm_free(map) hm_free_with(misc_libc_alloc, map)
 
 void* hm_get(Hash_Map* map, const void* key, usize key_size);
 bool hm_iterate(Hash_Map* map, Hash_Map_KV* input);

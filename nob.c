@@ -24,10 +24,12 @@ library.
 #error Compiler must be either gcc or clang
 #endif
 
-#define CFLAGS "-Wall", "-Werror", "-Wextra", "-pedantic", "-std=c11", "-ggdb", "-O0"
+#define CFLAGS "-Wall", "-Werror", "-Wextra", "-pedantic", "-std=c99"
 
 void compile_example(Nob_Cmd* cmd, Nob_Procs* procs, char* input, char* output);
 void compile_all_example(Nob_Cmd* cmd, Nob_Procs* procs);
+
+char* env_opt = NULL;
 
 int main(int argc, char** argv)
 {
@@ -35,6 +37,8 @@ int main(int argc, char** argv)
 
     Nob_Cmd cmd = { 0 };
     Nob_Procs procs = { 0 };
+
+    env_opt = getenv("opt");
 
     compile_all_example(&cmd, &procs);
     if (!nob_procs_wait_and_reset(&procs))
@@ -50,6 +54,11 @@ void compile_example(
     char* output)
 {
     nob_cmd_append(cmd, CC, CFLAGS);
+    if (env_opt != NULL)
+        nob_cmd_append(cmd, "-O3", "-ffast-math", "-funroll-loops", "-s", "-flto");
+    else
+        nob_cmd_append(cmd, "-O0", "-ggdb");
+
     nob_cc_inputs(cmd, input);
     nob_cc_output(cmd, output);
     nob_da_append(procs, nob_cmd_run_async_and_reset(cmd));
@@ -67,4 +76,5 @@ void compile_all_example(Nob_Cmd* cmd, Nob_Procs* procs)
     compile_example(cmd, procs, "examples/ringbuf.c", "build/examples/ringbuf");
     compile_example(cmd, procs, "examples/virtmap.c", "build/examples/virtmap");
     compile_example(cmd, procs, "examples/dump.c", "build/examples/dump");
+    compile_example(cmd, procs, "examples/fixed_arena.c", "build/examples/fixed_arena");
 }
