@@ -3,35 +3,18 @@
 
 int main(void)
 {
-    /*
-    Generic! though, it's anonymous struct
-    it would be kinda cool if anonymous struct is identified
-    based on their layout, so it can be passed around without taking
-    the address and convert it to void* like zig does, like:
-
-    struct {
-        int A;
-        const char* B;
-    } reverseLayout(struct {
-        const char* A;
-        int B;
-    } reversed) {
-        return (typeof(reverseLayout(reversed))){
-            .A = reversed.B,
-            .B = reversed.A,
-        };
-    }
-    */
     Array(i32) ints = { 0 };
+    Misc_Allocator* const alloc = misc_mmap_alloc;
 
-    for (i32 i = 0; i > -32; i--)
-        array_append_at(&ints, 0, i);
+    array_extend_with(alloc, &ints, ((int[3]) { 1, 2, 3 }), 3);
+    for (i32 i = 0; i > -1024; i--)
+        array_append_at_with(alloc, &ints, 0, i);
 
-    array_make_fit(&ints);
+    array_make_fit_with(alloc, &ints);
     array_reverse(i32, &ints);
     for (usize i = 0; i < ints.len; i++)
         printfn("%zu: %d", i, ints.items[i]);
 
     printfn("Capacity: %zu, Length: %zu", ints.cap, ints.len);
-    array_free(&ints);
+    array_free_with(alloc, &ints);
 }

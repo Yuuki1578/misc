@@ -5,28 +5,29 @@
 
 int main(int argc, const char** argv)
 {
+    void* alloc = misc_libc_alloc;
     if (argc == 1) {
         printfn("usage: %s <FILE>", argv[0]);
         return 1;
     }
 
-    Map map = { 0 };
+    Hash_Map map = { 0 };
     String buffer = string_read_path(argv[1]);
-    StringView curr, split = sv_from_string(&buffer, 0, buffer.len);
-    map_init(&map);
+    String_View curr, split = sv_from_string(&buffer, 0, buffer.len);
+    hm_init_with(alloc, &map, 1024);
 
     while (sv_split_by(&split, " \n", &curr)) {
         usize *recv, count = 1;
 
-        if ((recv = map_get(&map, curr.items, curr.len)) == NULL) {
-            map_put(&map, curr.items, curr.len, &count, sizeof count);
+        if ((recv = hm_get(&map, curr.items, curr.len)) == NULL) {
+            hm_put_with(alloc, &map, curr.items, curr.len, &count, sizeof count);
         } else {
             *recv += 1;
         }
     }
 
-    MapKV pair = { 0 };
-    while (map_iterate(&map, &pair)) {
+    Hash_Map_KV pair = { 0 };
+    while (hm_iterate(&map, &pair)) {
         printfn("Word: '%.*s' = %zu times",
             (int)pair.key_size,
             (char*)pair.key,
@@ -34,5 +35,5 @@ int main(int argc, const char** argv)
     }
 
     array_free(&buffer);
-    map_free(&map);
+    hm_free_with(alloc, &map);
 }

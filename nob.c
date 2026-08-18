@@ -66,4 +66,5 @@ void compile_all_example(Nob_Cmd* cmd, Nob_Procs* procs)
     compile_example(cmd, procs, "examples/string.c", "build/examples/string");
     compile_example(cmd, procs, "examples/ringbuf.c", "build/examples/ringbuf");
     compile_example(cmd, procs, "examples/virtmap.c", "build/examples/virtmap");
+    compile_example(cmd, procs, "examples/dump.c", "build/examples/dump");
 }
