@@ -143,10 +143,6 @@ Misc_Allocator* const misc_libc_alloc = &libc_alloc;
 
 void* misc_mmap(usize size, usize alignment)
 {
-#ifdef MISC_WINAPI
-    HANDLE handle;
-#endif
-
     void* ptr;
 
     if (size == 0 || alignment == 0 || (alignment & (alignment - 1)) != 0)
@@ -157,45 +153,23 @@ void* misc_mmap(usize size, usize alignment)
     ptr = mmap(NULL, size, PROT_WRITE | PROT_READ, MAP_ANON | MAP_PRIVATE, -1, 0);
 
 #elif defined(MISC_WINAPI)
-    size = (usize)(uintptr_t)misc_palign(size + sizeof handle + sizeof size, alignment);
-    handle = CreateFileMapping(
-        INVALID_HANDLE_VALUE,
+    size = (usize)(uintptr_t)misc_palign(size + sizeof size, alignment);
+    ptr = VirtualAlloc(
         NULL,
-        PAGE_READWRITE,
-        0,
         size,
-        NULL);
+        MEM_COMMIT | MEM_RESERVE,
+        PAGE_READWRITE);
 
-    if (handle == NULL)
-        return NULL;
-
-    ptr = MapViewOfFile(
-        handle,
-        FILE_MAP_ALL_ACCESS,
-        0,
-        0,
-        size);
 #else
     ptr = malloc(misc_palign(size, alignment));
-
 #endif
 
-    if (ptr == MISC_MAP_ERR) {
-#ifdef MISC_WINAPI
-        CloseHandle(handle);
-#endif
+    if (ptr == MISC_MAP_ERR)
         return NULL;
-    }
 
-#ifdef MISC_POSIX_MAP
+#if defined(MISC_POSIX_MAP)
     *(usize*)ptr = size;
     ptr = (u8*)ptr + sizeof size;
-
-#elif defined(MISC_WINAPI)
-    *(HANDLE*)ptr = handle;
-    *(usize*)(u8*)ptr + sizeof handle = size;
-    ptr = (u8*)ptr + sizeof handle + sizeof size;
-
 #endif
 
     return ptr;
@@ -235,13 +209,11 @@ void misc_unmap(void* ptr)
         return;
 #ifdef MISC_POSIX_MAP
     ptr = (u8*)ptr - sizeof(usize);
-    usize* true_size = ptr;
-    munmap(ptr, *true_size);
+    usize true_size = *(usize*)ptr;
+    munmap(ptr, true_size);
 
 #elif defined(MISC_WINAPI)
-    ptr = (u8*)ptr - sizeof(usize) - sizeof(HANDLE);
-    UnmapViewOfFile(ptr);
-
+    VirtualFree(ptr, 0, MEM_RELEASE)
 #else
     free(ptr);
 #endif
