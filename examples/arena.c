@@ -1,20 +1,19 @@
 #define MISC_IMPL
 #include "../misc.h"
 
-void* alloc_from_arena(void* any, usize size, usize alignment)
+void *alloc_from_arena(void *any, usize size, usize alignment)
 {
-    Arena* arena = any;
     (void)alignment;
-    return arena_alloc(arena, size);
+    return arena_alloc(any, size);
 }
 
 int main(void)
 {
-    char* buf;
-    Arena* arena = arena_init_with(misc_mmap_alloc, 1 << 16);
-    Misc_Allocator alloc = {
+    char *buf;
+    struct arena *arena = arena_init_with(misc_mmap_alloc, 1 << 16);
+    struct allocator alloc = {
         .any = arena,
-        .allocate = alloc_from_arena,
+        .alloc = alloc_from_arena,
     };
 
     for (usize i = 0; i < 1024; i++) {

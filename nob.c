@@ -1,15 +1,19 @@
 /*
-
-======= Copyright (c) 2024 Alexey Kutepov =======
-         Licensed under the MIT License
-
 =====================================================================================
 DISCLAIMER:
 This is a third party build system, all rights reserved to the author of this
 library.
 =====================================================================================
-
 */
+
+// Let's integrate our allocator here
+#define MISC_IMPL
+#include "misc.h"
+
+struct allocator *const alloc = misc_mmap_alloc;
+
+#define NOB_REALLOC(oldptr, size) alloc->realloc(alloc->any, oldptr, size, MISC_ALIGN)
+#define NOB_FREE(ptr) alloc->free(alloc->any, ptr)
 
 #define NOB_IMPLEMENTATION
 #include "third_party/nob.h/nob.h"
@@ -26,12 +30,12 @@ library.
 
 #define CFLAGS "-Wall", "-Werror", "-Wextra", "-pedantic", "-std=c99"
 
-void compile_example(Nob_Cmd* cmd, Nob_Procs* procs, char* input, char* output);
-void compile_all_example(Nob_Cmd* cmd, Nob_Procs* procs);
+void compile_example(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char *output);
+void compile_all_example(Nob_Cmd *cmd, Nob_Procs *procs);
 
-char* env_opt = NULL;
+char *env_opt = NULL;
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
     NOB_GO_REBUILD_URSELF(argc, argv);
 
@@ -48,10 +52,10 @@ int main(int argc, char** argv)
 }
 
 void compile_example(
-    Nob_Cmd* cmd,
-    Nob_Procs* procs,
-    char* input,
-    char* output)
+    Nob_Cmd *cmd,
+    Nob_Procs *procs,
+    char *input,
+    char *output)
 {
     nob_cmd_append(cmd, CC, CFLAGS);
     if (env_opt != NULL)
@@ -62,9 +66,10 @@ void compile_example(
     nob_cc_inputs(cmd, input);
     nob_cc_output(cmd, output);
     nob_da_append(procs, nob_cmd_run_async_and_reset(cmd));
+    nob_log(NOB_INFO, "\"%s\" compiled successfuly", input);
 }
 
-void compile_all_example(Nob_Cmd* cmd, Nob_Procs* procs)
+void compile_all_example(Nob_Cmd *cmd, Nob_Procs *procs)
 {
     nob_mkdir_if_not_exists("build");
     nob_mkdir_if_not_exists("build/examples");
@@ -76,5 +81,5 @@ void compile_all_example(Nob_Cmd* cmd, Nob_Procs* procs)
     compile_example(cmd, procs, "examples/ringbuf.c", "build/examples/ringbuf");
     compile_example(cmd, procs, "examples/virtmap.c", "build/examples/virtmap");
     compile_example(cmd, procs, "examples/dump.c", "build/examples/dump");
-    compile_example(cmd, procs, "examples/fixed_arena.c", "build/examples/fixed_arena");
+    compile_example(cmd, procs, "examples/memory_pool.c", "build/examples/memory_pool");
 }

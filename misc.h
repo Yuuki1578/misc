@@ -73,26 +73,26 @@ Functions that use it will have *_with postfix in their name.
 If one function use one custom allocator, all of the other functions related must uses the same allocator, MUST!
 
 */
-typedef struct {
-    void* any;
-    void* (*allocate)(void* any, usize size, usize alignment);
-    void* (*reallocate)(void* any, void* ptr, usize size, usize alignment);
-    void (*deallocate)(void* any, void* ptr);
-} Misc_Allocator;
+struct allocator {
+    void *any;
+    void *(*alloc)(void *any, usize size, usize alignment);
+    void *(*realloc)(void *any, void *ptr, usize size, usize alignment);
+    void (*free)(void *any, void *ptr);
+};
 
 // Use this for most of the time
-extern Misc_Allocator* const misc_libc_alloc;
+extern struct allocator *const misc_libc_alloc;
 
 // You'll rarely use this anyway
-extern Misc_Allocator* const misc_mmap_alloc;
+extern struct allocator *const misc_mmap_alloc;
 
 #define misc_palign(ptr, align) ((void*)(((uintptr_t)(ptr) + (align) - 1) & ~((align) - 1)))
 #define misc_align_up(size) ((uintptr_t)misc_palign(size, 8))
 
 // Use these functions if you want to allocate huge amount of memory, use case: custom page allocator
-void* misc_mmap(usize size, usize alignment);
-void* misc_remap(void* ptr, usize size, usize alignment);
-void misc_unmap(void* ptr);
+void *misc_mmap(usize size, usize alignment);
+void *misc_remap(void *ptr, usize size, usize alignment);
+void misc_unmap(void *ptr);
 
 #ifdef __unix__
 #include <sys/mman.h>
@@ -100,59 +100,63 @@ void misc_unmap(void* ptr);
 
 #if defined(_POSIX_MAPPED_FILES) && _POSIX_MAPPED_FILES > 0
 #define MISC_POSIX_MAP
-#define MISC_MAP_ERR MAP_FAILED
+#define MISC_EMAP MAP_FAILED
 #else
-#define MISC_MAP_ERR NULL
+#define MISC_EMAP NULL
 #endif
 
 #elif defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
-#define MISC_MAP_ERR NULL
+#define MISC_EMAP NULL
 #define MISC_WINAPI
 
 #else
-#define MISC_MAP_ERR NULL
+#define MISC_EMAP NULL
 #endif
+
+#define misc_alloc(size,alignment) malloc((uintptr_t)misc_palign(size, alignment))
+#define misc_realloc(ptr, size, alignment) realloc(ptr, (uintptr_t)misc_palign(size, alignment))
+#define misc_free(ptr) free(ptr)
 
 #ifdef MISC_IMPL
 
-void* misc_alloc(void* any, usize size, usize alignment)
+void *_misc_alloc(void *any, usize size, usize alignment)
 {
     (void)any;
-    return malloc((uintptr_t)misc_palign(size, alignment));
+    return misc_alloc(size, alignment);
 }
 
-void* misc_realloc(void* any, void* ptr, usize size, usize alignment)
+void *_misc_realloc(void *any, void *ptr, usize size, usize alignment)
 {
     (void)any;
-    return realloc(ptr, (uintptr_t)misc_palign(size, alignment));
+    return misc_realloc(ptr, size, alignment);
 }
 
-void misc_free(void* any, void* ptr)
+void _misc_free(void *any, void *ptr)
 {
     (void)any;
-    free(ptr);
+    misc_free(ptr);
 }
 
-static Misc_Allocator libc_alloc = {
-    .allocate = misc_alloc,
-    .reallocate = misc_realloc,
-    .deallocate = misc_free,
+static struct allocator libc_alloc = {
+    .alloc = _misc_alloc,
+    .realloc = _misc_realloc,
+    .free = _misc_free,
 };
 
-Misc_Allocator* const misc_libc_alloc = &libc_alloc;
+struct allocator *const misc_libc_alloc = &libc_alloc;
 
 /*
 
 Oh boy, turns out there is a function like mmap in windows, it's VirtualAlloc and VirtualFree!
 Before that, i fucking use the CreateFileMapping and use Map/UnmapViewOfFile manually and store
 the handle inside the pointer, along with the size of it, so 1 byte allocation with natural alignment
-of 8 bytes will resulted in 24 bytes allocated virtual memory lmaooo.
+of 8 bytes will resulted in 24 bytes allocd virtual memory lmaooo.
 
 */
-void* misc_mmap(usize size, usize alignment)
+void *misc_mmap(usize size, usize alignment)
 {
-    void* ptr;
+    void *ptr;
 
     if (size == 0 || alignment == 0 || (alignment & (alignment - 1)) != 0)
         return NULL;
@@ -162,7 +166,7 @@ void* misc_mmap(usize size, usize alignment)
     ptr = mmap(NULL, size, PROT_WRITE | PROT_READ, MAP_ANON | MAP_PRIVATE, -1, 0);
 
 #elif defined(MISC_WINAPI)
-    size = (usize)(uintptr_t)misc_palign(size + sizeof size, alignment);
+    size = (uintptr_t)misc_palign(size + sizeof size, alignment);
     ptr = VirtualAlloc(
         NULL,
         size,
@@ -170,13 +174,13 @@ void* misc_mmap(usize size, usize alignment)
         PAGE_READWRITE);
 
 #else
-    ptr = malloc(misc_palign(size, alignment));
+    ptr = misc_alloc(size, alignment);
 #endif
 
-    if (ptr == MISC_MAP_ERR)
+    if (ptr == MISC_EMAP)
         return NULL;
 
-#if defined(MISC_POSIX_MAP)
+#if defined(MISC_POSIX_MAP) || defined(MISC_WINAPI)
     *(usize*)ptr = size;
     ptr = (u8*)ptr + sizeof size;
 #endif
@@ -184,9 +188,9 @@ void* misc_mmap(usize size, usize alignment)
     return ptr;
 }
 
-void* misc_remap(void* ptr, usize size, usize alignment)
+void *misc_remap(void *ptr, usize size, usize alignment)
 {
-    void* newer;
+    void *newer;
 
     if (size == 0 || alignment == 0 || (alignment & (alignment - 1)) != 0)
         return NULL;
@@ -206,61 +210,62 @@ void* misc_remap(void* ptr, usize size, usize alignment)
     misc_unmap(ptr);
 
 #else
-    newer = realloc(ptr, misc_palign(size, alignment));
+    newer = misc_realloc(ptr, size, alignment);
 #endif
 
     return newer;
 }
 
-void misc_unmap(void* ptr)
+void misc_unmap(void *ptr)
 {
+    usize true_size;
+
     if (ptr == NULL)
         return;
-#ifdef MISC_POSIX_MAP
-    ptr = (u8*)ptr - sizeof(usize);
-    usize true_size = *(usize*)ptr;
-    munmap(ptr, true_size);
 
-#elif defined(MISC_WINAPI)
-    VirtualFree(ptr, 0, MEM_RELEASE)
+#if defined(MISC_POSIX_MAP) || defined(MISC_WINAPI)
+    ptr = (u8*)ptr - sizeof(usize);
+    true_size = *(usize*)ptr;
+
+#ifdef MISC_POSIX_MAP
+    munmap(ptr, true_size);
 #else
-    free(ptr);
+    (void)true_size;
+    VirtualFree(ptr, 0, MEM_RELEASE);
+#endif
+
+#else
+    misc_free(ptr);
 #endif
 }
 
-void* _misc_mmap(void* any, usize size, usize alignment)
+void *_misc_mmap(void *any, usize size, usize alignment)
 {
     (void)any;
     return misc_mmap(size, alignment);
 }
 
-void* _misc_remap(void* any, void* ptr, usize size, usize alignment)
+void *_misc_remap(void *any, void *ptr, usize size, usize alignment)
 {
     (void)any;
     return misc_remap(ptr, size, alignment);
 }
 
-void _misc_unmap(void* any, void* ptr)
+void _misc_unmap(void *any, void *ptr)
 {
     (void)any;
     misc_unmap(ptr);
 }
 
-static Misc_Allocator mmap_alloc = {
-    .allocate = _misc_mmap,
-    .reallocate = _misc_remap,
-    .deallocate = _misc_unmap,
+static struct allocator mmap_alloc = {
+    .alloc = _misc_mmap,
+    .realloc = _misc_remap,
+    .free = _misc_unmap,
 };
 
-Misc_Allocator* const misc_mmap_alloc = &mmap_alloc;
+struct allocator *const misc_mmap_alloc = &mmap_alloc;
 
 #endif
-
-void* misc_strict_alloc(usize size);
-void* misc_strict_realloc(void* ptr, usize size);
-
-#define misc_stacked(T, ...) (&(T) { __VA_ARGS__ })
-#define misc_heaped(T, ...) memmove(misc_strict_alloc(sizeof(T)), misc_stacked(T, __VA_ARGS__), sizeof(T))
 
 #define misc_panic(msg)                                                                   \
     do {                                                                                  \
@@ -274,87 +279,70 @@ void* misc_strict_realloc(void* ptr, usize size);
             misc_panic(msg);   \
     } while (0)
 
-#ifdef MISC_IMPL
-void* misc_strict_alloc(usize size)
-{
-    void* p = malloc(size);
-    misc_assert(p != NULL, "malloc() returns null");
-    return p;
-}
-
-void* misc_strict_realloc(void* ptr, usize size)
-{
-    void* p = realloc(ptr, size);
-    misc_assert(p != NULL, "realloc() returns null");
-    return p;
-}
-#endif
-
-typedef struct Node_Link Node_Link;
-struct Node_Link {
-    Node_Link* next;
+struct linked_list {
+    struct linked_list *next;
     // ...
 };
 
-Node_Link* nl_init_with(Misc_Allocator* allocator, usize size);
-Node_Link* nl_put_after_with(Misc_Allocator* allocator, Node_Link* node, usize size);
-Node_Link* nl_put_before_with(Misc_Allocator* allocator, Node_Link* node, usize size);
-void nl_free_with(Misc_Allocator* allocator, Node_Link* node);
+struct linked_list *ll_init_with(struct allocator *alloc, usize size);
+struct linked_list *ll_put_after_with(struct allocator *alloc, struct linked_list *node, usize size);
+struct linked_list *ll_put_before_with(struct allocator *alloc, struct linked_list *node, usize size);
+void ll_free_with(struct allocator *alloc, struct linked_list *node);
 
-#define nl_init(size) nl_init_with(misc_libc_alloc, size)
-#define nl_put_after(node, size) nl_put_after_with(misc_libc_alloc, node, size)
-#define nl_put_before(node, size) nl_put_before_with(misc_libc_alloc, node, size)
-#define nl_free(node) nl_free_with(misc_libc_alloc, node)
+#define ll_init(size) ll_init_with(misc_libc_alloc, size)
+#define ll_put_after(node, size) ll_put_after_with(misc_libc_alloc, node, size)
+#define ll_put_before(node, size) ll_put_before_with(misc_libc_alloc, node, size)
+#define ll_free(node) ll_free_with(misc_libc_alloc, node)
 
-Node_Link* nl_pop_after(Node_Link* node);
-Node_Link* nl_last(Node_Link* node);
-usize nl_len(Node_Link* node);
-void* nl_value(Node_Link* node);
+struct linked_list *ll_pop_after(struct linked_list *node);
+struct linked_list *ll_last(struct linked_list *node);
+usize ll_len(struct linked_list *node);
+void *ll_value(struct linked_list *node);
 
 #ifdef MISC_IMPL
-Node_Link* nl_init_with(Misc_Allocator* allocator, usize size)
+struct linked_list *ll_init_with(struct allocator *alloc, usize size)
 {
-    Node_Link* node = allocator->allocate(allocator->any, size, MISC_ALIGN);
+    struct linked_list *node = alloc->alloc(alloc->any, size, MISC_ALIGN);
     if (node != NULL)
         node->next = NULL;
 
     return node;
 }
 
-Node_Link* nl_put_after_with(Misc_Allocator* allocator, Node_Link* node, usize size)
+struct linked_list *ll_put_after_with(struct allocator *alloc, struct linked_list *node, usize size)
 {
-    Node_Link* next = nl_init_with(allocator, size);
+    struct linked_list *next = ll_init_with(alloc, size);
     node->next = next;
     return next;
 }
 
-Node_Link* nl_put_before_with(Misc_Allocator* allocator, Node_Link* node, usize size)
+struct linked_list *ll_put_before_with(struct allocator *alloc, struct linked_list *node, usize size)
 {
-    Node_Link* before = nl_init_with(allocator, size);
+    struct linked_list *before = ll_init_with(alloc, size);
     if (before != NULL)
         before->next = node;
 
     return before;
 }
 
-void nl_free_with(Misc_Allocator* allocator, Node_Link* node)
+void ll_free_with(struct allocator *alloc, struct linked_list *node)
 {
     while (node != NULL) {
-        Node_Link* tmp = node->next;
-        allocator->deallocate(allocator->any, node);
+        struct linked_list* tmp = node->next;
+        alloc->free(alloc->any, node);
         node = tmp;
     }
 }
 
-Node_Link* nl_pop_after(Node_Link* node)
+struct linked_list *ll_pop_after(struct linked_list *node)
 {
-    Node_Link* next = node->next;
-    Node_Link* tmp = next != NULL ? next->next : NULL;
+    struct linked_list *next = node->next;
+    struct linked_list *tmp = next != NULL ? next->next : NULL;
     node->next = tmp;
     return next;
 }
 
-Node_Link* nl_last(Node_Link* node)
+struct linked_list *ll_last(struct linked_list *node)
 {
     if (node == NULL)
         return NULL;
@@ -364,7 +352,7 @@ Node_Link* nl_last(Node_Link* node)
     return node;
 }
 
-void* nl_value(Node_Link* node)
+void *ll_value(struct linked_list *node)
 {
     /*
     32-bit: size 4
@@ -377,7 +365,7 @@ void* nl_value(Node_Link* node)
     return (u8*)node + sizeof *node;
 }
 
-usize nl_len(Node_Link* node)
+usize ll_len(struct linked_list *node)
 {
     usize count = 0;
     while (node != NULL)
@@ -388,136 +376,147 @@ usize nl_len(Node_Link* node)
 }
 #endif
 
-typedef struct Arena Arena;
+struct arena;
 
-Arena* arena_init_with(Misc_Allocator* allocator, usize size);
-void* arena_alloc_with(Misc_Allocator* allocator, Arena* arena, usize size);
-void* arena_realloc_with(Misc_Allocator* allocator, Arena* arena, void* ptr, usize size_before, usize size_after);
-void arena_free_with(Misc_Allocator* allocator, Arena* arena);
+struct arena *arena_init_with(struct allocator *alloc, usize size);
+void *arena_alloc_with(struct allocator *alloc, struct arena *arena, usize size);
+void *arena_realloc_with(struct allocator *alloc, struct arena *arena, void *ptr, usize size_before, usize size_after);
+void arena_free_with(struct allocator *alloc, struct arena *arena);
 
 #define arena_init(size) arena_init_with(misc_libc_alloc, size)
 #define arena_alloc(arena, size) arena_alloc_with(misc_libc_alloc, arena, size)
 #define arena_realloc(arena, ptr, size_before, size_after) arena_realloc_with(misc_libc_alloc, arena, ptr, size_before, size_after)
 #define arena_free(arena) arena_free_with(misc_libc_alloc, arena)
 
-usize arena_size(Arena* arena);
+usize arena_size(struct arena *arena);
 
 #ifdef MISC_IMPL
-typedef struct {
+struct arena_body {
     usize cap;
     usize len;
     // ...
-} ArenaBody;
-
-struct Arena {
-    Node_Link
-        *head,
-        *last;
 };
 
-Arena* arena_init_with(Misc_Allocator* allocator, usize size)
+struct arena {
+    struct linked_list *head, *last;
+};
+
+struct arena *arena_init_with(struct allocator *alloc, usize size)
 {
+    struct arena *arena;
+    struct arena_body body = { 0 }, *value;
+
     if (size < 1)
         return NULL;
 
-    Arena* arena = allocator->allocate(allocator->any, sizeof *arena, MISC_ALIGN);
+    arena = alloc->alloc(alloc->any, sizeof *arena, MISC_ALIGN);
     if (arena == NULL)
         return NULL;
 
-    ArenaBody body = { .cap = size };
-    arena->head = nl_init_with(allocator, sizeof body + size);
+    body.cap = size;
+    arena->head = ll_init_with(alloc, sizeof body + size);
     if (arena->head == NULL) {
-        allocator->deallocate(allocator->any, arena);
+        alloc->free(alloc->any, arena);
         return NULL;
     }
 
     arena->last = arena->head;
-    ArenaBody* value = nl_value(arena->head);
+    value = ll_value(arena->head);
     *value = body;
     return arena;
 }
 
-void* arena_alloc_with(
-    Misc_Allocator* allocator,
-    Arena* arena,
+
+/*
+Make @size divisible by the host default alignment.
+On 64-bit, that would be 8 bytes, while 32-bit is 4 bytes.
+
+This is important, if the caller provide the size for @arena_init
+that is considered odd or misaligned by the OS, the @size here will
+make that irrelevant, since if it doesn't had enough capacity by the
+@size + (additional to make the @size aligned), it will create a new
+arena (on the next linked list, for sure), and will use that, so the
+odd aligned part of the previous arena will never used.
+
+You can comment this and see what happen. I'm using zig compiler to compile
+the example, and it absolutely blew up my terminal with stack trace because
+the program trying to access memory that is not aligned. (fuckin learned it the hard way dawg✌️😭)
+*/
+
+void *arena_alloc_with(
+    struct allocator *alloc,
+    struct arena *arena,
     usize size)
 {
+    struct linked_list *last;
+    struct arena_body *body;
+    void *ptr;
+
     if (arena == NULL || size < 1)
         return NULL;
 
-    Node_Link* last = arena->last;
-    ArenaBody* body = nl_value(last);
-
-    /*
-    Make @size divisible by the host default alignment.
-    On 64-bit, that would be 8 bytes, while 32-bit is 4 bytes.
-
-    This is important, if the caller provide the size for @arena_init
-    that is considered odd or misaligned by the OS, the @size here will
-    make that irrelevant, since if it doesn't had enough capacity by the
-    @size + (additional to make the @size aligned), it will create a new
-    arena (on the next linked list, for sure), and will use that, so the
-    odd aligned part of the previous arena will never used.
-
-    You can comment this and see what happen. I'm using zig compiler to compile
-    the example, and it absolutely blew up my terminal with stack trace because
-    the program trying to access memory that is not aligned. (fuckin learned it the hard way dawg✌️😭)
-    */
+    last = arena->last;
+    body = ll_value(last);
     size = misc_align_up(size);
 
     if (body->cap - body->len < size) {
         usize new_size = (body->cap > size ? body->cap : size) + size;
-        ArenaBody newer = { .cap = new_size };
-        Node_Link* new_tail = nl_put_after_with(allocator, last, sizeof newer + new_size);
+        struct arena_body newer = { .cap = new_size };
+        struct linked_list* new_tail = ll_put_after_with(alloc, last, sizeof newer + new_size);
         if (new_tail == NULL)
             return NULL;
 
         arena->last = new_tail;
         last = arena->last;
-        body = nl_value(last);
+        body = ll_value(last);
         *body = newer;
     }
 
-    void* ptr = (u8*)body + sizeof *body + body->len;
+    ptr = (u8*)body + sizeof *body + body->len;
     body->len += size;
     return ptr;
 }
 
-void* arena_realloc_with(
-    Misc_Allocator* allocator,
-    Arena* arena,
+void *arena_realloc_with(
+    struct allocator *alloc,
+    struct arena *arena,
     void* ptr,
     usize size_before,
     usize size_after)
 {
+    void *newer;
+    usize true_size;
+
     if (arena == NULL || size_after == 0)
         return NULL;
 
-    void* newer = arena_alloc_with(allocator, arena, size_after);
+    newer = arena_alloc_with(alloc, arena, size_after);
     if (ptr == NULL)
         return newer;
 
-    usize true_size = size_before > size_after ? size_after : size_before;
+    true_size = size_before > size_after ? size_after : size_before;
     return memmove(newer, ptr, true_size);
 }
 
-void arena_free_with(Misc_Allocator* allocator, Arena* arena)
+void arena_free_with(struct allocator *alloc, struct arena *arena)
 {
     if (arena != NULL) {
-        nl_free_with(allocator, arena->head);
-        allocator->deallocate(allocator->any, arena);
+        ll_free_with(alloc, arena->head);
+        alloc->free(alloc->any, arena);
     }
 }
 
-usize arena_size(Arena* arena)
+usize arena_size(struct arena *arena)
 {
+    struct linked_list *node;
     usize size = 0;
+
     if (arena == NULL)
         return size;
 
-    Node_Link* node = arena->head;
+    node = arena->head;
     while (node != NULL) {
-        ArenaBody* body = nl_value(node);
+        struct arena_body *body = ll_value(node);
         size += body->cap;
         node = node->next;
     }
@@ -530,7 +529,7 @@ usize arena_size(Arena* arena)
 Fixed size arena / Bump allocator.
 
 Note that unlike the Arena above, this one doesn't manage it's own alignment.
-So the caller must allocate to the natural alignment of the data types, like 1, 2, 4, 8, 16, 24, 32 etc.
+So the caller must alloc to the natural alignment of the data types, like 1, 2, 4, 8, 16, 24, 32 etc.
 
 WARN:
 Last reminder, KEEP THAT IN MIND!
@@ -538,43 +537,38 @@ This warning will be red on helix editor.
 
 */
 
-typedef struct {
-    void* buffer;
+struct memory_pool {
+    void *buffer;
     usize cap, len;
-} Fixed_Arena;
+};
 
-void* fa_alloc(Fixed_Arena* arena, usize size);
-void fa_clear(Fixed_Arena* arena);
+void *mp_alloc(struct memory_pool *pool, usize size);
+void mp_clear(struct memory_pool *pool);
 
 #ifdef MISC_IMPL
-void* fa_alloc(Fixed_Arena* fa, usize size)
+void *mp_alloc(struct memory_pool *pool, usize size)
 {
     void* buffer;
 
-    if (size == 0 || size > fa->cap - fa->len)
+    if (size == 0 || size > pool->cap - pool->len)
         return NULL;
 
-    buffer = (u8*)fa->buffer + fa->len;
-    fa->len += size;
+    buffer = (u8*)pool->buffer + pool->len;
+    pool->len += size;
     return buffer;
 }
 
-void fa_clear(Fixed_Arena* fa)
+void mp_clear(struct memory_pool *pool)
 {
-    memset(fa->buffer, 0, fa->cap);
-    fa->len = 0;
+    memset(pool->buffer, 0, pool->cap);
+    pool->len = 0;
 }
 
 #endif
 
+#ifndef MISC_ARRAY_RESERVE
 #define MISC_ARRAY_RESERVE (8)
-
-#define Array(T)   \
-    struct {       \
-        T* items;  \
-        usize cap; \
-        usize len; \
-    }
+#endif
 
 #define array_is_empty(array) ((array) != NULL ? ((array)->items == NULL || (array)->cap < 1) : 1)
 #define array_remains(array) ((array) != NULL ? ((array)->cap - (array)->len) : 0)
@@ -582,17 +576,17 @@ void fa_clear(Fixed_Arena* fa)
 #define array_try_resize_with(allocator, array, N, ok)                                                                     \
     do {                                                                                                                   \
         if ((N) <= 0) {                                                                                                    \
-            (allocator)->deallocate((allocator)->any, (array)->items);                                                     \
+            (allocator)->free((allocator)->any, (array)->items);                                                     \
             (array)->items = NULL;                                                                                         \
             (array)->cap = 0;                                                                                              \
             (array)->len = 0;                                                                                              \
             *(ok) = 1;                                                                                                     \
         } else {                                                                                                           \
-            void* tmp;                                                                                                     \
+            void *tmp;                                                                                                     \
             if ((array)->cap == 0) {                                                                                       \
-                tmp = (allocator)->allocate((allocator)->any, (N) * sizeof *(array)->items, MISC_ALIGN);                   \
+                tmp = (allocator)->alloc((allocator)->any, (N) * sizeof *(array)->items, MISC_ALIGN);                   \
             } else {                                                                                                       \
-                tmp = (allocator)->reallocate((allocator)->any, (array)->items, (N) * sizeof *(array)->items, MISC_ALIGN); \
+                tmp = (allocator)->realloc((allocator)->any, (array)->items, (N) * sizeof *(array)->items, MISC_ALIGN); \
             }                                                                                                              \
             if (tmp != NULL) {                                                                                             \
                 *(ok) = 1;                                                                                                 \
@@ -727,14 +721,15 @@ void fa_clear(Fixed_Arena* fa)
         (void)ok;                                        \
     } while (0)
 
-#define Slice(T)        \
-    struct {            \
-        const T* items; \
-        usize len;      \
-    }
+struct string {
+    char *items;
+    usize cap, len;
+};
 
-typedef Array(char) String;
-typedef Slice(char) String_View;
+struct string_view {
+    const char *items;
+    usize len;
+};
 
 // Exclusive
 #define slice_init(slice, ptr, length, begin, end)    \
@@ -751,22 +746,23 @@ typedef Slice(char) String_View;
 #define slice_from_array(slice, array, begin, end) slice_init(slice, (array)->items, (array)->len, begin, end)
 
 #define string_fmt(s) (int)(s).len, (s).items
-String_View sv_from(const char* cstr, usize begin, usize end);
-String_View sv_from_string(String* string, usize begin, usize end);
-bool sv_split_by(String_View* sv, const char* delims, String_View* out);
-String_View sv_trim_start_by(String_View* sv, const char* delims);
-String_View sv_trim_end_by(String_View* sv, const char* delims);
-String_View sv_trim_by(String_View* sv, const char* delims);
-void string_to_upper(String* string);
-void string_to_lower(String* string);
-String string_read_file(FILE* file);
-String string_read_path(const char* path);
-String string_printf(Misc_Allocator* allocator, const char* fmt, ...);
-#define cstr_printf(allocator, fmt, ...) string_printf(allocator, fmt, __VA_ARGS__).items
+struct string_view sv_from(const char *cstr, usize begin, usize end);
+struct string_view sv_from_string(struct string *string, usize begin, usize end);
+bool sv_split_by(struct string_view *sv, const char *delims, struct string_view *out);
+struct string_view sv_trim_start_by(struct string_view *sv, const char *delims);
+struct string_view sv_trim_end_by(struct string_view *sv, const char *delims);
+struct string_view sv_trim_by(struct string_view *sv, const char *delims);
+
+void string_to_upper(struct string *string);
+void string_to_lower(struct string *string);
+struct string string_read_file(FILE *file);
+struct string string_read_path(const char *path);
+struct string string_printf(struct allocator *alloc, const char *fmt, ...);
+#define cstr_printf(alloc, fmt, ...) string_printf(alloc, fmt, __VA_ARGS__).items
 
 #ifdef MISC_IMPL
 
-static bool is_delims_match(char target, const char* delims)
+static bool is_delims_match(char target, const char *delims)
 {
     for (usize i = 0; i < strlen(delims); i++) {
         if (delims[i] == target)
@@ -775,13 +771,14 @@ static bool is_delims_match(char target, const char* delims)
     return false;
 }
 
-String_View sv_trim_start_by(String_View* sv, const char* delims)
+struct string_view sv_trim_start_by(struct string_view *sv, const char *delims)
 {
-    String_View result = { 0 };
+    struct string_view result = { 0 };
+    usize i = 0;
+
     if (sv->len < 1)
         return result;
 
-    usize i = 0;
     while (i < sv->len && is_delims_match(sv->items[i], delims))
         i++;
 
@@ -790,13 +787,15 @@ String_View sv_trim_start_by(String_View* sv, const char* delims)
     return result;
 }
 
-String_View sv_trim_end_by(String_View* sv, const char* delims)
+struct string_view sv_trim_end_by(struct string_view *sv, const char *delims)
 {
-    String_View result = { 0 };
+    struct string_view result = { 0 };
+    usize i;
+
     if (sv->len < 1)
         return result;
 
-    usize i = sv->len - 1;
+    i = sv->len - 1;
     while (i > 0 && is_delims_match(sv->items[i], delims))
         i--;
 
@@ -805,31 +804,32 @@ String_View sv_trim_end_by(String_View* sv, const char* delims)
         result.len = 0;
     else
         result.len = i + 1;
+
     return result;
 }
 
-String_View sv_trim_by(String_View* sv, const char* delims)
+struct string_view sv_trim_by(struct string_view *sv, const char *delims)
 {
-    String_View result = sv_trim_start_by(sv, delims);
+    struct string_view result = sv_trim_start_by(sv, delims);
     return sv_trim_end_by(&result, delims);
 }
 
 bool sv_split_by(
-    String_View* sv,
-    const char* delims,
-    String_View* out)
+    struct string_view *sv,
+    const char *delims,
+    struct string_view *out)
 {
+    struct string_view result;
+    usize i = 0;
+
     if (sv->len == 0)
         return false;
 
-    usize i = 0;
     while (i < sv->len && !is_delims_match(sv->items[i], delims))
         i += 1;
 
-    String_View result = {
-        .items = sv->items,
-        .len = i,
-    };
+    result.items = sv->items,
+    result.len = i;
 
     if (i < sv->len) {
         sv->len -= i + 1;
@@ -841,24 +841,27 @@ bool sv_split_by(
 
     if (out != NULL)
         *out = result;
+
     return true;
 }
 
-String_View sv_from(
-    const char* cstr,
+struct string_view sv_from(
+    const char *cstr,
     usize begin,
     usize end)
 {
-    String_View ref = { 0 };
+    struct string_view ref = { 0 };
+    usize len;
+
     if (cstr == NULL || end < begin)
         return ref;
 
-    usize len = strlen(cstr);
+    len = strlen(cstr);
     slice_init(&ref, cstr, len, begin, end);
     return ref;
 }
 
-void string_to_upper(String* string)
+void string_to_upper(struct string *string)
 {
     for (usize i = 0; i < string->len; i++) {
         if (islower(string->items[i]))
@@ -866,22 +869,24 @@ void string_to_upper(String* string)
     }
 }
 
-void string_to_lower(String* string)
+void string_to_lower(struct string *string)
 {
     for (usize i = 0; i < string->len; i++)
         if (isupper(string->items[i]))
             string->items[i] = tolower(string->items[i]);
 }
 
-String string_read_file(FILE* file)
+struct string string_read_file(FILE *file)
 {
-    String string = { 0 };
+    struct string string = { 0 };
+    long pos;
+
     if (feof(file))
         return string;
 
-    long pos;
     if (fseek(file, 0, SEEK_END) != 0)
         return string;
+
     if ((pos = ftell(file)) <= 0)
         return string;
 
@@ -892,10 +897,11 @@ String string_read_file(FILE* file)
     return string;
 }
 
-String string_read_path(const char* path)
+struct string string_read_path(const char *path)
 {
-    String result = { 0 };
-    FILE* file = fopen(path, "r");
+    struct string result = { 0 };
+    FILE *file = fopen(path, "r");
+
     if (file != NULL) {
         result = string_read_file(file);
         fclose(file);
@@ -903,26 +909,28 @@ String string_read_path(const char* path)
     return result;
 }
 
-String_View sv_from_string(
-    String* str,
+struct string_view sv_from_string(
+    struct string *str,
     usize begin,
     usize end)
 {
-    String_View ref = { 0 };
+    struct string_view ref = { 0 };
     slice_from_array(&ref, str, begin, end);
     return ref;
 }
 
-String string_printf(Misc_Allocator* allocator, const char* fmt, ...)
+struct string string_printf(struct allocator *alloc, const char *fmt, ...)
 {
-    String str = { 0 };
+    struct string str = { 0 };
     va_list va;
+    int size;
+
     va_start(va, fmt);
-    int size = vsnprintf(NULL, 0, fmt, va);
+    size = vsnprintf(NULL, 0, fmt, va);
     va_end(va);
 
     if (size > 0) {
-        array_resize_with(allocator, &str, (usize)size + 1);
+        array_resize_with(alloc, &str, (usize)size + 1);
         va_start(va, fmt);
         vsnprintf(str.items, str.cap, fmt, va);
         va_end(va);
@@ -974,74 +982,70 @@ if needed.
 
 */
 
-typedef struct {
-    void* key;
-    void* value;
+struct hm_entry {
+    void *key, *value;
     u64 hash;
     usize key_size;
-} Hash_Map_Entry;
+};
 
-typedef struct {
-    const void* key;
-    const void* value;
-    usize key_size;
-    usize pos;
-} Hash_Map_KV;
+struct hm_keyval {
+    const void *key, *value;
+    usize key_size, pos;
+};
 
-typedef struct {
-    Hash_Map_Entry* items;
-    usize cap;
-    usize len;
-} Hash_Map;
+struct hash_map {
+    struct hm_entry *items;
+    usize cap, len;
+};
 
-u64 misc_fnv1a(const void* ptr, usize size);
+u64 misc_fnv1a(const void *ptr, usize size);
 
-bool hm_init_with(Misc_Allocator* allocator, Hash_Map* map, usize capacity);
-bool hm_put_with(Misc_Allocator* allocator, Hash_Map* map, const void* key, usize key_size, const void* value, usize value_size);
-bool hm_delete_with(Misc_Allocator* allocator, Hash_Map* map, const void* key, usize key_size);
-void hm_free_with(Misc_Allocator* allocator, Hash_Map* map);
+bool hm_init_with(struct allocator *alloc, struct hash_map *map, usize capacity);
+bool hm_put_with(struct allocator *alloc, struct hash_map *map, const void *key, usize key_size, const void *value, usize value_size);
+bool hm_delete_with(struct allocator *alloc, struct hash_map *map, const void *key, usize key_size);
+void hm_free_with(struct allocator *alloc, struct hash_map *map);
 
 #define hm_init(map, capacity) hm_init_with(misc_libc_alloc, map, capacity)
 #define hm_put(map, key, key_size, value, value_size) hm_put_with(misc_libc_alloc, map, key, key_size, value, value_size)
 #define hm_delete(map, key, key_size) hm_delete_with(misc_libc_alloc, map, key, key_size)
 #define hm_free(map) hm_free_with(misc_libc_alloc, map)
 
-void* hm_get(Hash_Map* map, const void* key, usize key_size);
-bool hm_iterate(Hash_Map* map, Hash_Map_KV* input);
+void *hm_get(struct hash_map *map, const void *key, usize key_size);
+bool hm_iterate(struct hash_map *map, struct hm_keyval *input);
 
 #ifdef MISC_IMPL
 #define hm_load_factor(map) ((f64)(map)->len / (f64)(map)->cap)
 
 bool hm_init_with(
-    Misc_Allocator* allocator,
-    Hash_Map* map,
+    struct allocator *alloc,
+    struct hash_map *map,
     usize capacity)
 {
     bool ok;
-    array_try_resize_with(allocator, map, misc_align_up(capacity), &ok);
+    array_try_resize_with(alloc, map, misc_align_up(capacity), &ok);
     return ok;
 }
 
-static bool compare_key(
-    Hash_Map_Entry* dst,
-    const void* key,
+static inline bool compare_key(
+    struct hm_entry *dst,
+    const void *key,
     usize key_size,
     u64 hash)
 {
     return dst->key_size == key_size && dst->hash == hash && memcmp(dst->key, key, key_size) == 0;
 }
 
-static Hash_Map_Entry* hme_find(
-    Hash_Map* map,
-    const void* key,
+static struct hm_entry *hme_find(
+    struct hash_map *map,
+    const void *key,
     usize key_size,
     u64 hash)
 {
     usize idx = hash & (map->cap - 1);
-    Hash_Map_Entry* tombstone = NULL;
+    struct hm_entry *tombstone = NULL;
 
     while (true) {
-        Hash_Map_Entry* entry = &map->items[idx];
+        struct hm_entry *entry = &map->items[idx];
         if (entry->key == NULL) {
             if (entry->value == NULL) {
                 return tombstone != NULL ? tombstone : entry;
@@ -1056,111 +1060,120 @@ static Hash_Map_Entry* hme_find(
     }
 }
 
-static bool hm_grow(Misc_Allocator* allocator, Hash_Map* map, usize into)
+static bool hm_grow(struct allocator* alloc, struct hash_map *map, usize into)
 {
-    Hash_Map newer = { 0 };
+    struct hash_map newer = { 0 };
     bool ok;
-    array_try_resize_with(allocator, &newer, into, &ok);
 
+    array_try_resize_with(alloc, &newer, into, &ok);
     if (!ok)
         return ok;
 
     newer.len = map->len;
-
     for (usize i = 0; i < map->cap; i++) {
-        Hash_Map_Entry* entry = &map->items[i];
+        struct hm_entry *entry, *dest;
+        entry = &map->items[i];
+
         if (entry->key == NULL)
             continue;
 
-        Hash_Map_Entry* dest = hme_find(&newer, entry->key, entry->key_size, entry->hash);
+        dest = hme_find(&newer, entry->key, entry->key_size, entry->hash);
         *dest = *entry;
     }
 
-    array_free_with(allocator, map);
+    array_free_with(alloc, map);
     *map = newer;
     return true;
 }
 
 bool hm_put_with(
-    Misc_Allocator* allocator,
-    Hash_Map* map,
-    const void* key,
+    struct allocator *alloc,
+    struct hash_map *map,
+    const void *key,
     usize key_size,
-    const void* value,
+    const void *value,
     usize value_size)
 {
+    struct hm_entry *entry;
+    u64 hash;
+    bool is_new_key;
+
     if (map->cap < MISC_MAP_MINIMUM) {
-        if (!hm_init_with(allocator, map, MISC_MAP_MINIMUM))
+        if (!hm_init_with(alloc, map, MISC_MAP_MINIMUM))
             return false;
 
     } else if (hm_load_factor(map) >= MISC_MAP_LOADF) {
-        if (!hm_grow(allocator, map, map->cap * 2))
+        if (!hm_grow(alloc, map, map->cap * 2))
             return false;
     }
 
-    u64 hash = misc_fnv1a(key, key_size);
-    Hash_Map_Entry* entry = hme_find(map, key, key_size, hash);
-    bool isNewKey = entry->key == NULL;
+    hash = misc_fnv1a(key, key_size);
+    entry = hme_find(map, key, key_size, hash);
+    is_new_key = entry->key == NULL;
 
-    if (isNewKey) {
+    if (is_new_key) {
         usize merge = key_size + value_size;
         usize round_up = misc_align_up(merge);
-        u8* pool = allocator->allocate(allocator->any, round_up, MISC_ALIGN);
+        u8* pool = alloc->alloc(alloc->any, round_up, MISC_ALIGN);
+
         entry->key = pool;
         entry->value = pool + key_size + (round_up - merge);
         entry->key_size = key_size;
         entry->hash = hash;
+
         memmove(entry->key, key, key_size);
         map->len++;
     }
+
     memmove(entry->value, value, value_size);
     return true;
 }
 
-void* hm_get(
-    Hash_Map* map,
+void *hm_get(
+    struct hash_map* map,
     const void* key,
     usize key_size)
 {
-    Hash_Map_Entry* entry = hme_find(map, key, key_size, misc_fnv1a(key, key_size));
+    struct hm_entry *entry = hme_find(map, key, key_size, misc_fnv1a(key, key_size));
     if (entry->key != NULL)
         return entry->value;
+
     return NULL;
 }
 
 bool hm_delete_with(
-    Misc_Allocator* allocator,
-    Hash_Map* map,
-    const void* key,
+    struct allocator *alloc,
+    struct hash_map *map,
+    const void *key,
     usize key_size)
 {
-    Hash_Map_Entry* entry = hme_find(map, key, key_size, misc_fnv1a(key, key_size));
+    struct hm_entry *entry = hme_find(map, key, key_size, misc_fnv1a(key, key_size));
     if (entry->key == NULL)
         return false;
 
-    allocator->deallocate(allocator->any, entry->key);
+    alloc->free(alloc->any, entry->key);
     memset(entry, 0, sizeof *entry);
     entry->value = (void*)0xdead;
     map->len--;
     return true;
 }
 
-void hm_free_with(Misc_Allocator* allocator, Hash_Map* map)
+void hm_free_with(struct allocator *alloc, struct hash_map *map)
 {
     for (usize i = 0; i < map->cap; i++) {
-        Hash_Map_Entry entry = map->items[i];
+        struct hm_entry entry = map->items[i];
         if (entry.key == NULL || (uintptr_t)entry.value == 0xdead)
             continue;
 
-        allocator->deallocate(allocator->any, entry.key);
+        alloc->free(alloc->any, entry.key);
     }
-    array_free_with(allocator, map);
+    array_free_with(alloc, map);
 }
 
-bool hm_iterate(Hash_Map* map, Hash_Map_KV* input)
+bool hm_iterate(struct hash_map *map, struct hm_keyval *input)
 {
     for (; input->pos < map->cap; input->pos++) {
-        Hash_Map_Entry entry = map->items[input->pos];
+        struct hm_entry entry = map->items[input->pos];
         if (entry.key != NULL) {
             input->key = entry.key;
             input->value = entry.value;
@@ -1174,9 +1187,9 @@ bool hm_iterate(Hash_Map* map, Hash_Map_KV* input)
     return false;
 }
 
-u64 misc_fnv1a(const void* ptr, usize size)
+u64 misc_fnv1a(const void *ptr, usize size)
 {
-    const u8* bytes = ptr;
+    const u8 *bytes = ptr;
     u64 base_val = MISC_FNV_BASIS;
     for (u64 i = 0; i < size; i++) {
         base_val *= MISC_FNV_PRIME;
@@ -1205,25 +1218,22 @@ around to position 0 instead of going past the size of buffer.
 
 */
 
-typedef struct {
-    void* buffer;
-    usize
-        write_pos,
-        read_pos,
-        len;
-} Ring_Buffer;
+struct ring_buffer {
+    void *buffer;
+    usize write_pos, read_pos, len;
+};
 
-Ring_Buffer rb_init(void* buffer /* assume aligned */, usize len);
-usize rb_write(Ring_Buffer* rb, const void* src, usize len);
-usize rb_read(Ring_Buffer* rb, void* dst, usize len);
-void rb_seek_write(Ring_Buffer* rb, isize len, int whence);
-void rb_seek_read(Ring_Buffer* rb, isize len, int whence);
-void rb_clear(Ring_Buffer* rb);
+struct ring_buffer rb_init(void *buffer /* assume aligned */, usize len);
+usize rb_write(struct ring_buffer *rb, const void *src, usize len);
+usize rb_read(struct ring_buffer *rb, void *dst, usize len);
+void rb_seek_write(struct ring_buffer *rb, isize len, int whence);
+void rb_seek_read(struct ring_buffer *rb, isize len, int whence);
+void rb_clear(struct ring_buffer *rb);
 
 #ifdef MISC_IMPL
-Ring_Buffer rb_init(void* buffer, usize len)
+struct ring_buffer rb_init(void *buffer, usize len)
 {
-    return (Ring_Buffer) {
+    return (struct ring_buffer) {
         .buffer = buffer,
         .len = len,
         .write_pos = 0,
@@ -1231,35 +1241,35 @@ Ring_Buffer rb_init(void* buffer, usize len)
     };
 }
 
-usize rb_write(Ring_Buffer* rb, const void* src, usize len)
+usize rb_write(struct ring_buffer *rb, const void *src, usize len)
 {
-    const u8* repr = src;
-    u8* buf = rb->buffer;
-
+    const u8 *repr = src;
+    u8 *buf = rb->buffer;
     usize i;
-    for (i = 0; i < len; i++, rb->write_pos = (rb->write_pos + 1) % rb->len) {
+
+    for (i = 0; i < len; i++, rb->write_pos = (rb->write_pos + 1) % rb->len)
         buf[rb->write_pos] = repr[i];
-    }
 
     return i;
 }
 
-usize rb_read(Ring_Buffer* rb, void* dst, usize len)
+usize rb_read(struct ring_buffer *rb, void *dst, usize len)
 {
-    u8* repr = dst;
-    const u8* buf = rb->buffer;
-
+    u8 *repr = dst;
+    const u8 *buf = rb->buffer;
     usize i;
+
     for (i = 0;
         i < len;
-        i++, rb->read_pos = (rb->read_pos + 1) % rb->len) {
+        i++, rb->read_pos = (rb->read_pos + 1) % rb->len)
+    {
         repr[i] = buf[rb->read_pos];
     }
 
     return i;
 }
 
-void rb_seek_write(Ring_Buffer* rb, isize len, int whence)
+void rb_seek_write(struct ring_buffer *rb, isize len, int whence)
 {
     switch (whence) {
     case SEEK_SET:
@@ -1281,7 +1291,7 @@ void rb_seek_write(Ring_Buffer* rb, isize len, int whence)
     rb->write_pos = (usize)len;
 }
 
-void rb_seek_read(Ring_Buffer* rb, isize len, int whence)
+void rb_seek_read(struct ring_buffer *rb, isize len, int whence)
 {
     switch (whence) {
     case SEEK_SET:
@@ -1303,7 +1313,7 @@ void rb_seek_read(Ring_Buffer* rb, isize len, int whence)
     rb->read_pos = (usize)len;
 }
 
-void rb_clear(Ring_Buffer* rb)
+void rb_clear(struct ring_buffer *rb)
 {
     memset(rb->buffer, 0, rb->len);
     rb->write_pos = 0;

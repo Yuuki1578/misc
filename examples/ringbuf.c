@@ -3,7 +3,7 @@
 #define MAX (15)
 
 u8 buffer[MAX];
-Ring_Buffer rb;
+struct ring_buffer rb;
 
 int main(void)
 {
@@ -12,7 +12,7 @@ int main(void)
 
     rb = rb_init(buffer, sizeof buffer);
 
-    const char* text = "HELLO";
+    const char *text = "HELLO";
     for (usize i = 0, idx; i < MAX * 5; ++i, idx = i % strlen(text)) {
         char ch;
         write_total += rb_write(&rb, &text[idx], 1);
