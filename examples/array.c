@@ -9,7 +9,7 @@ struct many_int {
 int main(void)
 {
     struct many_int ints = { 0 };
-    struct allocator *const alloc = misc_mmap_alloc;
+    struct allocator *const alloc = mmap_alloc;
 
     array_extend_with(alloc, &ints, ((int[3]) { 1, 2, 3 }), 3);
     for (i32 i = 0; i > -1024; i--)

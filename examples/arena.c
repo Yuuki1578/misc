@@ -10,7 +10,7 @@ void *alloc_from_arena(void *any, usize size, usize alignment)
 int main(void)
 {
     char *buf;
-    struct arena *arena = arena_init_with(misc_mmap_alloc, 1 << 16);
+    arena_t *arena = arena_init_with(mmap_alloc, 1 << 16);
     struct allocator alloc = {
         .any = arena,
         .alloc = alloc_from_arena,
@@ -21,5 +21,5 @@ int main(void)
         printf("%s", buf);
     }
 
-    arena_free_with(misc_mmap_alloc, arena);
+    arena_free_with(mmap_alloc, arena);
 }

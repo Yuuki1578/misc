@@ -3,8 +3,8 @@
 
 int main(int argc, const char** argv)
 {
-    struct hash_map map = { 0 };
-    struct hm_keyval pair = { 0 };
+    struct hash_map map = {0};
+    struct hm_pair pair = {0};
     struct string buffer;
     struct string_view curr, split;
 
@@ -15,7 +15,7 @@ int main(int argc, const char** argv)
 
     buffer = string_read_path(argv[1]);
     split = sv_from_string(&buffer, 0, buffer.len);
-    hm_init(&map, 1024);
+    hm_init(&map, 2);
 
     while (sv_split_by(&split, " \n", &curr)) {
         usize *recv, count;

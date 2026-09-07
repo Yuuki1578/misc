@@ -39,8 +39,8 @@ int main(int argc, char **argv)
 {
     NOB_GO_REBUILD_URSELF(argc, argv);
 
-    Nob_Cmd cmd = { 0 };
-    Nob_Procs procs = { 0 };
+    Nob_Cmd cmd = {0};
+    Nob_Procs procs = {0};
 
     env_opt = getenv("opt");
 
@@ -66,7 +66,6 @@ void compile_example(
     nob_cc_inputs(cmd, input);
     nob_cc_output(cmd, output);
     nob_da_append(procs, nob_cmd_run_async_and_reset(cmd));
-    nob_log(NOB_INFO, "\"%s\" compiled successfuly", input);
 }
 
 void compile_all_example(Nob_Cmd *cmd, Nob_Procs *procs)
