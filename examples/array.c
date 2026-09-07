@@ -19,8 +19,8 @@ int main(void)
     array_reverse(i32, &ints);
 
     for (usize i = 0; i < ints.len; i++)
-        printfn("%zu: %d", i, ints.items[i]);
+        printf("%zu: %d\n", i, ints.items[i]);
 
-    printfn("Capacity: %zu, Length: %zu", ints.cap, ints.len);
+    printf("Capacity: %zu, Length: %zu\n", ints.cap, ints.len);
     array_free_with(alloc, &ints);
 }

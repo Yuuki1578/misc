@@ -23,7 +23,7 @@ int main(void)
             putchar('\n');
     }
 
-    printfn("Total bytes written to buffer: %zu", write_total);
-    printfn("Total bytes readed from buffer: %zu", read_total);
+    printf("Total bytes written to buffer: %zu\n", write_total);
+    printf("Total bytes readed from buffer: %zu\n", read_total);
     rb_clear(&rb);
 }

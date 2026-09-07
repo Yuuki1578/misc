@@ -9,7 +9,7 @@ int main(int argc, const char** argv)
     struct string_view curr, split;
 
     if (argc == 1) {
-        printfn("usage: %s <FILE>", argv[0]);
+        printf("usage: %s <FILE>\n", argv[0]);
         return 1;
     }
 
@@ -29,7 +29,7 @@ int main(int argc, const char** argv)
     }
 
     while (hm_iterate(&map, &pair)) {
-        printfn("Word: '%.*s' = %zu times",
+        printf("Word: '%.*s' = %zu times\n",
             (int)pair.key_size,
             (char*)pair.key,
             *(usize*)pair.value);

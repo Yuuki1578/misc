@@ -3,7 +3,13 @@
 
 int main(void)
 {
-    u8 buf[sizeof(void*)];
-    void* foo = (void*)0xfafafa;
-    memmove(buf, &foo, 8);
+    arena_t *arena = arena_init(1 << 10);
+    arena_alloc(arena, 17);
+
+    int *k = arena_alloc(arena, sizeof *k);
+    *k = 100;
+
+    printf("%d\n", *k);
+    
+    arena_free(arena);
 }

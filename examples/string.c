@@ -10,5 +10,5 @@ int main(void)
 
     string_to_lower(&newer);
     array_reverse(char, &newer);
-    printfn("%.*s", string_fmt(newer));
+    printf("%.*s\n", string_fmt(newer));
 }

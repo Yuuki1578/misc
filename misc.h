@@ -46,11 +46,8 @@ typedef double f64;
 typedef long double f80;
 
 #define MISC_ALIGN (sizeof(void*))
-#define fprintfn(f, fmt, ...) fprintf(f, fmt "\n", __VA_ARGS__)
-#define printfn(fmt, ...) fprintfn(stdout, fmt, __VA_ARGS__)
 
 /*
-
 Common interface to allocate memory in a uniform manner.
 @any could be anything, yes, ANYTHING.
 @size is a size, of course.
@@ -258,7 +255,7 @@ struct allocator *const mmap_alloc = &_mmap_alloc;
 
 #define misc_panic(msg)                                                                   \
     do {                                                                                  \
-        fprintfn(stderr, "FILE: %s, LINE: %d, cause: \"%s\"", __FILE__, __LINE__, (msg)); \
+        fprintf(stderr, "FILE: %s, LINE: %d, cause: \"%s\"\n", __FILE__, __LINE__, (msg)); \
         abort();                                                                          \
     } while (0)
 
@@ -502,6 +499,7 @@ bool arena_align_with(struct allocator *alloc, arena_t *arena, usize alignment)
         newer = (struct arena_body) {.cap = aligned};
         if ((next = ll_put_after_with(alloc, arena->last, sizeof newer)) != NULL) {
             *(struct arena_body*) ll_value(next) = newer;
+            arena->last = next;
         } else return false;
     } else {
         body->len = aligned;

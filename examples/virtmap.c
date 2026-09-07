@@ -8,11 +8,11 @@ int main(void)
 
     if (anon_str != NULL) {
         snprintf(anon_str, 8, TEXT);
-        printfn("%.*s", (int)strlen(TEXT), anon_str);
+        printf("%.*s\n", (int)strlen(TEXT), anon_str);
 
         anon_str = mmap_alloc->realloc(NULL, anon_str, 5, 1); // "Hello"
         misc_assert(anon_str != NULL, "anon_str == NULL");
-        printfn("%.*s", 5, anon_str);
+        printf("%.*s\n", 5, anon_str);
 
         mmap_alloc->free(NULL, anon_str);
     }
