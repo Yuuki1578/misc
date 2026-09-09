@@ -13,7 +13,7 @@ int main(int argc, const char** argv)
         return 1;
     }
 
-    buffer = string_read_path(argv[1]);
+    buffer = string_read_path(libc_alloc, argv[1]);
     split = sv_from_string(&buffer, 0, buffer.len);
     hm_init(&map, 2);
 

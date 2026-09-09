@@ -10,7 +10,7 @@ library.
 #define MISC_IMPL
 #include "misc.h"
 
-struct allocator *const alloc = misc_mmap_alloc;
+struct allocator *const alloc = mmap_alloc;
 
 #define NOB_REALLOC(oldptr, size) alloc->realloc(alloc->any, oldptr, size, MISC_ALIGN)
 #define NOB_FREE(ptr) alloc->free(alloc->any, ptr)

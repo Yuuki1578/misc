@@ -3,14 +3,13 @@
 
 void *alloc_from_arena(void *any, usize size, usize alignment)
 {
-    (void)alignment;
-    return arena_alloc(any, size);
+    return arena_alloc(any, (usize)misc_palign(size, alignment));
 }
 
 int main(void)
 {
     char *buf;
-    arena_t *arena = arena_init_with(mmap_alloc, 1 << 16);
+    arena_t *arena = arena_create_with(mmap_alloc, 1 << 16);
     struct allocator alloc = {
         .any = arena,
         .alloc = alloc_from_arena,

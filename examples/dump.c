@@ -3,13 +3,10 @@
 
 int main(void)
 {
-    arena_t *arena = arena_init(1 << 10);
-    arena_alloc(arena, 17);
+    arena_t *arena = arena_create(1 << 5);
+    struct allocator alloc = arena_as_allocator_with(libc_alloc, arena);
+    int *ptr = alloc.alloc(alloc.any, sizeof *ptr, 4);
 
-    int *k = arena_alloc(arena, sizeof *k);
-    *k = 100;
-
-    printf("%d\n", *k);
-    
-    arena_free(arena);
+    *ptr = 69;
+    printf("%d\n", *ptr);
 }
