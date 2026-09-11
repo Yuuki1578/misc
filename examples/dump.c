@@ -3,10 +3,13 @@
 
 int main(void)
 {
-    arena_t *arena = arena_create(1 << 5);
-    struct allocator alloc = arena_as_allocator_with(libc_alloc, arena);
-    int *ptr = alloc.alloc(alloc.any, sizeof *ptr, 4);
+    struct hash_map hm;
+    int key = 10, value = 20, *getter;
 
-    *ptr = 69;
-    printf("%d\n", *ptr);
+    hm_init(&hm, 1 << 10);
+    hm_put(&hm, &key, sizeof(int*), &value, sizeof value);
+    getter = hm_get(&hm, &key, sizeof(int*));
+    printf("%d\n", *getter);
+
+    hm_free(&hm);
 }

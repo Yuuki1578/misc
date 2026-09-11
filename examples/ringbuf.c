@@ -7,13 +7,14 @@ struct ring_buffer rb;
 
 int main(void)
 {
+    const char *text = "HELLO";
     usize write_total = 0,
           read_total = 0;
 
-    rb = rb_init(buffer, sizeof buffer);
+    memset(buffer, 0, sizeof buffer);
+    rb = rb_create(buffer, sizeof buffer);
 
-    const char *text = "HELLO";
-    for (usize i = 0, idx; i < MAX * 5; ++i, idx = i % strlen(text)) {
+    for (usize i = 0, idx = 0; i < MAX * 5; ++i, idx = i % strlen(text)) {
         char ch;
         write_total += rb_write(&rb, &text[idx], 1);
         read_total += rb_read(&rb, &ch, 1);

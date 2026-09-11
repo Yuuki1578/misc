@@ -70,6 +70,9 @@ NOTE:
 allocator -> alloc :
     * Returned memory must be ZEROED
     * Alignment are handled before the allocation
+
+ANY API THAT USES ALLOCATOR WILL EITHER HAVE A *_with POSTFIX
+OR IT'S ALREADY IN FUNCTION SIGNATURE.
 */
 struct allocator {
     void *any;
@@ -78,7 +81,8 @@ struct allocator {
     void (*free)(void *any, void *ptr);
 };
 
-#define is_allocator_valid(allocptr) ((allocptr)->alloc != NULL && (allocptr)->realloc != NULL && (allocptr)->free != NULL)
+#define is_valid_alloc(allocptr) ((allocptr)->alloc != NULL && (allocptr)->realloc != NULL && (allocptr)->free != NULL)
+#define is_pow2_align(alignment) ((alignment) != 0 && ((alignment) & ((alignment) - 1)) == 0)
 
 extern struct allocator *const libc_alloc;
 extern struct allocator *const mmap_alloc;
@@ -119,7 +123,7 @@ void misc_unmap(void *ptr);
 void *_misc_alloc(void *any, usize size, usize alignment)
 {
     (void)any;
-    if (size == 0 || alignment == 0 || (alignment & (alignment - 1)) != 0)
+    if (size < 1 || !is_pow2_align(alignment))
         return NULL;
 
     return misc_alloc(size, alignment);
@@ -128,6 +132,9 @@ void *_misc_alloc(void *any, usize size, usize alignment)
 void *_misc_realloc(void *any, void *ptr, usize size, usize alignment)
 {
     (void)any;
+    if (size < 1 || !is_pow2_align(alignment))
+        return NULL;
+
     return misc_realloc(ptr, size, alignment);
 }
 
@@ -149,7 +156,7 @@ void *misc_mmap(usize size, usize alignment)
 {
     void *ptr;
 
-    if (size == 0 || alignment == 0 || (alignment & (alignment - 1)) != 0)
+    if (size < 1 || !is_pow2_align(alignment))
         return NULL;
 
 #ifdef MISC_POSIX_MAP
@@ -183,10 +190,9 @@ void *misc_remap(void *ptr, usize size, usize alignment)
 {
     void *newer;
 
-    if (size == 0 || alignment == 0 || (alignment & (alignment - 1)) != 0)
+    if (size < 1 || !is_pow2_align(alignment))
         return NULL;
-
-    if (ptr == NULL)
+    else if (ptr == NULL)
         return misc_mmap(size, alignment);
 
 #if defined(MISC_POSIX_MAP) || defined(MISC_WINAPI)
@@ -230,45 +236,43 @@ void misc_unmap(void *ptr)
 #endif
 }
 
-void *_misc_mmap(void *any, usize size, usize alignment)
+static void *misc_mmap_vtable(void *any, usize size, usize alignment)
 {
     (void)any;
     return misc_mmap(size, alignment);
 }
 
-void *_misc_remap(void *any, void *ptr, usize size, usize alignment)
+static void *misc_remap_vtable(void *any, void *ptr, usize size, usize alignment)
 {
     (void)any;
     return misc_remap(ptr, size, alignment);
 }
 
-void _misc_unmap(void *any, void *ptr)
+static void misc_unmap_vtable(void *any, void *ptr)
 {
     (void)any;
     misc_unmap(ptr);
 }
 
 static struct allocator _mmap_alloc = {
-    .alloc = _misc_mmap,
-    .realloc = _misc_remap,
-    .free = _misc_unmap,
+    .alloc = misc_mmap_vtable,
+    .realloc = misc_remap_vtable,
+    .free = misc_unmap_vtable,
 };
 
 struct allocator *const mmap_alloc = &_mmap_alloc;
 
 #endif
 
-#define misc_panic(msg)                                                                   \
-    do {                                                                                  \
-        fprintf(stderr, "FILE: %s, LINE: %d, cause: \"%s\"\n", __FILE__, __LINE__, (msg)); \
-        abort();                                                                          \
-    } while (0)
+#define misc_panic(msg) do {                                                           \
+    fprintf(stderr, "FILE: %s, LINE: %d, cause: \"%s\"\n", __FILE__, __LINE__, (msg)); \
+    abort();                                                                           \
+} while (0)
 
-#define misc_assert(cond, msg) \
-    do {                       \
-        if (!(cond))           \
-            misc_panic(msg);   \
-    } while (0)
+#define misc_assert(cond, msg) do { \
+    if (!(cond))                    \
+        misc_panic(msg);            \
+} while (0)
 
 struct linked_list {
     struct linked_list *next;
@@ -368,8 +372,8 @@ void arena_free_with(struct allocator *alloc, arena_t *arena);
 bool arena_align_with(struct allocator *alloc, arena_t *arena, usize alignment);
 
 // Return an allocator interface to arena, note that it did not support reallocation,
-// since it need an information about the old size of a memory before.
-// So it will not pass the @is_allocator_valid.
+// since it need an information about the old size of a memory before, and the @realloc
+// will just return a NULL.
 struct allocator arena_as_allocator_with(struct allocator *parent_alloc, arena_t *arena);
 
 #define arena_create(size) arena_create_with(libc_alloc, size)
@@ -523,6 +527,8 @@ static void *arena_alloc_vtable(void *any, usize size, usize alignment)
 {
     struct allocator *alloc = any;
     arena_t *arena = (void*)((u8*)any + sizeof *alloc);
+
+    if (!is_pow2_align(alignment)) return NULL;
     return arena_alloc_with(alloc, arena, (usize)misc_palign(size, alignment));
 }
 
@@ -630,7 +636,7 @@ void mp_clear(struct memory_pool *pool)
 #define array_try_resize(array, N, ok) array_try_resize_with(libc_alloc, array, N, ok)
 #define array_resize(array, N) array_resize_with(libc_alloc, array, N)
 #define array_resize_with(allocator, array, N) do {    \
-    bool ok;                                           \
+    bool ok = false;                                           \
     array_try_resize_with(allocator, array, N, &ok);   \
     misc_assert(ok, "array_try_resize_with() failed"); \
 } while (0)
@@ -647,7 +653,7 @@ void mp_clear(struct memory_pool *pool)
 #define array_append(array, item) array_append_with(libc_alloc, array, item)
 #define array_try_append(array, item, ok) array_try_append_with(libc_alloc, array, item, ok)
 #define array_append_with(allocator, array, item) do {  \
-    bool ok;                                            \
+    bool ok = false;                                            \
     array_try_append_with(allocator, array, item, &ok); \
     misc_assert(ok, "array_try_append_with() failed");  \
 } while (0)
@@ -671,7 +677,7 @@ void mp_clear(struct memory_pool *pool)
 #define array_extend(array, n_items, N) array_extend_with(libc_alloc, array, n_items, N)
 #define array_try_extend(array, n_items, N, ok) array_try_extend_with(libc_alloc, array, n_items, N, ok)
 #define array_extend_with(allocator, array, n_items, N) do {  \
-    bool ok;                                                  \
+    bool ok = false;                                                  \
     array_try_extend_with(allocator, array, n_items, N, &ok); \
     misc_assert(ok, "array_try_extend_with() failed");        \
 } while (0)
@@ -717,21 +723,21 @@ void mp_clear(struct memory_pool *pool)
 #define array_try_append_at(array, idx, item, ok) array_try_append_at_with(libc_alloc, array, idx, item, ok)
 #define array_append_at(array, idx, item) array_append_at_with(libc_alloc, array, idx, item)
 #define array_append_at_with(allocator, array, idx, item) do {  \
-    bool ok;                                                    \
+    bool ok = false;                                                    \
     array_try_append_at_with(allocator, array, idx, item, &ok); \
     misc_assert(ok, "array_try_append_with() failed");          \
 } while (0)
 
 #define array_make_fit(array) array_make_fit_with(libc_alloc, array)
 #define array_make_fit_with(allocator, array) do {              \
-    bool ok;                                                    \
+    bool ok = false;                                                    \
     array_try_resize_with(allocator, array, (array)->len, &ok); \
     (void)ok;                                                   \
 } while (0)
 
 #define array_free(array) array_free_with(libc_alloc, array)
 #define array_free_with(allocator, array) do {       \
-    bool ok;                                         \
+    bool ok = false;                                         \
     array_try_resize_with(allocator, array, 0, &ok); \
     (void)ok;                                        \
 } while (0)
@@ -791,13 +797,14 @@ struct string_view sv_trim_start_by(struct string_view *sv, const char *delims)
     usize i = 0;
 
     if (sv->len < 1)
-        return result;
+        goto end;
 
     while (i < sv->len && is_delims_match(sv->items[i], delims))
         i++;
 
     result.items = sv->items + i;
     result.len = sv->len - i;
+end:
     return result;
 }
 
@@ -807,7 +814,7 @@ struct string_view sv_trim_end_by(struct string_view *sv, const char *delims)
     usize i;
 
     if (sv->len < 1)
-        return result;
+        goto end;
 
     i = sv->len - 1;
     while (i > 0 && is_delims_match(sv->items[i], delims))
@@ -819,6 +826,7 @@ struct string_view sv_trim_end_by(struct string_view *sv, const char *delims)
     else
         result.len = i + 1;
 
+end:
     return result;
 }
 
@@ -868,10 +876,11 @@ struct string_view sv_from(
     usize len;
 
     if (cstr == NULL || end < begin)
-        return ref;
+        goto end;
 
     len = strlen(cstr);
     slice_init(&ref, cstr, len, begin, end);
+end:
     return ref;
 }
 
@@ -1253,7 +1262,7 @@ struct ring_buffer {
     usize write_pos, read_pos, len;
 };
 
-struct ring_buffer rb_init(void *buffer /* assume aligned */, usize len);
+struct ring_buffer rb_create(void *buffer /* assume aligned */, usize len);
 usize rb_write(struct ring_buffer *rb, const void *src, usize len);
 usize rb_read(struct ring_buffer *rb, void *dst, usize len);
 void rb_seek_write(struct ring_buffer *rb, isize len, int whence);
@@ -1261,7 +1270,7 @@ void rb_seek_read(struct ring_buffer *rb, isize len, int whence);
 void rb_clear(struct ring_buffer *rb);
 
 #ifdef MISC_IMPL
-struct ring_buffer rb_init(void *buffer, usize len)
+struct ring_buffer rb_create(void *buffer, usize len)
 {
     return (struct ring_buffer) {
         .buffer = buffer,

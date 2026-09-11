@@ -12,11 +12,11 @@ library.
 
 struct allocator *const alloc = mmap_alloc;
 
-#define NOB_REALLOC(oldptr, size) alloc->realloc(alloc->any, oldptr, size, MISC_ALIGN)
+#define NOB_REALLOC(oldptr, size) alloc->realloc(alloc->any, oldptr, size, 1)
 #define NOB_FREE(ptr) alloc->free(alloc->any, ptr)
 
 #define NOB_IMPLEMENTATION
-#include "third_party/nob.h/nob.h"
+#include "nob.h"
 
 #ifdef __clang__
 #define CC "clang"
