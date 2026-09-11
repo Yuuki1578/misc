@@ -1,3 +1,0 @@
-[submodule "third_party/nob.h"]
-	path = third_party/nob.h
-	url = https://github.com/tsoding/nob.h
