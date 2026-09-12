@@ -82,7 +82,7 @@ struct allocator {
 };
 
 #define is_valid_alloc(allocptr) ((allocptr)->alloc != NULL && (allocptr)->realloc != NULL && (allocptr)->free != NULL)
-#define is_pow2_align(alignment) ((alignment) != 0 && ((alignment) & ((alignment) - 1)) == 0)
+#define is_pow2_align(alignment) ((alignment) != 0 && ((alignment) & ((alignment)-1)) == 0)
 
 extern struct allocator *const libc_alloc;
 extern struct allocator *const mmap_alloc;
@@ -160,11 +160,11 @@ void *misc_mmap(usize size, usize alignment)
         return NULL;
 
 #ifdef MISC_POSIX_MAP
-    size = (usize)(uintptr_t)misc_palign(size + sizeof size, alignment);
+    size = (usize)(uintptr_t)misc_palign(size+sizeof size, alignment);
     ptr = mmap(NULL, size, PROT_WRITE | PROT_READ, MAP_ANON | MAP_PRIVATE, -1, 0);
 
 #elif defined(MISC_WINAPI)
-    size = (uintptr_t)misc_palign(size + sizeof size, alignment);
+    size = (uintptr_t)misc_palign(size+sizeof size, alignment);
     ptr = VirtualAlloc(
         NULL,
         size,
@@ -180,7 +180,7 @@ void *misc_mmap(usize size, usize alignment)
 
 #if defined(MISC_POSIX_MAP) || defined(MISC_WINAPI)
     *(usize*)ptr = size;
-    ptr = (u8*)ptr + sizeof size;
+    ptr = (u8*)ptr+sizeof size;
 #endif
 
     return ptr;
@@ -196,7 +196,7 @@ void *misc_remap(void *ptr, usize size, usize alignment)
         return misc_mmap(size, alignment);
 
 #if defined(MISC_POSIX_MAP) || defined(MISC_WINAPI)
-    usize *true_size = (void*)((u8*)ptr - sizeof(usize));
+    usize *true_size = (void*)((u8*)ptr-sizeof(usize));
     usize copied = *true_size > size ? size : *true_size;
     newer = misc_mmap(size, alignment);
 
@@ -221,7 +221,7 @@ void misc_unmap(void *ptr)
         return;
 
 #if defined(MISC_POSIX_MAP) || defined(MISC_WINAPI)
-    ptr = (u8*)ptr - sizeof(usize);
+    ptr = (u8*)ptr-sizeof(usize);
     true_size = *(usize*)ptr;
 
 #ifdef MISC_POSIX_MAP
@@ -349,7 +349,7 @@ struct linked_list *ll_last(struct linked_list *node)
 
 void *ll_value(struct linked_list *node)
 {
-    return (u8*)node + sizeof *node;
+    return (u8*)node+sizeof *node;
 }
 
 usize ll_len(struct linked_list *node)
@@ -409,7 +409,7 @@ arena_t *arena_create_with(struct allocator *alloc, usize size)
         return NULL;
 
     body.cap = size;
-    arena->head = ll_init_with(alloc, sizeof body + size);
+    arena->head = ll_init_with(alloc, sizeof(body)+size);
     if (arena->head == NULL) {
         alloc->free(alloc->any, arena);
         return NULL;
@@ -450,7 +450,7 @@ void *arena_alloc_with(
         *body = newer;
     }
 
-    ptr = (u8*)body + sizeof *body + body->len;
+    ptr = (u8*)body+sizeof *body+body->len;
     body->len += size;
     return ptr;
 }
@@ -526,7 +526,7 @@ bool arena_align_with(struct allocator *alloc, arena_t *arena, usize alignment)
 static void *arena_alloc_vtable(void *any, usize size, usize alignment)
 {
     struct allocator *alloc = any;
-    arena_t *arena = (void*)((u8*)any + sizeof *alloc);
+    arena_t *arena = (void*)((u8*)any+sizeof *alloc);
 
     if (!is_pow2_align(alignment)) return NULL;
     return arena_alloc_with(alloc, arena, (usize)misc_palign(size, alignment));
@@ -541,7 +541,7 @@ static void *arena_realloc_vtable(void *any, void *ptr, usize size, usize alignm
 static void arena_free_vtable(void *any, void *ptr)
 {
     struct allocator *alloc = any;
-    arena_t *arena = (void*)((u8*)any + sizeof *alloc);
+    arena_t *arena = (void*)((u8*)any+sizeof *alloc);
     (void)ptr;
     arena_free_with(alloc, arena);
 }
@@ -555,7 +555,7 @@ struct allocator arena_as_allocator_with(struct allocator *parent_alloc, arena_t
         goto end;
 
     parent = alloc.any;
-    target = (void*)((u8*)alloc.any + sizeof *parent_alloc);
+    target = (void*)((u8*)alloc.any+sizeof *parent_alloc);
 
     *parent = *parent_alloc;
     *target = *arena;
@@ -583,10 +583,10 @@ void *mp_alloc(struct memory_pool *pool, usize size)
 {
     void *buffer;
 
-    if (size == 0 || size > pool->cap - pool->len)
+    if (size == 0 || size > pool->cap-pool->len)
         return NULL;
 
-    buffer = (u8*)pool->buffer + pool->len;
+    buffer = (u8*)pool->buffer+pool->len;
     pool->len += size;
     return buffer;
 }
@@ -616,9 +616,9 @@ void mp_clear(struct memory_pool *pool)
     } else {                                                                                               \
         void *tmp;                                                                                         \
         if ((array)->cap == 0) {                                                                           \
-            tmp = (allocator)->alloc((allocator)->any, (N) * sizeof *(array)->items, 1);                   \
+            tmp = (allocator)->alloc((allocator)->any, (N)*sizeof *(array)->items, 1);                   \
         } else {                                                                                           \
-            tmp = (allocator)->realloc((allocator)->any, (array)->items, (N) * sizeof *(array)->items, 1); \
+            tmp = (allocator)->realloc((allocator)->any, (array)->items, (N)*sizeof *(array)->items, 1); \
         }                                                                                                  \
         if (tmp != NULL) {                                                                                 \
             *(ok) = 1;                                                                                     \
@@ -666,7 +666,7 @@ void mp_clear(struct memory_pool *pool)
                 break;                                                                            \
             }                                                                                     \
         }                                                                                         \
-        memmove((array)->items + (array)->len, (n_items), (N) * sizeof *(array)->items);          \
+        memmove((array)->items+(array)->len, (n_items), (N)*sizeof*(array)->items);          \
         (array)->len += (N);                                                                      \
         *(ok) = 1;                                                                                \
     } else {                                                                                      \
@@ -684,8 +684,8 @@ void mp_clear(struct memory_pool *pool)
 
 #define array_remove_at(array, index) do {                                    \
     if ((array)->len > 1 && (index) < (array)->len) {                         \
-        for (usize i = (index); i < (array)->len - 1; i++) {                  \
-            (array)->items[i] = (array)->items[i + 1];                        \
+        for (usize i = (index); i < (array)->len-1; i++) {                  \
+            (array)->items[i] = (array)->items[i+1];                        \
         }                                                                     \
         memset(&(array)->items[(array)->len - 1], 0, sizeof *(array)->items); \
         (array)->len--;                                                       \
@@ -711,7 +711,7 @@ void mp_clear(struct memory_pool *pool)
             if (!*(ok))                                                                                                 \
                 break;                                                                                                  \
         }                                                                                                               \
-        memmove((array)->items + ((idx) + 1), (array)->items + (idx), ((array)->len - (idx)) * sizeof *(array)->items); \
+        memmove((array)->items+((idx)+1), (array)->items+(idx), ((array)->len-(idx)) * sizeof *(array)->items); \
         (array)->items[(idx)] = (item);                                                                                 \
         (array)->len++;                                                                                                 \
         *(ok) = 1;                                                                                                      \
@@ -759,8 +759,8 @@ struct string_view {
     usize _b, _e;                                       \
     _b = (begin) > (length) ? (length) : (begin);       \
     _e = (end) > (length) ? (length) : (end);           \
-    (slice)->items = (ptr) + (_b);                      \
-    (slice)->len = ((_e) - (_b));                       \
+    (slice)->items = (ptr)+(_b);                      \
+    (slice)->len = ((_e)-(_b));                       \
 } while (0)
 
 #define slice_from_array(slice, array, begin, end) slice_init(slice, (array)->items, (array)->len, begin, end)
@@ -802,8 +802,8 @@ struct string_view sv_trim_start_by(struct string_view *sv, const char *delims)
     while (i < sv->len && is_delims_match(sv->items[i], delims))
         i++;
 
-    result.items = sv->items + i;
-    result.len = sv->len - i;
+    result.items = sv->items+i;
+    result.len = sv->len-i;
 end:
     return result;
 }
@@ -824,7 +824,7 @@ struct string_view sv_trim_end_by(struct string_view *sv, const char *delims)
     if (i == 0)
         result.len = 0;
     else
-        result.len = i + 1;
+        result.len = i+1;
 
 end:
     return result;
@@ -854,8 +854,8 @@ bool sv_split_by(
     result.len = i;
 
     if (i < sv->len) {
-        sv->len -= i + 1;
-        sv->items += i + 1;
+        sv->len -= i+1;
+        sv->items += i+1;
     } else {
         sv->len = 0;
         sv->items += i;
@@ -905,7 +905,7 @@ struct string string_read_file(struct allocator *alloc, FILE *file)
     bool ok;
     long pos;
 
-    if (feof(file))
+    if (ferror(file) || feof(file))
         goto end;
 
     if (fseek(file, 0, SEEK_END) != 0)
@@ -1071,7 +1071,7 @@ static struct hm_entry *hme_find(
     usize key_size,
     u32 hash)
 {
-    usize idx = hash % map->cap;
+    usize idx = hash%map->cap;
     struct hm_entry *tombstone = NULL;
 
     while (true) {
@@ -1086,7 +1086,7 @@ static struct hm_entry *hme_find(
         } else if (compare_key(entry, key, key_size, hash)) {
             return entry;
         }
-        idx = (idx + 1) % map->cap;
+        idx = (idx+1) % map->cap;
     }
 }
 
@@ -1232,7 +1232,7 @@ u32 misc_fnv1a(const void *ptr, usize size)
     u32 base_val = MISC_FNV_BASIS;
     for (usize i = 0; i < size; i++) {
         base_val ^= bytes[i];
-        base_val = (base_val * MISC_FNV_PRIME) & 0xFFFFFFFF;
+        base_val = (base_val*MISC_FNV_PRIME) & 0xFFFFFFFF;
     }
     return base_val;
 }
@@ -1286,7 +1286,7 @@ usize rb_write(struct ring_buffer *rb, const void *src, usize len)
     u8 *buf = rb->buffer;
     usize i;
 
-    for (i = 0; i < len; i++, rb->write_pos = (rb->write_pos + 1) % rb->len)
+    for (i = 0; i < len; i++, rb->write_pos = (rb->write_pos+1) % rb->len)
         buf[rb->write_pos] = repr[i];
 
     return i;
@@ -1299,8 +1299,9 @@ usize rb_read(struct ring_buffer *rb, void *dst, usize len)
     usize i;
 
     for (i = 0;
-        i < len;
-        i++, rb->read_pos = (rb->read_pos + 1) % rb->len)
+         i < len;
+         i++,
+         rb->read_pos = (rb->read_pos+1) % rb->len)
     {
         repr[i] = buf[rb->read_pos];
     }
@@ -1316,11 +1317,11 @@ void rb_seek_write(struct ring_buffer *rb, isize len, int whence)
         break;
 
     case SEEK_CUR:
-        len = (len + (isize)rb->write_pos) % rb->len;
+        len = (len+(isize)rb->write_pos) % rb->len;
         break;
 
     case SEEK_END:
-        len = ((isize)rb->len - len) % rb->len;
+        len = ((isize)rb->len-len) % rb->len;
         break;
 
     default:
@@ -1338,11 +1339,11 @@ void rb_seek_read(struct ring_buffer *rb, isize len, int whence)
         break;
 
     case SEEK_CUR:
-        len = (len + (isize)rb->read_pos) % rb->len;
+        len = (len+(isize)rb->read_pos) % rb->len;
         break;
 
     case SEEK_END:
-        len = ((isize)rb->len - len) % rb->len;
+        len = ((isize)rb->len-len) % rb->len;
         break;
 
     default:
@@ -1357,6 +1358,93 @@ void rb_clear(struct ring_buffer *rb)
     memset(rb->buffer, 0, rb->len);
     rb->write_pos = 0;
     rb->read_pos = 0;
+}
+
+#endif
+
+double set_average(const double *ds, const usize N);
+double set_median(const double *ds, const usize N);
+double set_range(const double *sorted_ds, const usize N);
+double set_mode(const double *ds, const usize N);
+void set_sort(double *ds, const usize N);
+
+#ifdef MISC_IMPL
+
+static int ds_compare(const void *_lhs, const void *_rhs)
+{
+    const double
+        *lhs = _lhs,
+        *rhs = _rhs;
+
+    return   *lhs > *rhs  ?
+        -1 : *lhs == *rhs ?
+         0 : 1;
+}
+
+void set_sort(double *ds, const usize N)
+{
+    if (N > 0) qsort(ds, N, sizeof *ds, ds_compare);
+}
+
+double set_average(const double *ds, const usize N)
+{
+    double avg = 0;
+    for (usize i = 0; i < N; i++)
+        avg += ds[i];
+
+    return N > 0 ? avg/N : 0;
+}
+
+double set_median(const double *ds, const usize N)
+{
+    double med = 0;
+    if (!N) goto end;
+    else if (N%2 != 0) med = ds[N/2];
+    else med = set_average(&ds[N/2-1], 2);
+
+end:
+    return med;
+}
+
+double set_range(const double *sorted_ds, const usize N)
+{
+    if (!N) return 0.0;
+    return sorted_ds[N-1] - sorted_ds[0];
+}
+
+double set_mode(const double *ds, const usize N)
+{
+    struct hash_map hm;
+    struct hm_pair pair = {0};
+    double mod = 0.0;
+    usize most = 0;
+
+    if (!N) goto end;
+    hm_init(&hm, 8);
+
+    for (usize i = 0; i < N; i++) {
+        usize *count = hm_get(&hm, &ds[i], sizeof *ds),
+               init = 1;
+
+        if (!count)
+            hm_put(&hm, &ds[i], sizeof *ds, &init, sizeof init);
+        else
+            *count += 1;
+    }
+
+    while (hm_iterate(&hm, &pair)) {
+        const double *key = pair.key;
+        const usize *val = pair.value;
+
+        if (*val > most) {
+            most = *val;
+            mod = *key;
+        }
+    }
+
+    hm_free(&hm);
+end:
+    return mod;
 }
 
 #endif

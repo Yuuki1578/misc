@@ -3,13 +3,8 @@
 
 int main(void)
 {
-    struct hash_map hm;
-    int key = 10, value = 20, *getter;
-
-    hm_init(&hm, 1 << 10);
-    hm_put(&hm, &key, sizeof(int*), &value, sizeof value);
-    getter = hm_get(&hm, &key, sizeof(int*));
-    printf("%d\n", *getter);
-
-    hm_free(&hm);
+    double set[] = {8, 8, 10, 11, 15, 17};
+    printf("%f\n", set_median(set, 6));
+    printf("%f\n", set_mode(set, 6));
+    printf("%f\n", set_range(set, 6));
 }
