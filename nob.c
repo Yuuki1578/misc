@@ -10,11 +10,6 @@ library.
 #define MISC_IMPL
 #include "misc.h"
 
-struct allocator *const alloc = mmap_alloc;
-
-#define NOB_REALLOC(oldptr, size) alloc->realloc(alloc->any, oldptr, size, 1)
-#define NOB_FREE(ptr) alloc->free(alloc->any, ptr)
-
 #define NOB_IMPLEMENTATION
 #include "nob.h"
 
@@ -30,55 +25,43 @@ struct allocator *const alloc = mmap_alloc;
 
 #define CFLAGS "-Wall", "-Werror", "-Wextra", "-pedantic", "-std=c99"
 
-void compile_example(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char *output);
-void compile_all_example(Nob_Cmd *cmd, Nob_Procs *procs);
+void compileExample(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char *output);
+void compileAllExample(Nob_Cmd *cmd, Nob_Procs *procs);
 
 char *env_opt = NULL;
 
-int main(int argc, char **argv)
-{
-    NOB_GO_REBUILD_URSELF(argc, argv);
+int main(int argc, char **argv) {
+  NOB_GO_REBUILD_URSELF(argc, argv);
 
-    Nob_Cmd cmd = {0};
-    Nob_Procs procs = {0};
+  Nob_Cmd cmd = {0};
+  Nob_Procs procs = {0};
 
-    env_opt = getenv("opt");
+  env_opt = getenv("opt");
 
-    compile_all_example(&cmd, &procs);
-    if (!nob_procs_wait_and_reset(&procs))
-        return 1;
+  compileAllExample(&cmd, &procs);
+  if (!nob_procs_wait_and_reset(&procs))
+    return 1;
 
-    return 0;
+  return 0;
 }
 
-void compile_example(
-    Nob_Cmd *cmd,
-    Nob_Procs *procs,
-    char *input,
-    char *output)
-{
-    nob_cmd_append(cmd, CC, CFLAGS);
-    if (env_opt != NULL)
-        nob_cmd_append(cmd, "-O3", "-ffast-math", "-funroll-loops", "-s", "-flto");
-    else
-        nob_cmd_append(cmd, "-O0", "-ggdb");
+void compileExample(Nob_Cmd *cmd, Nob_Procs *procs, char *input, char *output) {
+  nob_cmd_append(cmd, CC, CFLAGS);
+  if (env_opt != NULL)
+    nob_cmd_append(cmd, "-O3", "-ffast-math", "-funroll-loops", "-s", "-flto");
+  else
+    nob_cmd_append(cmd, "-O0", "-ggdb");
 
-    nob_cc_inputs(cmd, input);
-    nob_cc_output(cmd, output);
-    nob_da_append(procs, nob_cmd_run_async_and_reset(cmd));
+  nob_cc_inputs(cmd, input);
+  nob_cc_output(cmd, output);
+  nob_da_append(procs, nob_cmd_run_async_and_reset(cmd));
 }
 
-void compile_all_example(Nob_Cmd *cmd, Nob_Procs *procs)
-{
-    nob_mkdir_if_not_exists("build");
-    nob_mkdir_if_not_exists("build/examples");
+void compileAllExample(Nob_Cmd *cmd, Nob_Procs *procs) {
+  nob_mkdir_if_not_exists("build");
+  nob_mkdir_if_not_exists("build/examples");
 
-    compile_example(cmd, procs, "examples/array.c", "build/examples/array");
-    compile_example(cmd, procs, "examples/arena.c", "build/examples/arena");
-    compile_example(cmd, procs, "examples/map.c", "build/examples/map");
-    compile_example(cmd, procs, "examples/string.c", "build/examples/string");
-    compile_example(cmd, procs, "examples/ringbuf.c", "build/examples/ringbuf");
-    compile_example(cmd, procs, "examples/virtmap.c", "build/examples/virtmap");
-    compile_example(cmd, procs, "examples/dump.c", "build/examples/dump");
-    compile_example(cmd, procs, "examples/memory_pool.c", "build/examples/memory_pool");
+  compileExample(cmd, procs, "examples/array.c", "build/examples/array");
+  compileExample(cmd, procs, "examples/hashmap.c", "build/examples/hashmap");
+  compileExample(cmd, procs, "examples/arena.c", "build/examples/arena");
 }

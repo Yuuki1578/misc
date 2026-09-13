@@ -1,24 +1,12 @@
 #define MISC_IMPL
 #include "../misc.h"
 
-void *alloc_from_arena(void *any, usize size, usize alignment)
-{
-    return arena_alloc(any, (usize)misc_palign(size, alignment));
-}
+int main(void) {
+  Arena *arena = arenaNew(1 << 12);
 
-int main(void)
-{
-    char *buf;
-    arena_t *arena = arena_create_with(mmap_alloc, 1 << 16);
-    struct allocator alloc = {
-        .any = arena,
-        .alloc = alloc_from_arena,
-    };
+  for (f80 i = 0; i < 1.0; i += 1e-4) {
+    tmpPrintf(arena, "%.10f", i);
+  }
 
-    for (usize i = 0; i < 1024; i++) {
-        buf = cstr_printf(&alloc, "STRING IS: %zu:%zu:%zu, hash = %lu\n", i, i * 2, i * 3, misc_fnv1a(&i, sizeof i));
-        printf("%s", buf);
-    }
-
-    arena_free_with(mmap_alloc, arena);
+  arenaFree(arena);
 }
